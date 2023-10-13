@@ -35,12 +35,15 @@ def generate_launch_description():
     bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
-        arguments=['/model/vehicle_blue/cmd_vel@geometry_msgs/msg/Twist@gz.msgs.Twist',
-                   '/model/vehicle_blue/odometry@nav_msgs/msg/Odometry@gz.msgs.Odometry',
-                   '/model/vehicle_green/cmd_vel@geometry_msgs/msg/Twist@gz.msgs.Twist',
-                   '/model/vehicle_green/odometry@nav_msgs/msg/Odometry@gz.msgs.Odometry'],
-        parameters=[{'qos_overrides./model/vehicle_blue.subscriber.reliability': 'reliable',
-                     'qos_overrides./model/vehicle_green.subscriber.reliability': 'reliable'}],
+        arguments=['/model/pontus/joint/prop_joint_0/cmd_thrust@std_msgs/msg/Float64@gz.msgs.Double',
+                   '/model/pontus/joint/prop_joint_1/cmd_thrust@std_msgs/msg/Float64@gz.msgs.Double',
+                   '/model/pontus/joint/prop_joint_2/cmd_thrust@std_msgs/msg/Float64@gz.msgs.Double',
+                   '/model/pontus/joint/prop_joint_3/cmd_thrust@std_msgs/msg/Float64@gz.msgs.Double',
+                   '/model/pontus/joint/prop_joint_4/cmd_thrust@std_msgs/msg/Float64@gz.msgs.Double',
+                   '/model/pontus/joint/prop_joint_5/cmd_thrust@std_msgs/msg/Float64@gz.msgs.Double',
+                   '/model/pontus/joint/prop_joint_6/cmd_thrust@std_msgs/msg/Float64@gz.msgs.Double',
+                   '/model/pontus/joint/prop_joint_7/cmd_thrust@std_msgs/msg/Float64@gz.msgs.Double',
+                   '/model/pontus/odometry@nav_msgs/msg/Odometry@gz.msgs.Odometry'],
         output='screen'
     )
 
