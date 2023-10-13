@@ -31,19 +31,14 @@ def generate_launch_description():
         }.items(),
     )
 
+
+    bridge_config_path = os.path.join(get_package_share_directory('pontus_sim'), 'config','bridge.yml')
+
     # Bridge
     bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
-        arguments=['/model/pontus/joint/prop_joint_0/cmd_thrust@std_msgs/msg/Float64@gz.msgs.Double',
-                   '/model/pontus/joint/prop_joint_1/cmd_thrust@std_msgs/msg/Float64@gz.msgs.Double',
-                   '/model/pontus/joint/prop_joint_2/cmd_thrust@std_msgs/msg/Float64@gz.msgs.Double',
-                   '/model/pontus/joint/prop_joint_3/cmd_thrust@std_msgs/msg/Float64@gz.msgs.Double',
-                   '/model/pontus/joint/prop_joint_4/cmd_thrust@std_msgs/msg/Float64@gz.msgs.Double',
-                   '/model/pontus/joint/prop_joint_5/cmd_thrust@std_msgs/msg/Float64@gz.msgs.Double',
-                   '/model/pontus/joint/prop_joint_6/cmd_thrust@std_msgs/msg/Float64@gz.msgs.Double',
-                   '/model/pontus/joint/prop_joint_7/cmd_thrust@std_msgs/msg/Float64@gz.msgs.Double',
-                   '/model/pontus/odometry@nav_msgs/msg/Odometry@gz.msgs.Odometry'],
+        parameters=[{'config_file': bridge_config_path}],
         output='screen'
     )
 
