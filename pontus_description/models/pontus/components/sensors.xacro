@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Pose 3D sensor. -->
+  <xacro:default_pose_3d namespace="${namespace}" parent_link="${namespace}/base_link" />
+
+  <!-- Forward-looking sonar sensor -->
+  <xacro:forward_multibeam_p900 namespace="${namespace}" topic="${namespace}/sonar_forward" parent_link="${namespace}/base_link">
+  <origin xyz="0 1.35 0" rpy="0 0 ${90*d2r}"/>
+  </xacro:forward_multibeam_p900>
+
+  <!-- Pressure  -->
+  <xacro:default_pressure namespace="${namespace}" parent_link="${namespace}/base_link">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </xacro:default_pressure>
+
+  <!-- IMU  -->
+  <xacro:default_imu namespace="${namespace}" parent_link="${namespace}/base_link">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </xacro:default_imu>
+
+  <!-- Camera  -->
+  <xacro:default_camera namespace="${namespace}" parent_link="${namespace}/base_link" suffix="_forward">
+    <origin xyz="0 1.35 0" rpy="0 0 ${90*d2r}"/>
+  </xacro:default_camera>
+
+</robot>
