@@ -28,7 +28,7 @@
   gz_type_name: "gz.msgs.IMU"
   direction: GZ_TO_ROS
 
-# Sonar Forward
+# Pressure
 - ros_topic_name: "/pontus/pressure_0"
   gz_topic_name: "/pressure_0"
   ros_type_name: "sensor_msgs/msg/FluidPressure"
