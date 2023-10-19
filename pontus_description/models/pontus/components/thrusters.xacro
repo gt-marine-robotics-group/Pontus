@@ -8,8 +8,8 @@
 
     <link name="thruster_${thruster_id}">
       <visual>
-	<geometry>
-	  <mesh filename="${T200_body_mesh}"/>
+        <geometry>
+          <mesh filename="${T200_body_mesh}"/>
         </geometry>
         <material name="Black">
           <color rgba="0.0 0.0 0.0 1.0"/>

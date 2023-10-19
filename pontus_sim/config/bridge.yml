@@ -7,6 +7,34 @@
   gz_type_name: "gz.msgs.Odometry"
   direction: GZ_TO_ROS
 
+# Camera Forward
+- ros_topic_name: "/pontus/camera_0"
+  gz_topic_name: "/pontus/camera_0"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+# Sonar Forward
+- ros_topic_name: "/pontus/sonar_0"
+  gz_topic_name: "/pontus/sonar_0"
+  ros_type_name: "sensor_msgs/msg/LaserScan"
+  gz_type_name: "gz.msgs.LaserScan"
+  direction: GZ_TO_ROS
+
+# IMU
+- ros_topic_name: "/pontus/imu_0"
+  gz_topic_name: "/world/sensor_world/model/pontus/link/base_link/sensor/imu_sensor/imu"
+  ros_type_name: "sensor_msgs/msg/Imu"
+  gz_type_name: "gz.msgs.IMU"
+  direction: GZ_TO_ROS
+
+# Sonar Forward
+- ros_topic_name: "/pontus/pressure_0"
+  gz_topic_name: "/pressure_0"
+  ros_type_name: "sensor_msgs/msg/FluidPressure"
+  gz_type_name: "gz.msgs.FluidPressure"
+  direction: GZ_TO_ROS
+
 
 # Thrusters
 

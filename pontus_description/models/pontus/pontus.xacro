@@ -1,10 +1,14 @@
 <?xml version="1.0"?>
 <robot name="pontus" xmlns:xacro="http://www.ros.org/wiki/xacro" >
   <xacro:include filename="$(find pontus_description)/models/pontus/components/thrusters.xacro"/>
+  <xacro:include filename="$(find pontus_description)/models/pontus/components/sensors.xacro"/>
 
 
   <!--<xacro:property name="mesh_file" value="file://$(find pontus_description)/models/pontus/meshes/pontus_body_mesh.STL"/>-->
 
+
+  <xacro:arg name="sim" default="false"/>
+  <xacro:arg name="static" default="false"/>
 
   <xacro:property name="fluid_density" value="1025"/>
 
@@ -52,7 +56,6 @@
 
   <!-- Thrusters -->
 
-
   <!-- Back Left Vertical Thruster -->
   <xacro:T200_macro thruster_id="0">
     <origin xyz="-0.075 -${radius + 0.07} 0" rpy="0 ${180*pi/180} 0" />
@@ -95,12 +98,35 @@
     <origin xyz="0.2 ${radius + 0.15} 0" rpy="${180*pi/180}  ${90*pi/180} 0" />
   </xacro:T200_macro>
 
-  <!-- TODO: Sensors -->
+
+  <!-- Sensors -->
+
+  <!-- Forward Camera -->
+  <xacro:camera_macro camera_id="0">
+    <origin xyz="0.305 0 0" rpy="0 0 0" />
+  </xacro:camera_macro>
+
+  <!-- Forward Sonar -->
+  <xacro:p900_macro sonar_id="0">
+    <origin xyz="0.28 0 -0.15" rpy="0 ${45*pi/180} 0" />
+  </xacro:p900_macro>
+
+  <!-- IMU -->
+  <xacro:imu_macro imu_id="0">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+  </xacro:imu_macro>
+
+  <!-- Pressure -->
+  <xacro:pressure_macro pressure_id="0">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+  </xacro:pressure_macro>
 
 
+  <!-- Lock Pontus in place for sensor testing -->
   <gazebo>
-    <static>false</static>
+    <static>$(arg static)</static>
   </gazebo>
+
 
   <!-- hydrodynamics and control plugins -->
   <gazebo>
@@ -108,7 +134,7 @@
     <plugin
       filename="gz-sim-hydrodynamics-system"
       name="gz::sim::systems::Hydrodynamics">
-    <link_name> base_link </link_name>
+      <link_name> base_link </link_name>
       <!-- Incorrect Added Mass values causing crashes -->
       <!--<xDotU>-4.876161</xDotU>
         <yDotV>-126.324739</yDotV>

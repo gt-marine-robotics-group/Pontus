@@ -14,14 +14,15 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
 
+    pkg_ros_gz_sim = get_package_share_directory('ros_gz_sim')
+    pkg_pontus_sim = get_package_share_directory('pontus_sim')
+
     #TODO: publish world frame, add bridges for all necessary topics
     world_arg = DeclareLaunchArgument(
         'world',
-        default_value = 'empty.sdf'
+        default_value = 'underwater.world'
     )
     world = LaunchConfiguration('world')
-
-    pkg_ros_gz_sim = get_package_share_directory('ros_gz_sim')
 
     gz_sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -32,7 +33,7 @@ def generate_launch_description():
     )
 
 
-    bridge_config_path = os.path.join(get_package_share_directory('pontus_sim'), 'config','bridge.yml')
+    bridge_config_path = os.path.join(pkg_pontus_sim, 'config','bridge.yml')
 
     # Bridge
     bridge = Node(

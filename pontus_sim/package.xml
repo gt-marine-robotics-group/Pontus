@@ -16,7 +16,6 @@
   <test_depend>ament_lint_common</test_depend>
 
   <export>
-    <gazebo_ros gazebo_model_path="${prefix}/worlds"/>
     <build_type>ament_cmake</build_type>
   </export>
 </package>
