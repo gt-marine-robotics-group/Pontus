@@ -1,0 +1,149 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:property name="P900_mesh" value="file://$(find pontus_description)/models/pontus/meshes/p900.dae"/>
+
+
+  <!-- Camera  -->
+  <xacro:macro name="camera_macro" params="camera_id *origin">
+    <link name="camera_${camera_id}"/>
+
+    <joint name="camera_joint_${camera_id}" type="fixed">
+      <xacro:insert_block name="origin"/>
+      <parent link="base_link"/>
+      <child link="camera_${camera_id}"/>
+      <axis xyz="1 0 0"/>
+    </joint>
+
+    <gazebo reference="camera_${camera_id}">
+      <sensor name="camera_${camera_id}" type="camera">
+        <camera>
+          <horizontal_fov>1.047</horizontal_fov>
+          <image>
+            <width>320</width>
+            <height>240</height>
+          </image>
+          <clip>
+            <near>0.1</near>
+            <far>100</far>
+          </clip>
+        </camera>
+        <always_on>1</always_on>
+        <update_rate>30</update_rate>
+        <visualize>true</visualize>
+        <topic>pontus/camera_${camera_id}</topic>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- P900 Sonar  -->
+  <xacro:macro name="p900_macro" params="sonar_id *origin">
+    <link name="sonar_${sonar_id}">
+     <visual>
+        <geometry>
+          <mesh filename="${P900_mesh}"/>
+        </geometry>
+      </visual>
+    </link>
+
+    <joint name="sonar_joint_${sonar_id}" type="fixed">
+      <xacro:insert_block name="origin"/>
+      <parent link="base_link"/>
+      <child link="sonar_${sonar_id}"/>
+      <axis xyz="1 0 0"/>
+    </joint>
+
+    <gazebo reference="sonar_${sonar_id}">
+      <sensor name="sonar_${sonar_id}" type="gpu_lidar">
+        <lidar>
+          <scan>
+            <horizontal>
+              <samples>256</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.3927</min_angle>
+              <max_angle>0.3927</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>1.0</min>
+            <max>100.0</max>
+            <resolution>0.01</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.027</stddev>
+          </noise>
+        </lidar>
+        <always_on>1</always_on>
+        <update_rate>15</update_rate>
+        <visualize>true</visualize>
+        <topic>pontus/sonar_${sonar_id}</topic>
+
+        <!-- This tag isn't recognized by SDF but is extremely important for getting the correct TF data for the sonar frame-->
+        <gz_frame_id>sonar_${sonar_id}</gz_frame_id>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+
+
+  <!-- IMU  -->
+  <xacro:macro name="imu_macro" params="imu_id *origin">
+    <link name="imu_${imu_id}"/>
+
+    <joint name="imu_joint_${imu_id}" type="fixed">
+      <xacro:insert_block name="origin"/>
+      <parent link="base_link"/>
+      <child link="imu_${imu_id}"/>
+      <axis xyz="1 0 0"/>
+    </joint>
+
+    <gazebo reference="imu_${imu_id}">
+      <sensor name="imu_sensor" type="imu">
+        <pose>0 0 0 0 0 0</pose>
+        <always_on>1</always_on>
+        <visualize>true</visualize>
+        <topic>pontus/imu_${imu_id}</topic>
+        <enable_metrics>true</enable_metrics>
+        <update_rate>100</update_rate>
+
+        <!-- This tag isn't recognized by SDF but is extremely important for getting the correct TF data for the IMU frame-->
+        <gz_frame_id>imu_${imu_id}</gz_frame_id>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- Pressure  -->
+  <!-- TODO: Find a way to get pressure/depth reading. This will be important for localization
+             Unfortunately the air_pressure sensor doesn't seem like it will actually work -->
+  <xacro:macro name="pressure_macro" params="pressure_id *origin">
+    <link name="pressure_${pressure_id}"/>
+
+    <joint name="pressure_joint_${pressure_id}" type="fixed">
+      <xacro:insert_block name="origin"/>
+      <parent link="base_link"/>
+      <child link="pressure_${pressure_id}"/>
+      <axis xyz="1 0 0"/>
+    </joint>
+
+    <gazebo reference="pressure_${pressure_id}">
+      <sensor name="pressure" type="air_pressure">
+        <always_on>1</always_on>
+        <update_rate>30</update_rate>
+        <visualize>true</visualize>
+        <topic>pontus/pressure_${pressure_id}</topic>
+        <enable_metrics>true</enable_metrics>
+        <air_pressure>
+          <reference_altitude>0</reference_altitude>
+          <pressure>
+            <noise type="gaussian">
+              <mean>0.2</mean>
+              <stddev>0.1</stddev>
+            </noise>
+          </pressure>
+        </air_pressure>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+
+</robot>
