@@ -1,12 +1,5 @@
 # Sensors
 
-# Odometry
-- ros_topic_name: "/pontus/odom"
-  gz_topic_name: "/model/pontus/odometry"
-  ros_type_name: "nav_msgs/msg/Odometry"
-  gz_type_name: "gz.msgs.Odometry"
-  direction: GZ_TO_ROS
-
 # Camera Forward
 - ros_topic_name: "/pontus/camera_0"
   gz_topic_name: "/pontus/camera_0"

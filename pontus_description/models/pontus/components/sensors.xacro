@@ -106,6 +106,9 @@
         <topic>pontus/imu_${imu_id}</topic>
         <enable_metrics>true</enable_metrics>
         <update_rate>100</update_rate>
+
+        <!-- This tag isn't recognized by SDF but is extremely important for getting the correct TF data for the IMU frame-->
+        <gz_frame_id>imu_${imu_id}</gz_frame_id>
       </sensor>
     </gazebo>
   </xacro:macro>
