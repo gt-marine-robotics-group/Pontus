@@ -103,6 +103,7 @@
         <pose>0 0 0 0 0 0</pose>
         <always_on>1</always_on>
         <visualize>true</visualize>
+        <topic>pontus/imu_${imu_id}</topic>
         <enable_metrics>true</enable_metrics>
         <update_rate>100</update_rate>
       </sensor>
@@ -127,7 +128,7 @@
         <always_on>1</always_on>
         <update_rate>30</update_rate>
         <visualize>true</visualize>
-        <topic>pressure_${pressure_id}</topic>
+        <topic>pontus/pressure_${pressure_id}</topic>
         <enable_metrics>true</enable_metrics>
         <air_pressure>
           <reference_altitude>0</reference_altitude>

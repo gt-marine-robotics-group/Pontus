@@ -23,14 +23,14 @@
 
 # IMU
 - ros_topic_name: "/pontus/imu_0"
-  gz_topic_name: "/world/sensor_world/model/pontus/link/base_link/sensor/imu_sensor/imu"
+  gz_topic_name: "/pontus/imu_0"
   ros_type_name: "sensor_msgs/msg/Imu"
   gz_type_name: "gz.msgs.IMU"
   direction: GZ_TO_ROS
 
 # Pressure
 - ros_topic_name: "/pontus/pressure_0"
-  gz_topic_name: "/pressure_0"
+  gz_topic_name: "/pontus/pressure_0"
   ros_type_name: "sensor_msgs/msg/FluidPressure"
   gz_type_name: "gz.msgs.FluidPressure"
   direction: GZ_TO_ROS
