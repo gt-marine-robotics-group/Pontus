@@ -1,0 +1,6 @@
+# Odometry (Only used for testing)
+- ros_topic_name: "/pontus/odometry"
+  gz_topic_name: "/model/pontus/odometry_with_covariance"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.OdometryWithCovariance"
+  direction: GZ_TO_ROS
