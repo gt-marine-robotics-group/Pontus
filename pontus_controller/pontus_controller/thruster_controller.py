@@ -57,8 +57,9 @@ class ThrusterController(Node):
         def set_thrust(self, value):
             msg = Float64()
 
+            # Clamp values to max thrust
             if abs(value) > self.max_thrust:
-              value = sign(value) * max_thrust
+              value = math.copysign(self.max_thrust, value)
 
             msg.data = value
             self.pub.publish(msg)
