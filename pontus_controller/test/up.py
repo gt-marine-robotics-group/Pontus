@@ -2,25 +2,29 @@ import rclpy
 from rclpy.node import Node
 
 from std_msgs.msg import Float64
+from geometry_msgs.msg import Twist
 
 
 class MinimalPublisher(Node):
 
     def __init__(self):
         super().__init__('minimal_publisher')
-        self.publisher_0 = self.create_publisher(Float64, '/model/pontus/joint/prop_joint_0/cmd_thrust', 10)
-        self.publisher_1 = self.create_publisher(Float64, '/model/pontus/joint/prop_joint_1/cmd_thrust', 10)
-        self.publisher_2 = self.create_publisher(Float64, '/model/pontus/joint/prop_joint_2/cmd_thrust', 10)
-        self.publisher_3 = self.create_publisher(Float64, '/model/pontus/joint/prop_joint_3/cmd_thrust', 10)
-        
-        msg = Float64()
-        msg.data = 500.0
-        self.publisher_0.publish(msg)
-        self.publisher_1.publish(msg)
-        self.publisher_2.publish(msg)
-        self.publisher_3.publish(msg)
-        self.get_logger().info('Publishing')
 
+        self.vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+
+        msg = Twist()
+
+        msg.linear.x = 0.0
+        msg.linear.y = 0.0
+        msg.linear.z = 2.0
+
+        msg.angular.x = 0.0
+        msg.angular.y = 0.0
+        msg.angular.z = 0.0
+
+        self.vel_pub.publish(msg)
+
+        self.get_logger().info('Publishing')
 
 def main(args=None):
     rclpy.init(args=args)
