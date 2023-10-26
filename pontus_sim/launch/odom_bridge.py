@@ -21,6 +21,7 @@ def generate_launch_description():
     odom_bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
+        name='ros_gz_odom_bridge',
         parameters=[{'config_file': bridge_config_path}],
         output='screen'
     )
