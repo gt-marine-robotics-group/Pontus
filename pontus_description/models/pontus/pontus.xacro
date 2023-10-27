@@ -168,6 +168,13 @@
         <mQabsQ>-632.698957</mQabsQ>
         <nRabsR>-632.698957</nRabsR>
     </plugin>
+
+    <!-- Publishes perfect odometry data for testing controllers -->
+    <plugin
+      filename="gz-sim-odometry-publisher-system"
+      name="gz::sim::systems::OdometryPublisher">
+      <dimensions>3</dimensions>
+    </plugin>
   </gazebo>
 
 </robot>
