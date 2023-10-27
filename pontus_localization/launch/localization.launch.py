@@ -6,11 +6,16 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
 
-    pkg_onboard_localization = get_package_share_directory('pontus_localization')
+    pkg_share = get_package_share_directory('pontus_localization')
 
-    robot_localization_file_path = (pkg_onboard_localization, '/config/', '/ekf.yaml')
+    auv_arg = DeclareLaunchArgument('auv')
+    auv_config = LaunchConfiguration('auv')
+
+    robot_localization_file_path = (pkg_share, '/config/', auv_config, '/ekf.yaml')
 
     return LaunchDescription([
+        auv_arg,
+
         Node(
             package='robot_localization',
             executable='ekf_node',
