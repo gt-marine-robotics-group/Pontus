@@ -1,15 +1,16 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>pontus_controller</name>
+  <name>pontus_bringup</name>
   <version>0.0.0</version>
-  <description>Controller on AUV</description>
+  <description>Launch scripts to start multiple nodes at once</description>
   <maintainer email="gtmrobotics@gmail.com">GT MRG</maintainer>
   <license>Apache License 2.0</license>
 
-  <depend>tf2</depend>
-  <depend>tf2_ros</depend>
-
+  <depend>pontus_controller</depend>
+  <depend>pontus_description</depend>
+  <depend>pontus_localization</depend>
+  <depend>pontus_sim</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

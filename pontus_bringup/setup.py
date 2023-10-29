@@ -2,7 +2,7 @@ import os
 from glob import glob
 from setuptools import find_packages, setup
 
-package_name = 'pontus_controller'
+package_name = 'pontus_bringup'
 
 setup(
     name=package_name,
@@ -12,6 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        # Include all launch files.
         (os.path.join('share', package_name, 'launch'), glob(os.path.join('launch', '*[pxy][yma]*')))
     ],
     install_requires=['setuptools'],
@@ -23,8 +24,6 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'velocity_controller = pontus_controller.velocity_controller:main',
-            'thruster_controller = pontus_controller.thruster_controller:main'
         ],
     },
 )

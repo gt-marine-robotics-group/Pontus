@@ -8,6 +8,7 @@
 
     <link name="thruster_${thruster_id}">
       <visual>
+        <origin xyz="0 0 0" rpy="0 ${180*pi/180} 0"/>
         <geometry>
           <mesh filename="${T200_body_mesh}"/>
         </geometry>
@@ -34,6 +35,7 @@
       </inertial>
 
       <visual>
+        <origin xyz="0 0 0" rpy="0 ${180*pi/180} 0"/>
         <geometry>
           <mesh filename="${T200_prop_mesh}"/>
         </geometry>
