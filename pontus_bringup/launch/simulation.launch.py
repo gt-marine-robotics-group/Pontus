@@ -8,6 +8,9 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
 
+    auv_arg = DeclareLaunchArgument('auv')
+    auv_config = LaunchConfiguration('auv')
+
     world_arg = DeclareLaunchArgument(
         'world',
         default_value = 'underwater.world'
@@ -48,9 +51,10 @@ def generate_launch_description():
             PathJoinSubstitution([
                 get_package_share_directory('pontus_localization'),
                 'launch',
-                'localization.py'
+                'localization.launch.py'
             ])
-        )
+        ),
+        launch_arguments={'auv': auv_config}.items()
     )
 
     controls = launch.actions.IncludeLaunchDescription(
@@ -64,6 +68,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        auv_arg,
         world_arg,
         static_arg,
         gzsim,
