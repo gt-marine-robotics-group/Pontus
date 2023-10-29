@@ -26,7 +26,7 @@ def generate_launch_description():
             PathJoinSubstitution([
                 get_package_share_directory('pontus_sim'),
                 'launch',
-                'sim.py'
+                'sim.launch.py'
             ])
         ),
         launch_arguments = {'world': world}.items()
@@ -37,7 +37,7 @@ def generate_launch_description():
             PathJoinSubstitution([
                 get_package_share_directory('pontus_description'),
                 'launch',
-                'spawn.py'
+                'spawn.launch.py'
             ])
         ),
         launch_arguments = {'static': static}.items()
@@ -48,7 +48,7 @@ def generate_launch_description():
             PathJoinSubstitution([
                 get_package_share_directory('pontus_sim'),
                 'launch',
-                'odom_bridge.py'
+                'odom_bridge.launch.py'
             ])
         )
     )
@@ -58,7 +58,7 @@ def generate_launch_description():
             PathJoinSubstitution([
                 get_package_share_directory('pontus_controller'),
                 'launch',
-                'vel_control.py'
+                'vel_control.launch.py'
             ])
         )
     )
