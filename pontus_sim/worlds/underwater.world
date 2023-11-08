@@ -5,7 +5,7 @@
     <!-- Configure the scene -->
     <scene>
       <!-- For turquoise ambient -->
-      <ambient>0.0 1.0 1.0</ambient>
+      <ambient>0.0 1 1</ambient>
       <background>0.0 0.7 0.8</background>
     </scene>
 
@@ -199,6 +199,26 @@
 
 
     <!-- 3D MODELS -->
+    <light name='sun' type='directional'>
+      <pose>0 0 10 0 0 0</pose>
+      <cast_shadows>true</cast_shadows>
+      <intensity>1</intensity>
+      <direction>-0.5 0.10000000000000001 -0.90000000000000002</direction>
+      <diffuse>0.800000012 0.800000012 0.800000012 1</diffuse>
+      <specular>0.200000003 0.200000003 0.200000003 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <linear>0.01</linear>
+        <constant>0.90000000000000002</constant>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <spot>
+        <inner_angle>0</inner_angle>
+        <outer_angle>0</outer_angle>
+        <falloff>0</falloff>
+      </spot>
+    </light>
+
     <model name='long_wall_1'>
       <pose>0 -12.5 0 0 0 0</pose>
       <link name='box_link'>
@@ -235,15 +255,15 @@
             </box>
           </geometry>
           <material>
-            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
-            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
-            <specular>1 1 1 1</specular>
+            <ambient>0.753, 0.749, 0.737 1</ambient>
+            <diffuse>0.753, 0.749, 0.737 1</diffuse>
+            <specular>0.753, 0.749, 0.737 1</specular>
           </material>
         </visual>
         <pose>0 0 0 0 0 0</pose>
         <enable_wind>false</enable_wind>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name='long_wall_2'>
@@ -282,15 +302,15 @@
             </box>
           </geometry>
           <material>
-            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
-            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
-            <specular>1 1 1 1</specular>
+            <ambient>0.753, 0.749, 0.737 1</ambient>
+            <diffuse>0.753, 0.749, 0.737 1</diffuse>
+            <specular>0.753, 0.749, 0.737 1</specular>
           </material>
         </visual>
         <pose>0 0 0 0 0 0</pose>
         <enable_wind>false</enable_wind>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name='wide_wall_1'>
@@ -329,15 +349,15 @@
             </box>
           </geometry>
           <material>
-            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
-            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
-            <specular>1 1 1 1</specular>
+            <ambient>0.753, 0.749, 0.737 1</ambient>
+            <diffuse>0.753, 0.749, 0.737 1</diffuse>
+            <specular>0.753, 0.749, 0.737 1</specular>
           </material>
         </visual>
         <pose>0 0 0 0 0 0</pose>
         <enable_wind>false</enable_wind>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name='wide_wall_2'>
@@ -376,15 +396,15 @@
             </box>
           </geometry>
           <material>
-            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
-            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
-            <specular>1 1 1 1</specular>
+            <ambient>0.753, 0.749, 0.737 1</ambient>
+            <diffuse>0.753, 0.749, 0.737 1</diffuse>
+            <specular>0.753, 0.749, 0.737 1</specular>
           </material>
         </visual>
         <pose>0 0 0 0 0 0</pose>
         <enable_wind>false</enable_wind>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
 
@@ -424,16 +444,324 @@
             </box>
           </geometry>
           <material>
-            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
-            <diffuse>0.094, 0.788, 0.212 1</diffuse>
-            <specular>1 1 1 1</specular>
+            <ambient>0.753, 0.749, 0.737 1</ambient>
+            <diffuse>0.753, 0.749, 0.737 1</diffuse>
+            <specular>0.753, 0.749, 0.737 1</specular>
           </material>
         </visual>
         <pose>0 0 0 0 0 0</pose>
         <enable_wind>false</enable_wind>
       </link>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
+
+    
+    <model name='lane1'>
+      <pose>-20 0 -1.49 0 0 0</pose>
+      <link name='box_link'>
+        <inertial>
+          <inertia>
+            <ixx>0.16666</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.16666</iyy>
+            <iyz>0</iyz>
+            <izz>0.16666</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <visual name='box_visual'>
+          <geometry>
+            <box>
+              <size>.3 25 .01</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0, 0.153, 0.18, 1</ambient>
+            <diffuse>0, 0.153, 0.18, 1</diffuse>
+            <specular>0, 0.153, 0.18, 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+
+    <model name='lane2'>
+      <pose>-15 0 -1.49 0 0 0</pose>
+      <link name='box_link'>
+        <inertial>
+          <inertia>
+            <ixx>0.16666</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.16666</iyy>
+            <iyz>0</iyz>
+            <izz>0.16666</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <visual name='box_visual'>
+          <geometry>
+            <box>
+              <size>.3 25 .01</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0, 0.153, 0.18, 1</ambient>
+            <diffuse>0, 0.153, 0.18, 1</diffuse>
+            <specular>0, 0.153, 0.18, 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+
+    <model name='lane3'>
+      <pose>-10 0 -1.49 0 0 0</pose>
+      <link name='box_link'>
+        <inertial>
+          <inertia>
+            <ixx>0.16666</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.16666</iyy>
+            <iyz>0</iyz>
+            <izz>0.16666</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <visual name='box_visual'>
+          <geometry>
+            <box>
+              <size>.3 25 .01</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0, 0.153, 0.18, 1</ambient>
+            <diffuse>0, 0.153, 0.18, 1</diffuse>
+            <specular>0, 0.153, 0.18, 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+
+    <model name='lane4'>
+      <pose>-5 0 -1.49 0 0 0</pose>
+      <link name='box_link'>
+        <inertial>
+          <inertia>
+            <ixx>0.16666</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.16666</iyy>
+            <iyz>0</iyz>
+            <izz>0.16666</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <visual name='box_visual'>
+          <geometry>
+            <box>
+              <size>.3 25 .01</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0, 0.153, 0.18, 1</ambient>
+            <diffuse>0, 0.153, 0.18, 1</diffuse>
+            <specular>0, 0.153, 0.18, 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+
+    <model name='lane5'>
+      <pose>0 0 -1.49 0 0 0</pose>
+      <link name='box_link'>
+        <inertial>
+          <inertia>
+            <ixx>0.16666</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.16666</iyy>
+            <iyz>0</iyz>
+            <izz>0.16666</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <visual name='box_visual'>
+          <geometry>
+            <box>
+              <size>.3 25 .01</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0, 0.153, 0.18, 1</ambient>
+            <diffuse>0, 0.153, 0.18, 1</diffuse>
+            <specular>0, 0.153, 0.18, 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+
+    <model name='lane6'>
+      <pose>5 0 -1.49 0 0 0</pose>
+      <link name='box_link'>
+        <inertial>
+          <inertia>
+            <ixx>0.16666</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.16666</iyy>
+            <iyz>0</iyz>
+            <izz>0.16666</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <visual name='box_visual'>
+          <geometry>
+            <box>
+              <size>.3 25 .01</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0, 0.153, 0.18, 1</ambient>
+            <diffuse>0, 0.153, 0.18, 1</diffuse>
+            <specular>0, 0.153, 0.18, 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+
+    <model name='lane7'>
+      <pose>10 0 -1.49 0 0 0</pose>
+      <link name='box_link'>
+        <inertial>
+          <inertia>
+            <ixx>0.16666</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.16666</iyy>
+            <iyz>0</iyz>
+            <izz>0.16666</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <visual name='box_visual'>
+          <geometry>
+            <box>
+              <size>.3 25 .01</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0, 0.153, 0.18, 1</ambient>
+            <diffuse>0, 0.153, 0.18, 1</diffuse>
+            <specular>0, 0.153, 0.18, 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+    
+    <model name='lane8'>
+      <pose>15 0 -1.49 0 0 0</pose>
+      <link name='box_link'>
+        <inertial>
+          <inertia>
+            <ixx>0.16666</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.16666</iyy>
+            <iyz>0</iyz>
+            <izz>0.16666</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <visual name='box_visual'>
+          <geometry>
+            <box>
+              <size>.3 25 .01</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0, 0.153, 0.18, 1</ambient>
+            <diffuse>0, 0.153, 0.18, 1</diffuse>
+            <specular>0, 0.153, 0.18, 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+
+    <model name='lane9'>
+      <pose>20 0 -1.49 0 0 0</pose>
+      <link name='box_link'>
+        <inertial>
+          <inertia>
+            <ixx>0.16666</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.16666</iyy>
+            <iyz>0</iyz>
+            <izz>0.16666</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <visual name='box_visual'>
+          <geometry>
+            <box>
+              <size>.3 25 .01</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0, 0.153, 0.18, 1</ambient>
+            <diffuse>0, 0.153, 0.18, 1</diffuse>
+            <specular>0, 0.153, 0.18, 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+
   </world>
 </sdf>
