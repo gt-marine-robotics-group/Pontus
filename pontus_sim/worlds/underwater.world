@@ -763,5 +763,12 @@
       <self_collide>false</self_collide>
     </model>
 
+    <!-- TASKS -->
+    <!-- GATE TASK -->
+    <include>
+      <uri>Gate</uri>
+      <pose>0 0 1 1.57 0 0</pose>
+    </include>
+
   </world>
 </sdf>
