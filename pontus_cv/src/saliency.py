@@ -49,9 +49,12 @@ def differentiate(img: any,
         cv2.waitKey(0);
     print(out.dtype)
 
-    img = cv2.normalize(src=out, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    img = cv2.normalize(src=out, dst=None, alpha=0.0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    # img = img * 2
 
-    img = cv2.convertScaleAbs(img, alpha=2.5, beta=-200);
+    img = cv2.blur(img, (5, 5));
+
+    img = cv2.convertScaleAbs(img, alpha=2.7, beta=-275);
 
     img = (255 - img);
 

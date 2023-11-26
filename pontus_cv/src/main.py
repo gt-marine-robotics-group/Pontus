@@ -17,24 +17,29 @@ def main(img) -> int:
 
     # img = cv2.convertScaleAbs(img, alpha=1.2, beta=-30);
 
-    query_image_path = "/Users/quinncattanach/Pontus/pontus_cv/src/assets/interest3.png";
+    query_image_path = "assets/interest1.png";
 
     query = cv2.imread(query_image_path);
     gray_query = cv2.cvtColor(query, cv2.COLOR_BGR2GRAY);
 
-    # _, thresh_src = cv2.threshold(srcimg, 80, 255, cv2.THRESH_BINARY_INV)
+    _, thresh_src = cv2.threshold(srcimg, 80, 255, cv2.THRESH_BINARY_INV)
+
+
 
     # srcimg = np.array(srcimg, np.uint8)
     # srcimg = (255-srcimg)
 
     # _, thresh_src = cv2.threshold(srcimg, 80, 255, cv2.THRESH_BINARY_INV)
 
+    cv2.imshow('thresh', thresh_src);
+    cv2.waitKey(0);
+
     _, thresh_q = cv2.threshold(gray_query, 60, 255, cv2.THRESH_BINARY)
     contours_query, heirarchy_query = cv2.findContours(thresh_q, cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
 
-    q_contour = contours_query[0]
+    q_contour = INTEREST1_CONTOUR_SIMPLE
 
-    contours_src, hierarchy_src = cv2.findContours(srcimg, cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+    contours_src, hierarchy_src = cv2.findContours(thresh_src, cv2.RETR_CCOMP,cv2.CHAIN_APPROX_SIMPLE)
     
     sorted_contours = sorted(contours_src, key=cv2.contourArea, reverse=True)
 
@@ -50,7 +55,8 @@ def main(img) -> int:
         if match < closest[0]:
             closest = (match, contour);
     
-    cv2.drawContours(img, closest[1], -1, (0, 255, 0), 3) 
+    cv2.drawContours(img, sorted_contours, -1, (0, 255, 0), 3) 
+    # cv2.drawContours(img, closest[1], -1, (0, 255, 0), 3) 
 
     cv2.imshow('Contours', img);
     cv2.waitKey(0);
@@ -59,7 +65,7 @@ def main(img) -> int:
 
 if __name__ == "__main__":
     if (len(sys.argv) == 1):
-        img = cv2.imread("/Users/quinncattanach/Pontus/pontus_cv/src/assets/0.jpg");
+        img = cv2.imread("assets/5.png");
         exit(main(img));
     options = list(getopt.getopt(sys.argv[1:], "s:t:"))[0]
     for option, argument in options:
