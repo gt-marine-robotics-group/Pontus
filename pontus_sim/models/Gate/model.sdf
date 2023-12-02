@@ -2,7 +2,9 @@
 
 <sdf version="1.10">
     <model name="Gate">
+        <cast_shadows>false</cast_shadows>
         <link name="link">
+            <cast_shadows>false</cast_shadows>
             <collision name="collision">
                 <geometry>
                     <mesh>
@@ -19,6 +21,7 @@
                         <scale>1 1 1</scale>
                     </mesh>
                 </geometry>
+                <cast_shadows>false</cast_shadows>
             </visual>
         </link>
         <static>true</static>
