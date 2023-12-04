@@ -5,7 +5,7 @@ ros_blueview_driver:
             enable: true
         color:
             # If using this make sure to set the map_file parameter from the launch file
-            enable: true
+            enable: false
         raw:
             enable: false
         range:
