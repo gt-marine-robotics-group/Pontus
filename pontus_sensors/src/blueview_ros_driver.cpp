@@ -10,8 +10,8 @@ void BlueViewRosDriver::initParams() {
     this->declare_parameter("sonar_frame", "sonar_0");
 
     // Determine which topics to publish
-    this->declare_parameter("grayscale/enable", false);
-    this->declare_parameter("color/enable", true);
+    this->declare_parameter("grayscale/enable", true);
+    this->declare_parameter("color/enable", false);
     this->declare_parameter("raw/enable", false);
 
     this->declare_parameter("color/map_file", "");
