@@ -1,0 +1,3 @@
+[submodule "pontus_sensors/bvtsdk"]
+	path = pontus_sensors/bvtsdk
+	url = https://github.com/gt-marine-robotics-group/bvtsdk.git
