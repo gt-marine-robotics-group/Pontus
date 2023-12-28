@@ -4,9 +4,6 @@
 - [Launch Files](#launch-files)
   - [simulation.launch.py](#simulationlaunchpy)
   - [odom_simulation.launch.py](#odom\_simulationlaunchpy)
-- [Parameters](#parameters)
-  - [bridge.yml](#bridgeyml)
-  - [odom_bridge.yml](#odom\_bridgeyml)
 
 ## Launch Files
 
