@@ -29,7 +29,6 @@ Takes in a commanded body acceleration on /cmd_accel and uses the thruster posit
 
 | Topic | Message Type | Frame | Purpose |
 |-------|--------------|-------|---------|
-| /cmd_accel | [std_msgs/Twist](https://docs.ros2.org/latest/api/geometry_msgs/msg/Twist.html) | base_link | Commanded body acceleration of the vehicle |
 | /pontus/thruster_\<id\>/cmd_thrust | [std_msgs/Float64](https://docs.ros2.org/latest/api/std_msgs/msg/Float64.html) | thruster_\<id\> | Commanded thrust in Newtons for specified thruster |
 
 ## Parameters
