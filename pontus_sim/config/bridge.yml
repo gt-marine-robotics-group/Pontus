@@ -7,11 +7,25 @@
   gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS
 
+# Camera Forward Info
+- ros_topic_name: "/pontus/camera_info_0"
+  gz_topic_name: "/pontus/camera_info_0"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
 # Camera Bottom
 - ros_topic_name: "/pontus/camera_1"
   gz_topic_name: "/pontus/camera_1"
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+# Camera Bottom Info
+- ros_topic_name: "/pontus/camera_info_1"
+  gz_topic_name: "/pontus/camera_info_1"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
   direction: GZ_TO_ROS
 
 # Sonar Forward
