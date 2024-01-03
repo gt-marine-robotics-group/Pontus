@@ -1,7 +1,7 @@
-# Documentation implies that GZ Garden should use the GZ SIM resource path variable but it seems like it currently is using the IGN GAZEBO variable. For now we will just set both
-ament_prepend_unique_value GZ_SIM_RESOURCE_PATH "$IGN_GAZEBO_RESOURCE_PATH:$COLCON_CURRENT_PREFIX/share/@PROJECT_NAME@/worlds"
-ament_prepend_unique_value GZ_SIM_RESOURCE_PATH "$IGN_GAZEBO_RESOURCE_PATH:$COLCON_CURRENT_PREFIX/share/@PROJECT_NAME@/models"
+# Documentation implies that GZ Garden should use the GZ SIM resource path variable but it seems like it currently is using the IGN GAZEBO variable. For now we will manually override the GZ_SIM path to match the IGN path.
 
-ament_prepend_unique_value IGN_GAZEBO_RESOURCE_PATH "$IGN_GAZEBO_RESOURCE_PATH:$COLCON_CURRENT_PREFIX/share/@PROJECT_NAME@/worlds"
-ament_prepend_unique_value IGN_GAZEBO_RESOURCE_PATH "$IGN_GAZEBO_RESOURCE_PATH:$COLCON_CURRENT_PREFIX/share/@PROJECT_NAME@/models"
+ament_prepend_unique_value IGN_GAZEBO_RESOURCE_PATH "$COLCON_CURRENT_PREFIX/share/@PROJECT_NAME@/worlds:$COLCON_CURRENT_PREFIX/share/@PROJECT_NAME@/models"
 
+#ament_prepend_unique_value GZ_SIM_RESOURCE_PATH "$COLCON_CURRENT_PREFIX/share/@PROJECT_NAME@/worlds:$COLCON_CURRENT_PREFIX/share/@PROJECT_NAME@/models"
+
+export GZ_SIM_RESOURCE_PATH=$IGN_GAZEBO_RESOURCE_PATH
