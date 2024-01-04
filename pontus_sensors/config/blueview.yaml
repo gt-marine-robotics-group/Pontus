@@ -1,0 +1,46 @@
+ros_blueview_driver:
+    ros__parameters:
+        sonar_frame: sonar_0
+        grayscale:
+            enable: true
+        color:
+            # If using this make sure to set the map_file parameter from the launch file
+            enable: false
+        raw:
+            enable: false
+        range:
+            start: 1.0 # Range in meters to start ping data
+            stop: 10.0 # Range in meters to stop ping data
+
+        #fluid_type: "saltwater"
+        fluid_type: "freshwater"
+        #fluid_type: "other"
+
+        sound_speed: 1484
+
+        # Sets image/range profile resolution
+        #range_resolution: 1.0
+
+        # Set gain adjustment in dB
+        #gain_adjustment: 0.0
+
+        #Set time variable analog gain, dB/meters
+        #tvg_slope: 0.0
+
+        # Enable/Disable blueview dynamic power management
+        dynamic_power_management: False
+
+        # Lowest intensity accepted to be included in ranges messages
+        # Tune for desired performance, low values will be slower when raw ranges is enabled
+        range_profile_intensity_threshold: 2000
+
+        # Threshold of dynamic noise to filter out, from 0.0 to 1.0
+        # Tune for desire performance / noise, lower will be more noisey / slow
+        noise_threshold: 0.2
+
+        # How often to send output (raw data / images), seconds
+        # if negative, outputs as quickly as driver does (~5 Hz)
+        period_seconds: -1.0
+
+        # This sets the sonar ip, alternatively do not set this parameter and set the file parameter from the launch file to stream data from a file
+        device: 192.168.1.45
