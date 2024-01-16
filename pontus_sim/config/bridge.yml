@@ -14,19 +14,34 @@
   gz_type_name: "gz.msgs.CameraInfo"
   direction: GZ_TO_ROS
 
-# Camera Bottom
+# Camera Bottom 1
 - ros_topic_name: "/pontus/camera_1"
   gz_topic_name: "/pontus/camera_1"
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS
 
-# Camera Bottom Info
+# Camera Bottom Info 1
 - ros_topic_name: "/pontus/camera_info_1"
   gz_topic_name: "/pontus/camera_info_1"
   ros_type_name: "sensor_msgs/msg/CameraInfo"
   gz_type_name: "gz.msgs.CameraInfo"
   direction: GZ_TO_ROS
+
+  # Camera Bottom 2
+- ros_topic_name: "/pontus/camera_2"
+  gz_topic_name: "/pontus/camera_2"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+# Camera Bottom Info 2
+- ros_topic_name: "/pontus/camera_info_2"
+  gz_topic_name: "/pontus/camera_info_2"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
 
 # Sonar Forward
 - ros_topic_name: "/pontus/sonar_0"
