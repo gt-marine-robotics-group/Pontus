@@ -2,7 +2,11 @@ import rclpy
 from rclpy.node import Node
 import numpy as np
 
+<<<<<<< HEAD
 from geometry_msgs.msg import Pose, Twist
+=======
+from geometry_msgs.msg import Twist
+>>>>>>> 65df69e (add waypoint controller)
 from nav_msgs.msg import Odometry
 from tf_transformations import euler_from_quaternion
 
@@ -30,11 +34,17 @@ class PositionNode(Node):
           PID(0.5, 0, 0)  # Y
         ]
 
+<<<<<<< HEAD
         self.thresh = 0.1
 
         # ROS infrastructure
         self.cmd_pos_sub = self.create_subscription(
           Pose,
+=======
+        # ROS infrastructure
+        self.cmd_pos_sub = self.create_subscription(
+          Twist,
+>>>>>>> 65df69e (add waypoint controller)
           '/cmd_pos',
           self.cmd_pos_callback,
           10)
