@@ -1,0 +1,23 @@
+camera_config:
+  all_camera_types: [
+    "oakd",
+  ]
+  all_camera_base_topics: [
+    "oak/rgb"
+  ]
+  all_camera_matrices: [
+    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] # oakd will publish its own matrix, so this is just a placeholder
+  ]
+  all_camera_transforms: [ # from base_link
+    [1.0, 0.0, 0.1] # these were the Virtuoso values, so they will need to be recalculated
+  ]
+  all_camera_frames: [
+    "oak"
+  ]
+
+  bow_camera_base_topics: [
+    "oak/rgb"
+  ]
+  bow_camera_frames: [
+    "oak"
+  ]
