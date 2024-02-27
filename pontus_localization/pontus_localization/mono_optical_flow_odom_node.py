@@ -60,7 +60,7 @@ class MonoOpticalFlowOdomNode(Node):
         curr_time = self.get_clock().now()
         prev_time = self.prev_time
         self.prev_time = curr_time
-        cv_image = self.bridge.imgmsg_to_cv2(image)
+        cv_image = self.bridge.imgmsg_to_cv2(image, 'mono8')
         if self.image_count == 0:
             self.old_image = cv_image
         else:

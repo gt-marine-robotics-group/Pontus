@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-import scipy
+from scipy import spatial
 
 class MonoOpticalFlowCalculations():
     def __init__(self):
@@ -34,20 +34,19 @@ class MonoOpticalFlowCalculations():
         #     _, rot_mat, pos, _ = cv2.recoverPose(E, self.good_old, self.good_new, self.curr_rotation_matrix.copy(), self.curr_pos.copy(), self.focal_length, self.principal_point, None)
         #     # NEED TO FIGURE OUT HOW TO GET ABSOLUTE SCALE
 
+        depth_frame = np.ones(shape=(240, 320), dtype = np.uint8) * 3
+        old_frame_odom = cv2.rgbd.OdometryFrame.create(old_frame, depth_frame.astype(np.float32), depth_frame)
+        new_frame_odom = cv2.rgbd.OdometryFrame.create(new_frame, depth_frame.astype(np.float32), depth_frame)
 
-        depth_frame = np.ones(shape=(320, 240), dtype = np.int8) * 3
-        old_frame_odom = cv2.rgbd.OdometryFrame(old_frame, depth_frame)
-        new_frame_odom = cv2.rgbd.OdometryFrame(new_frame, depth_frame)
-
-        odometry = cv2.rgbd.Odometry()
-        print("HELLO")
-        rotation_translation_matrix = odometry.compute2(old_frame_odom, new_frame_odom)
+        odometry = cv2.rgbd.Odometry.create("RgbdOdometry")
+        odometry.setCameraMatrix(np.array([[277, 0, 160],[0, 277, 120],[0, 0, 1]], dtype=np.float32))
+        _, rotation_translation_matrix = odometry.compute2(old_frame_odom, new_frame_odom)
         translation_vector = rotation_translation_matrix[3, 0:3]
         rotation_matrix = rotation_translation_matrix[0:3, 0:3]
-        time_difference = (curr_time - old_time).nanoseconds() * 1e9
+        time_difference = (curr_time - old_time).nanoseconds * 1e9
         linear_velocity = translation_vector / time_difference
-        rotation_converter = scipy.spatial.transform.Rotation().from_matrix(rotation_matrix)
+        rotation_converter = spatial.transform.Rotation.from_matrix(rotation_matrix)
         rpy = rotation_converter.as_euler("zxy", degrees = False)
         angular_velocity = np.asarray(rpy) / time_difference
         return linear_velocity, angular_velocity
-    
+
