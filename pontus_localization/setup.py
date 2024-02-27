@@ -30,6 +30,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+        	"odometry_node = odometry.mono_optical_flow_odom_node:main"
         ],
     },
 )
