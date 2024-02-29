@@ -2,7 +2,7 @@ import rclpy
 from rclpy.node import Node
 import numpy as np
 
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Pose, Twist
 from nav_msgs.msg import Odometry
 from tf_transformations import euler_from_quaternion
 
@@ -32,7 +32,7 @@ class PositionNode(Node):
 
         # ROS infrastructure
         self.cmd_pos_sub = self.create_subscription(
-          Twist,
+          Pose,
           '/cmd_pos',
           self.cmd_pos_callback,
           10)
@@ -48,18 +48,19 @@ class PositionNode(Node):
 
     def cmd_pos_callback(self, msg):
         # Store the commanded positions to use in the odometry callback
-        self.cmd_linear = np.array([msg.linear.x, msg.linear.y, msg.linear.z])
-        self.cmd_angular = np.array([msg.angular.x, msg.angular.y, msg.angular.z])
+        quat = msg.orientation
+        (r, p, y) = euler_from_quaternion([quat.x, quat.y, quat.z, quat.w])
+        self.cmd_linear = np.array([msg.position.x, msg.position.y, msg.position.z])
+        self.cmd_angular = np.array([r, p, y])
 
 
     def odometry_callback(self, msg):
         # Get the current positions from odometry
-        pose = msg.pose.pose.point
         quat = msg.pose.pose.orientation
         (r, p, y) = euler_from_quaternion([quat.x, quat.y, quat.z, quat.w])
 
 
-        p_linear = np.array([pose.x, pose.y, pose.z])
+        p_linear = np.array([msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z])
         p_angular = np.array([r, p ,y])
 
         # Compute the error between desired position and current position
