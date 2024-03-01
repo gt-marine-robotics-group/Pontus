@@ -1,0 +1,3 @@
+perception_YOLO:
+  ros__parameters:
+    threshold: 0.5
