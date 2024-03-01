@@ -5,10 +5,8 @@ RESOURCE_PATH="$COLCON_CURRENT_PREFIX/share/@PROJECT_NAME@/worlds:$COLCON_CURREN
 
 if [ -z "${IGN_GAZEBO_RESOURCE_PATH}" ]; then
     export IGN_GAZEBO_RESOURCE_PATH="$RESOURCE_PATH"
-    echo "not set"
 else
     ament_prepend_unique_value IGN_GAZEBO_RESOURCE_PATH "$RESOURCE_PATH"
-    echo "already set"
 fi
 
 #ament_prepend_unique_value GZ_SIM_RESOURCE_PATH "$COLCON_CURRENT_PREFIX/share/@PROJECT_NAME@/worlds:$COLCON_CURRENT_PREFIX/share/@PROJECT_NAME@/models"
