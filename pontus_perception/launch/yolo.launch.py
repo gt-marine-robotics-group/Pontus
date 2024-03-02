@@ -25,14 +25,14 @@ def generate_launch_description():
 
     ld = []
 
-    topic = camera_data['camera_config']['bow_camera_base_topics'][0]
+    topic = camera_data['camera_config']['all_camera_base_topics'][0]
 
     ld.append(auv_arg)
 
     ld.append(
         Node(
             package='pontus_perception',
-            executable='yolo_node.py',
+            executable='yolo',
             name=f'perception_YOLO_{topic[topic.rfind("/") + 1:]}',
             parameters=[
                 {'auv': auv_config_str}

@@ -1,4 +1,4 @@
 
 std_msgs/Header header
 
-virtuoso_msgs/YOLOResult[] results
+pontus_msgs/YOLOResult[] results

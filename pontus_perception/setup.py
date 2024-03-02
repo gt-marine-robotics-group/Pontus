@@ -19,6 +19,12 @@ setup(
         
         (os.path.join('share', package_name, 'config/sim'), 
             glob(os.path.join('config', 'sim', '*.yaml'))),
+
+        (os.path.join('share', package_name, 'yolo/auv'),
+            glob(os.path.join('yolo', 'auv', '*.pt'))),
+
+        (os.path.join('share', package_name, 'yolo/sim'),
+            glob(os.path.join('yolo', 'sim', '*.pt')))
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -29,7 +35,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            ' = pontus_perception.yolo.yolo_node:main'
+            'yolo = pontus_perception.yolo.yolo_node:main'
         ],
     },
 )
