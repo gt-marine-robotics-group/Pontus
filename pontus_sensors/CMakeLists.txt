@@ -18,7 +18,7 @@ find_package(cv_bridge REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(OpenCV 4.0.0 REQUIRED)
-find_package(pontus_msgs REQUIRED)
+#find_package(pontus_msgs REQUIRED)
 
 
 # C++
@@ -30,44 +30,45 @@ include_directories(
   bvtsdk/include
 )
 
-add_library(bvtsdk SHARED IMPORTED GLOBAL)
-set_property(TARGET bvtsdk PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/bvtsdk/lib/libbvtsdk.so)
+#add_library(bvtsdk SHARED IMPORTED GLOBAL)
+#set_property(TARGET bvtsdk PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/bvtsdk/lib/libbvtsdk.so)
 
-add_executable(ros_blueview_driver src/blueview_ros_driver.cpp src/blueview_wrapper.cpp)
+#add_executable(ros_blueview_driver src/blueview_ros_driver.cpp src/blueview_wrapper.cpp)
 
-target_link_libraries(ros_blueview_driver bvtsdk)
+#target_link_libraries(ros_blueview_driver bvtsdk)
 
-ament_target_dependencies(ros_blueview_driver rosidl_default_runtime rclcpp std_msgs sensor_msgs image_transport cv_bridge OpenCV pontus_msgs)
+#ament_target_dependencies(ros_blueview_driver rosidl_default_runtime rclcpp std_msgs sensor_msgs image_transport cv_bridge OpenCV pontus_msgs)
 
 
 install(DIRECTORY
   launch
   scripts
   config
-  bvtsdk/colormaps
-  bvtsdk/data
+  #bvtsdk/colormaps
+  #bvtsdk/data
   DESTINATION share/${PROJECT_NAME}
 )
 
 install(DIRECTORY
-  bvtsdk/lib/.
+  #bvtsdk/lib/.
   DESTINATION lib
 )
 
-install (TARGETS ros_blueview_driver
-  LIBRARY DESTINATION lib/${PROJECT_NAME}
-  RUNTIME DESTINATION lib/${PROJECT_NAME}
-)
+#install (TARGETS ros_blueview_driver
+#  LIBRARY DESTINATION lib/${PROJECT_NAME}
+#  RUNTIME DESTINATION lib/${PROJECT_NAME}
+#)
 
 
 # Python
 ament_python_install_package(${PROJECT_NAME})
 
 # Uncomment this to add new python nodes
-#install(PROGRAMS
-#  # add python executable file paths here
-#  DESTINATION lib/${PROJECT_NAME}
-#)
+install(PROGRAMS
+  # add python executable file paths here
+  scripts/imu_monitor.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 
 if(BUILD_TESTING)

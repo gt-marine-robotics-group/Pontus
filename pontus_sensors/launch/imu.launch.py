@@ -12,7 +12,7 @@ _MICROSTRAIN_LAUNCH_FILE = os.path.join(ament_index_python.packages.get_package_
 _PONTUS_IMU_PARAMS_FILE = os.path.join(
   ament_index_python.packages.get_package_share_directory('pontus_sensors'),
   'config',
-  'microstrain.yml'
+  'microstrain.yaml'
 )
 
 def generate_launch_description():
