@@ -1,0 +1,17 @@
+
+camera_config:
+  all_camera_types: [
+    "usb",
+  ]
+  all_camera_base_topics: [
+    "pontus/camera_0"
+  ]
+  all_camera_matrices: [
+    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] # oakd will publish its own matrix, so this is just a placeholder
+  ]
+  all_camera_transforms: [ # from base_link
+    [1.0, 0.0, 0.1]
+  ]
+  all_camera_frames: [
+    "camera_0"
+  ]
