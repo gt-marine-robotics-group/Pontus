@@ -8,7 +8,6 @@ from lifecycle_msgs.msg import TransitionEvent
 from sensor_msgs.msg import Imu
 import subprocess
 from threading import Timer
-import time
 import os 
 
 class ImuMonitorNode(Node):
@@ -27,6 +26,8 @@ class ImuMonitorNode(Node):
             self.state_callback,
             10
         )
+        
+        # Attempt to launch the node
 
         self.get_logger().info('First IMU launch attempt...')
         self.launch_imu_node()
@@ -38,28 +39,24 @@ class ImuMonitorNode(Node):
             self.imu_callback,
             10
         )
-    def __del__(self):
-        self.redundant_timer.cancel()
-        self.timer.cancel()
-        self.subprocess_handle.terminate()
-        self.subprocess_handle.wait()
-        if self.subprocess_handle.poll() is None:
-            self.get_logger().info("Forcibly terminating the process...")
-            self.subprocess_handle.kill()
-        os.system("killall microstrain_inertial_driver")
 
+    # This is in charge of retrying the launch if we have not gotten any data from the IMU after 10 seconds.
     def imu_callback(self, msg):
         self.imu_data = msg
         self.redundant_timer.cancel()
+        # after 10 seconds retry the launch
         self.redundant_timer = Timer(10.0, self.retry_launch)
         self.redundant_timer.start()
 
+    # If there is no data coming from the IMU, restart the launch file
     def check_no_data_IMU(self):
         if self.imu_data == None:
             self.get_logger().info('Backup restart')
             self.retry_launch() 
 
-
+    # This updates the last transition event. 
+    # If after 4 seconds there are no more transition updates, we assume that the sensor has transitioned into its final state.
+    # Check if the last transition is activate
     def state_callback(self, msg : TransitionEvent):
         self.get_logger().info('Received transition event...')
         self.latest_transition_event = msg
@@ -75,7 +72,7 @@ class ImuMonitorNode(Node):
             self.retry_launch()
         else:
             self.timer.cancel()
-        
+    # Function for launching the imu node
     def launch_imu_node(self):
         if self.redundant_timer:
             self.redundant_timer.cancel()
@@ -98,6 +95,26 @@ class ImuMonitorNode(Node):
     def retry_launch(self):
         self.get_logger().info("Retrying to launch sensor driver...")
         self.launch_imu_node()
+
+    def __del__(self):
+        self.cleanup()
+
+    def cleanup(self):
+        if self.redundant_timer:
+            self.redundant_timer.cancel()
+        if self.timer:
+            self.timer.cancel()
+        if self.subprocess_handle:
+            self.subprocess_handle.terminate()
+            self.subprocess_handle.wait()
+            if self.subprocess_handle.poll() is None:
+                self.get_logger().info("Forcibly terminating the process...")
+                self.subprocess_handle.kill()
+        os.system("killall microstrain_inertial_driver")
+
+    def destroy_node(self):
+        self.cleanup()
+        super().destroy_node()
 
 def main(args=None):
     rclpy.init(args=args)
