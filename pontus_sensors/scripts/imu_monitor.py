@@ -72,6 +72,7 @@ class ImuMonitorNode(Node):
             self.retry_launch()
         else:
             self.timer.cancel()
+
     # Function for launching the imu node
     def launch_imu_node(self):
         if self.redundant_timer:
@@ -100,6 +101,7 @@ class ImuMonitorNode(Node):
         self.cleanup()
 
     def cleanup(self):
+        # Ensure that all processies have ended
         if self.redundant_timer:
             self.redundant_timer.cancel()
         if self.timer:
