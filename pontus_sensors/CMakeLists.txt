@@ -18,7 +18,7 @@ find_package(cv_bridge REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(OpenCV 4.0.0 REQUIRED)
-#find_package(pontus_msgs REQUIRED)
+find_package(pontus_msgs REQUIRED)
 
 
 # C++
