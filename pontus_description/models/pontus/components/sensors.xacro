@@ -40,11 +40,11 @@
   <!-- P900 Sonar  -->
   <xacro:macro name="p900_macro" params="sonar_id *origin">
     <link name="sonar_${sonar_id}">
-     <visual>
+     <!-- <visual>
         <geometry>
           <mesh filename="${P900_mesh}"/>
         </geometry>
-      </visual>
+      </visual> -->
     </link>
 
     <joint name="sonar_joint_${sonar_id}" type="fixed">

@@ -7,7 +7,7 @@
   <xacro:macro name="T200_macro" params="thruster_id *origin">
 
     <link name="thruster_${thruster_id}">
-      <visual>
+      <!-- <visual>
         <origin xyz="0 0 0" rpy="0 ${180*pi/180} 0"/>
         <geometry>
           <mesh filename="${T200_body_mesh}"/>
@@ -15,7 +15,7 @@
         <material name="Black">
           <color rgba="0.0 0.0 0.0 1.0"/>
         </material>
-      </visual>
+      </visual> -->
     </link>
 
     <joint name="thruster_joint_${thruster_id}" type="fixed">
@@ -34,7 +34,7 @@
                  iyy="0.001" iyz="0.0" izz="0.001" />
       </inertial>
 
-      <visual>
+      <!-- <visual>
         <origin xyz="0 0 0" rpy="0 ${180*pi/180} 0"/>
         <geometry>
           <mesh filename="${T200_prop_mesh}"/>
@@ -42,7 +42,7 @@
         <material name="Light Blue">
           <color rgba="0.26 0.46 0.68 1.0"/>
         </material>
-      </visual>
+      </visual> -->
     </link>
 
     <joint name="prop_joint_${thruster_id}" type="continuous">

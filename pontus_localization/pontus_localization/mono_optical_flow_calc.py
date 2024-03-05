@@ -35,18 +35,21 @@ class MonoOpticalFlowCalculations():
         #     # NEED TO FIGURE OUT HOW TO GET ABSOLUTE SCALE
 
         depth_frame = np.ones(shape=(240, 320), dtype = np.uint8) * 3
-        old_frame_odom = cv2.rgbd.OdometryFrame.create(old_frame, depth_frame.astype(np.float32), depth_frame)
-        new_frame_odom = cv2.rgbd.OdometryFrame.create(new_frame, depth_frame.astype(np.float32), depth_frame)
+        mask = np.ones(shape=(240,320), dtype = np.uint8)
+        old_frame_odom = cv2.rgbd.OdometryFrame.create(old_frame, depth_frame.astype(np.float32), mask)
+        new_frame_odom = cv2.rgbd.OdometryFrame.create(new_frame, depth_frame.astype(np.float32), mask)
 
         odometry = cv2.rgbd.Odometry.create("RgbdOdometry")
         odometry.setCameraMatrix(np.array([[277, 0, 160],[0, 277, 120],[0, 0, 1]], dtype=np.float32))
         _, rotation_translation_matrix = odometry.compute2(old_frame_odom, new_frame_odom)
-        translation_vector = rotation_translation_matrix[3, 0:3]
+        print(rotation_translation_matrix)
+        translation_vector = rotation_translation_matrix[0:3, 3]
         rotation_matrix = rotation_translation_matrix[0:3, 0:3]
-        time_difference = (curr_time - old_time).nanoseconds * 1e9
+        time_difference = (curr_time - old_time).nanoseconds * 1e-9
+        print(time_difference)
         linear_velocity = translation_vector / time_difference
         rotation_converter = spatial.transform.Rotation.from_matrix(rotation_matrix)
         rpy = rotation_converter.as_euler("zxy", degrees = False)
         angular_velocity = np.asarray(rpy) / time_difference
-        return linear_velocity, angular_velocity
+        return linear_velocity, angular_velocity, translation_vector
 

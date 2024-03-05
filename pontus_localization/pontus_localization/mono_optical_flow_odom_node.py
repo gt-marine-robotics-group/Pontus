@@ -4,7 +4,7 @@ from sensor_msgs.msg import Image
 from tf2_msgs.msg import TFMessage
 from nav_msgs.msg import Odometry
 from cv_bridge import CvBridge
-from mono_optical_flow_calc import MonoOpticalFlowCalculations
+from .mono_optical_flow_calc import MonoOpticalFlowCalculations
 
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 
@@ -20,6 +20,9 @@ class MonoOpticalFlowOdomNode(Node):
         # self.cam_body_tf = None
         self.prev_time = None
         self.mono_calculator = MonoOpticalFlowCalculations()
+        self.x = 0
+        self.y = 0
+        self.z = 1
 
         # self.declare_parameters(namespace = "", parameters=[
         #     ("body_id", "base_link"),
@@ -56,7 +59,6 @@ class MonoOpticalFlowOdomNode(Node):
         )
 
     def camera_sub_callback(self, image: Image):
-        print("RUNNNING")
         curr_time = self.get_clock().now()
         prev_time = self.prev_time
         self.prev_time = curr_time
@@ -73,15 +75,21 @@ class MonoOpticalFlowOdomNode(Node):
 
             
             # CALL ACTUAL ODOM FUNCTIONALITY HERE
-            lin_vel, ang_vel = self.mono_calculator.calculate(self.image_count, self.old_image, self.new_image, prev_time, curr_time)
+            lin_vel, ang_vel, trans = self.mono_calculator.calculate(self.image_count, self.old_image, self.new_image, prev_time, curr_time)
             message = Odometry()
             message.header.stamp = self.get_clock().now().to_msg()
-            message.header.frame_id = "camera_1"
-            message.child_frame_id = "camera_1"
+            message.header.frame_id = "pontus/odom"
+            message.child_frame_id = "pontus/odom"
 
             message.twist.twist.linear.x = lin_vel[0]
             message.twist.twist.linear.y = lin_vel[1]
             message.twist.twist.linear.z = lin_vel[2]
+            self.x += -trans[1]
+            self.y += trans[0]
+            self.z += 0.0
+            message.pose.pose.position.x = self.x
+            message.pose.pose.position.y = self.y
+            message.pose.pose.position.z = self.z
 
             message.twist.twist.angular.x = ang_vel[0]
             message.twist.twist.angular.y = ang_vel[1]
