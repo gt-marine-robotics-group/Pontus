@@ -11,6 +11,8 @@
   <buildtool_depend>rosidl_default_generators</buildtool_depend>
 
   <depend>rclcpp</depend>
+  <depend>python3-pyserial</depend>
+  <depend>python3-yaml</depend>
   <depend>rclpy</depend>
   <depend>pontus_msgs</depend>
   <depend>std_msgs</depend>

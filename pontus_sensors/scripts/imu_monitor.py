@@ -9,6 +9,10 @@ from sensor_msgs.msg import Imu
 import subprocess
 from threading import Timer
 import os 
+import serial
+import yaml
+import time
+import ament_index_python
 
 class ImuMonitorNode(Node):
     def __init__(self):
@@ -26,7 +30,20 @@ class ImuMonitorNode(Node):
             self.state_callback,
             10
         )
-        
+
+        # Get Serial Port
+        _PONTUS_IMU_PARAMS_FILE = os.path.join(
+        ament_index_python.packages.get_package_share_directory('pontus_sensors'),
+        'config',
+        'microstrain.yaml'
+        )
+
+        # Read the YAML file
+        with open(_PONTUS_IMU_PARAMS_FILE, 'r') as file:
+            yaml_data = yaml.safe_load(file)
+
+        # Extract the port parameter
+        self.port = yaml_data['microstrain_inertial_driver']['ros__parameters']['port']
         # Attempt to launch the node
 
         self.get_logger().info('First IMU launch attempt...')
@@ -39,6 +56,16 @@ class ImuMonitorNode(Node):
             self.imu_callback,
             10
         )
+    def power_cycle_microstrain_driver(self):
+        try:
+            self.get_logger().info("Trying to power cycle imu")
+            ser = serial.Serial(self.port, 9600, timeout=1)  # Adjust the port and baud rate as needed
+            ser.write(b"POWER_OFF\r\n")  # Send command to power off
+            time.sleep(2)  # Wait for the device to power off
+            ser.write(b"POWER_ON\r\n")   # Send command to power on
+            ser.close()
+        except serial.SerialException as e:
+            self.get_logger().info("Failed to power cycle imu")
 
     # This is in charge of retrying the launch if we have not gotten any data from the IMU after 10 seconds.
     def imu_callback(self, msg):
@@ -90,7 +117,8 @@ class ImuMonitorNode(Node):
                 self.subprocess_handle.kill()
         
         os.system("killall microstrain_inertial_driver")
-        launch_cmd = ['ros2', 'launch', 'pontus_sensors', 'imu.launch.py']
+        self.power_cycle_microstrain_driver()
+        launch_cmd = ['ros2', 'launch', 'pontus_sensors', 'gx3.launch.py']
         self.subprocess_handle = subprocess.Popen(launch_cmd)  # Start the launch process asynchronously
 
     def retry_launch(self):
@@ -106,6 +134,9 @@ class ImuMonitorNode(Node):
             self.redundant_timer.cancel()
         if self.timer:
             self.timer.cancel()
+        # self.get_logger().info("Trying to deactive lifecycle node")
+        # subprocess.run(["ros2", "lifecycle", "set", "/microstrain_inertial_driver", "shutdown"])
+        # self.get_logger().info("Successfull deactivation lifecycle node")
         if self.subprocess_handle:
             self.subprocess_handle.terminate()
             self.subprocess_handle.wait()
