@@ -12,7 +12,7 @@ def generate_launch_description():
     joy_node = Node(
             package='joy',
             executable='joy_node',
-            parameters=[params],
+            parameters=[{'ros__parameters': params}],
          )
 
     return LaunchDescription([
