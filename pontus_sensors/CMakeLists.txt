@@ -42,7 +42,7 @@ ament_target_dependencies(ros_blueview_driver rosidl_default_runtime rclcpp std_
 
 install(DIRECTORY
   launch
-  scripts
+  pontus_sensors
   config
   bvtsdk/colormaps
   bvtsdk/data
@@ -64,10 +64,11 @@ install (TARGETS ros_blueview_driver
 ament_python_install_package(${PROJECT_NAME})
 
 # Uncomment this to add new python nodes
-#install(PROGRAMS
-#  # add python executable file paths here
-#  DESTINATION lib/${PROJECT_NAME}
-#)
+install(PROGRAMS
+  # add python executable file paths here
+  pontus_sensors/imu_monitor.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 
 if(BUILD_TESTING)
