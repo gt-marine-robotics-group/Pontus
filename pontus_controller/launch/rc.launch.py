@@ -13,7 +13,7 @@ def generate_launch_description():
     auv_arg = DeclareLaunchArgument('auv', default_value='auv')
     auv_config = LaunchConfiguration('auv', default='auv')
 
-    params = (pkg_pontus_controller, 'config', auv_config, 'joystick.yaml')
+    params = (pkg_pontus_controller, '/config/', auv_config, '/joystick.yaml')
 
     return LaunchDescription([
         auv_arg,
