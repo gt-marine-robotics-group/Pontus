@@ -13,6 +13,7 @@ from ament_index_python.packages import get_package_share_directory
 def generate_launch_description():
 
     pontus_sensors_share = get_package_share_directory('pontus_sensors')
+    pontus_perception_share = get_package_share_directory('pontus_perception')
     oakd_share = get_package_share_directory('depthai_ros_driver')
     
     imu_arg = DeclareLaunchArgument('imu', default_value='gx3')
@@ -26,7 +27,7 @@ def generate_launch_description():
     ld = list()
     ld.append(imu_arg)
 
-    with open(f'{pontus_sensors_share}/config/oakd.yaml', 'r') \
+    with open(f'{pontus_perception_share}/config/camera_config.yaml', 'r') \
         as stream:
         camera_data = yaml.safe_load(stream)
 
@@ -39,14 +40,15 @@ def generate_launch_description():
                     PythonLaunchDescriptionSource(os.path.join(oakd_share, 'launch/camera.launch.py')),
                 )
             )
-            if imu_config_str == 'oak': # using oak-d imu
-                ld.append(Node(
-                    package='virtuoso_sensors',
-                    executable='gx3_republish',
-                    remappings=[
-                        ('/imu/data', '/oak/imu/data')
-                    ]
-                ))
+            # uncomment to use oakd imu
+            # if imu_config_str == 'oak': # using oak-d imu
+            #     ld.append(Node(
+            #         package='virtuoso_sensors',
+            #         executable='gx3_republish',
+            #         remappings=[
+            #             ('/imu/data', '/oak/imu/data')
+            #         ]
+            #     ))
     
     for i, frame in enumerate(camera_data['camera_config']['all_camera_frames']):
         ld.append(
@@ -65,7 +67,7 @@ def generate_launch_description():
         ld.append(
             Node(
                 package='virtuoso_sensors',
-                executable='camera_republish',
+                executable='camera_republish.py',
                 name=f'{topic[topic.rfind("/") + 1:]}_republish',
                 remappings=[
                     ('input', f'{topic}/image_raw'),
