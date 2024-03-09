@@ -42,7 +42,7 @@ ament_target_dependencies(ros_blueview_driver rosidl_default_runtime rclcpp std_
 
 install(DIRECTORY
   launch
-  scripts
+  pontus_sensors
   config
   bvtsdk/colormaps
   bvtsdk/data
