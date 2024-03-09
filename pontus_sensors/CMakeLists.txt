@@ -67,6 +67,7 @@ ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
   # add python executable file paths here
   pontus_sensors/imu_monitor.py
+  pontus_sensors/camera_republish.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
