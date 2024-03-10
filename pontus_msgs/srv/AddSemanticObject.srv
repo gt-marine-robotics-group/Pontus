@@ -1,0 +1,4 @@
+int32[] ids
+geometry_msgs/PoseStamped[] positions
+---
+bool added

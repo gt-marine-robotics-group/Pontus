@@ -40,7 +40,7 @@ def generate_launch_description():
                 name=f'base_link_to_{frame}',
                 arguments=[
                     *(str(d) for d in camera_data['camera_config']['all_camera_transforms'][i]),
-                    '0', '0', '0', 'base_link', frame
+                    '0', '0', '0', frame, 'base_link'
                 ]
             )
         )
@@ -57,5 +57,12 @@ def generate_launch_description():
                 ]
             )
         )
+    
+    ld.append(
+        Node(
+            package='pontus_sensors',
+            executable='oak_imu_republish.py'
+        )	
+    )
 
     return LaunchDescription(ld)

@@ -4,6 +4,7 @@ from launch.substitutions import LaunchConfiguration
 from launch.actions import DeclareLaunchArgument
 from launch_ros.actions import Node
 
+
 def generate_launch_description():
 
     pkg_share = get_package_share_directory('pontus_localization')
@@ -22,7 +23,7 @@ def generate_launch_description():
             name='ekf_filter_node',
             parameters=[robot_localization_file_path],
             remappings=[
-            ("/odometry/filtered", "/pontus/odometry"),
+                ("/odometry/filtered", "/pontus/odometry"),
             ]
         )
     ])

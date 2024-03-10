@@ -1,27 +1,30 @@
 import rclpy
 from rclpy.node import Node
 import numpy as np
-import yaml
 import math
-
 import tf2_ros
-
-
 from geometry_msgs.msg import Twist
-from nav_msgs.msg import Odometry
 from std_msgs.msg import Float64
+from typing import Optional, List
 
-class ThrusterController(Node):
+"""
+This is mainly used for testing motors during a dry test. This does not rely on any odometry,
+unlike the other controllers.
+"""
 
+
+class DirectThrusterController(Node):
     class Thruster:
-        def __init__(self, Node, thruster_id,  pos, quaternion):
-            self.pub = Node.create_publisher(Float64, 'pontus/thruster_' + str(thruster_id) + '/cmd_thrust', 10)
+        def __init__(self, Node: Node, thruster_id: int, pos: np.ndarray, quaternion: np.ndarray):
+            thruster_topic_name = 'pontus/thruster_' + str(thruster_id) + '/cmd_thrust'
+            self.pub = Node.create_publisher(Float64, thruster_topic_name, 10)
 
             # TODO: Make this a parameter or something
             self.max_thrust = 52
 
             q = quaternion
-            axis = np.array([0, 0, 1]) # Our thrusters rotate the propeller around the z axis
+            # Our thrusters rotate the propeller around the z axis
+            axis = np.array([0, 0, 1])
 
             # Build the rows of the rotation matrix from the quaternion
             r_row_0 = np.array([
@@ -44,7 +47,8 @@ class ThrusterController(Node):
 
             rotation_matrix = np.row_stack([r_row_0, r_row_1, r_row_2])
 
-            # Get the column of the rotation_matrix corresponding to the axis our propeller generates thrust on
+            # Get the column of the rotation_matrix corresponding to the axis our propeller
+            # generates thrust on
             thrust_effect = rotation_matrix.dot(axis.transpose())
 
             torque_effect = np.cross(pos, thrust_effect)
@@ -53,25 +57,35 @@ class ThrusterController(Node):
             self.jacobian_column = np.hstack((
                 thrust_effect, torque_effect)).transpose()
 
+        def set_thrust(self, value: float) -> None:
+            """
+            Set the thrust for the thruster.
 
-        def set_thrust(self, value):
+            Args:
+            ----
+            value (float): the thrust for the thruster
+
+            Return:
+            ------
+            None
+
+            """
             msg = Float64()
 
             # Clamp values to max thrust
             if abs(value) > self.max_thrust:
-              value = math.copysign(self.max_thrust, value)
+                value = math.copysign(self.max_thrust, value)
 
             msg.data = value
             self.pub.publish(msg)
 
-
     def __init__(self):
         super().__init__('direct_thruster_controller')
 
-        #TODO: make these parameters or something
+        # TODO: make these parameters or something
         self.vehicle_name = 'pontus'
 
-        #TODO: These could be pulled from the robot description topic
+        # TODO: These could be pulled from the robot description topic
 
         mass = 18.65
         # Moments of inertia of the vehicle (these also need to be properly calculated)
@@ -89,16 +103,14 @@ class ThrusterController(Node):
         ])
         # Full inertial matrix of the vehicle
         self.inertial_matrix = np.vstack([
-            np.hstack([mass * np.identity(3), np.zeros([3,3])]),
-            np.hstack([np.zeros([3,3]), self.inertial_tensor])
+            np.hstack([mass * np.identity(3), np.zeros([3, 3])]),
+            np.hstack([np.zeros([3, 3]), self.inertial_tensor])
         ])
-
 
         # Class variables
         self.thrusters = []
         self.jacobian_matrix = None
         self.inverse_jacobian = None
-
 
         # ROS infrastructure
 
@@ -114,12 +126,26 @@ class ThrusterController(Node):
         self.listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         # Attempt to generate thrusters from TF once a second
-        # TODO: Should this keep monitoring the TF for updates or just stop once it sees the initial TF?
+        # TODO: Should this keep monitoring the TF for updates or just stop once it sees
+        # the initial TF?
         self.tf_timer = self.create_timer(1.0, self.generate_thrusters)
 
-    def cmd_vel_callback(self, msg):
+    def cmd_vel_callback(self, msg: Twist) -> None:
+        """
+        Handle cmd_vel callback to command thrust based on velocity.
+
+        Args:
+        ----
+        msg (Twist): command velocity
+
+        Return:
+        ------
+        None
+
+        """
+        # TF isn't available yet
         if len(self.thrusters) == 0:
-            return # TF isn't available yet
+            return
 
         # Build the vector of desired accelerations [x y z roll pitch yaw]
         # Scaled to try to keep relative thruster powers reasonable
@@ -137,22 +163,36 @@ class ThrusterController(Node):
         for index, thruster in enumerate(self.thrusters):
             thruster.set_thrust(thruster_forces[index])
 
+    def generate_thrusters(self) -> None:
+        """
+        Create jacobian matrix to convert torque to thrust based on thruster configuration.
 
-    def generate_thrusters(self):
+        Args:
+        ----
+        None
+
+        Return:
+        ------
+        None
+
+        """
         tf_string = self.tf_buffer.all_frames_as_yaml()
         number_thrusters = tf_string.count("thruster_")
 
         # Failed to find thrusters
         if number_thrusters == 0:
-          return
+            return
 
         print("detected ", number_thrusters, " thrusters")
 
         base_frame = 'base_link'
         self.jacobian_matrix = np.zeros((6, number_thrusters))
-
+        timeout_duration = rclpy.duration.Duration(seconds=5.0)
         for i in range(0, number_thrusters):
-            transform = self.tf_buffer.lookup_transform(base_frame, 'thruster_' + str(i), rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=5.0))
+            transform = self.tf_buffer.lookup_transform(base_frame,
+                                                        'thruster_' + str(i),
+                                                        rclpy.time.Time(),
+                                                        timeout=timeout_duration)
 
             pos = np.array([
                                transform.transform.translation.x,
@@ -178,13 +218,8 @@ class ThrusterController(Node):
         self.tf_timer.cancel()
 
 
-def main(args=None):
+def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
-
-    thruster_Node = ThrusterController()
+    thruster_Node = DirectThrusterController()
     rclpy.spin(thruster_Node)
-
     rclpy.shutdown()
-
-if __name__ == '__main__':
-    main()

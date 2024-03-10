@@ -18,10 +18,10 @@
     <gazebo reference="camera_${camera_id}">
       <sensor name="camera_${camera_id}" type="camera">
         <camera>
-          <horizontal_fov>1.20428</horizontal_fov>
+          <horizontal_fov>1.0472</horizontal_fov>
           <image>
-            <width>320</width>
-            <height>240</height>
+            <width>640</width>
+            <height>480</height>
           </image>
           <clip>
             <near>0.1</near>
@@ -36,7 +36,19 @@
     </gazebo>
   </xacro:macro>
 
-  <!-- Sonoptix Echo Sonar  -->
+  <!-- DVL  -->
+  <xacro:macro name="dvl_macro" params="dvl_id *origin">
+    <link name="dvl_a50_link"/>
+
+    <joint name="dvl_joint_${dvl_id}" type="fixed">
+      <xacro:insert_block name="origin"/>
+      <parent link="base_link"/>
+      <child link="dvl_a50_link"/>
+      <axis xyz="1 0 0"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- Sonoptix Echo  -->
   <xacro:macro name="sonoptix_macro" params="sonar_id *origin">
     <link name="sonar_${sonar_id}">
      <visual>

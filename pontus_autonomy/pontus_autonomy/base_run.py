@@ -1,16 +1,25 @@
-#!/usr/bin/env python3
-
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Imu
-from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
+from pontus_autonomy.tasks.base_task import BaseTask
+
 
 class BaseRun(Node):
-
-    def __init__(self, name):
+    def __init__(self, name: str):
         super().__init__(name)
 
-    def run_task(self, task):
+    def run_task(self, task: BaseTask) -> bool:
+        """
+        Execute task and return result.
+
+        Args:
+        ----
+        task (BaseTask): the task we want to run
+
+        Return:
+        ------
+        bool: the result of the task
+
+        """
         task = task()
         rclpy.spin_until_future_complete(task, task.wait_for_task())
         result = task.task_future.result()

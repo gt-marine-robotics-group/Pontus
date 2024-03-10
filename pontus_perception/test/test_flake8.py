@@ -14,12 +14,20 @@
 
 from ament_flake8.main import main_with_errors
 import pytest
-
+import os
+from ament_index_python.packages import get_package_share_directory
 
 @pytest.mark.flake8
 @pytest.mark.linter
 def test_flake8():
-    rc, errors = main_with_errors(argv=[])
+    package_share_path = get_package_share_directory("pontus_perception")
+    
+    # Get flake8 config file
+    config_path = os.path.join(package_share_path, 'test', '.flake8')
+    
+    # Exlude launch and test files from 
+    exclude_dirs = ['launch', 'test']
+    rc, errors = main_with_errors(argv=['--config', config_path, '--exclude', ','.join(exclude_dirs)])
     assert rc == 0, \
         'Found %d code style errors / warnings:\n' % len(errors) + \
         '\n'.join(errors)
