@@ -30,6 +30,8 @@ class PositionNode(Node):
           PID(0.5, 0, 0)  # Y
         ]
 
+        self.thresh = 0.1
+
         # ROS infrastructure
         self.cmd_pos_sub = self.create_subscription(
           Pose,
@@ -65,17 +67,18 @@ class PositionNode(Node):
 
         # Compute the error between desired position and current position
         linear_err = self.cmd_linear - p_linear
-        angular_diff = self.cmd_angular - p_angular
+        angular_diff = (np.array([0, 0, np.arctan2(self.cmd_linear[1], self.cmd_linear[0])]) 
+                        if np.sqrt(linear_err @ linear_err.T) > self.thresh else self.cmd_angular - p_angular)
         
         # find the shorter turn for angles
         angular_adj = np.sign(angular_diff) * 2 * np.pi
         angular_diff_alt = angular_diff - angular_adj
         angular_err = np.where(np.abs(angular_diff) < np.abs(angular_diff_alt), angular_diff, angular_diff_alt)
 
-        # Compute and publish the body vel commands
+        # Compute and publish the body vel commands, we cannot move in y direction
         msg = Twist()
         msg.linear.x = self.pid_linear[0](linear_err[0], self.get_clock().now() - self.prev_time)
-        msg.linear.y = self.pid_linear[1](linear_err[1], self.get_clock().now() - self.prev_time)
+        msg.linear.y = 0.0
         msg.linear.z = self.pid_linear[2](linear_err[2], self.get_clock().now() - self.prev_time)
 
         msg.angular.x = self.pid_angular[0](angular_err[0], self.get_clock().now() - self.prev_time)
