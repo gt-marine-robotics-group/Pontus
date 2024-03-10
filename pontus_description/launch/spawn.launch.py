@@ -27,6 +27,9 @@ def generate_launch_description():
     )
     static = LaunchConfiguration('static')
 
+    gazebo_arg = DeclareLaunchArgument('gazebo', default_value='True')
+    gazebo_config = LaunchConfiguration('gazebo', default='True')
+
     #TODO: publish robot tf
 
     # Convert Xacro to URDF
@@ -82,9 +85,16 @@ def generate_launch_description():
 
     # URDF spawner
     args = ['-name', 'pontus', '-topic', 'robot_description', '-z', '1']
-    spawn = Node(package='ros_gz_sim', executable='create', arguments=args, output='screen')
+    spawn = Node(
+        package='ros_gz_sim', 
+        executable='create', 
+        arguments=args, 
+        output='screen',
+        condition=IfCondition(gazebo_config)
+    )
 
     return LaunchDescription([
+        gazebo_arg,
         static_arg,
         robot_state_publisher,
         spawn
