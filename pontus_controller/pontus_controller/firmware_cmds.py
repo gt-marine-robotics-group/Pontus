@@ -12,11 +12,28 @@ class FirmwareCmdsNode(Node):
         self.thruster_pub = self.create_publisher(Float32MultiArray,
             'thrust_cmds', 10)
 
+        self.callbacks = [
+            self.thruster0_callback,
+            self.thruster1_callback,
+            self.thruster2_callback,
+            self.thruster3_callback,
+            self.thruster4_callback,
+            self.thruster5_callback,
+            self.thruster6_callback,
+            self.thruster7_callback
+        ]
+        self.subs = []
+        for i in range(8):
+            self.subs.append(
+                self.create_subscription(Float64, f'/pontus/thruster_{i}/cmd_thrust',
+                    self.callbacks[i], 10)
+            )
+
         self.create_timer(0.1, self.timer_callback)
     
     def timer_callback(self):
         msg = Float32MultiArray()
-        msg.data = self.thruster_cmds
+        msg.data = [cmd / 52.0 for cmd in self.thruster_cmds]
         self.thruster_pub.publish(msg)
     
     def thruster0_callback(self, msg: Float64):
