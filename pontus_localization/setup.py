@@ -30,6 +30,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'imu_localization = pontus_localization.imu_localization:main'
         ],
     },
 )

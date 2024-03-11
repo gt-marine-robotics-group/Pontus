@@ -10,6 +10,7 @@ def generate_launch_description():
 
     controller_share = get_package_share_directory('pontus_controller')
     description_share = get_package_share_directory('pontus_description')
+    localization_share = get_package_share_directory('pontus_localization')
 
     gazebo_arg = DeclareLaunchArgument('gazebo', default_value='False')
     gazebo_config = LaunchConfiguration('gazebo', default='False')
@@ -25,6 +26,11 @@ def generate_launch_description():
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(controller_share, 'launch', 'vel_control.launch.py')
+            )
+        ),
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(localization_share, 'launch', 'imu_localization.launch.py')
             )
         )
     ])
