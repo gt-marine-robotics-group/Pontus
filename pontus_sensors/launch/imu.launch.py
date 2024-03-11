@@ -18,5 +18,9 @@ def generate_launch_description():
             package='pontus_sensors',
             executable='imu_monitor.py',
             name='imu_monitor',
+        ),
+        Node(
+            package='pontus_sensors',
+            executable='imu_republish.py',
         )
     ])
