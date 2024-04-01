@@ -137,15 +137,18 @@ class ThrusterController(Node):
         # vertical thrusters to decrease their output making us sink
         for i in range(2):
 
+            start = 4*i
+            end = (4*i) + 4
+
             # Calculate the highest commanded output thrust so we can scale
             # all of the thrusters down if we exceed max thrust.
             # This helps pevent issues with multiple thrusters being saturated
             # leading to the vehicle moving in unintended directions
-            max_commanded = np.max(thruster_forces)
+            max_commanded = np.max(thruster_forces[start:end])
             scale = (max_commanded / self.max_thrust) if max_commanded > self.max_thrust else 1.0
 
             # Publish thruster commands
-            for index in range(4*i, (4*i) + 4):
+            for index in range(start, end):
                 self.thrusters[index].set_thrust(thruster_forces[index] / scale)
 
 
