@@ -788,8 +788,44 @@
     <!-- GATE TASK -->
     <include>
       <uri>Gate</uri>
-      <pose>3 -3 0 1.57 0 .8</pose>
+      <pose>3.5 0 0 1.57 0 1.57</pose>
     </include>
+
+    <model name='prequal_marker'>
+      <pose>13.5 0 1 0 0 0</pose>
+      <link name='marker_cylinder'>
+        <inertial>
+          <inertia>
+            <ixx>0.16666</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.16666</iyy>
+            <iyz>0</iyz>
+            <izz>0.16666</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <visual name='marker_cylinder_visual'>
+          <geometry>
+            <cylinder>
+                <radius>0.2</radius>
+                <length>1.5</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1.0, 1.0, 0, 1</ambient>
+            <diffuse>1.0, 1.0, 0, 1</diffuse>
+            <specular>1.0, 1.0, 0, 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+
 
     <light name='gate_light_1' type='point'>
       <pose>0.7927309311409738 -2.4711442661574994 2 0 0 0</pose>
