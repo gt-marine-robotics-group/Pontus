@@ -22,7 +22,7 @@ class VelocityNode(Node):
 
         # TODO: Tune these
         self.pid_linear = [
-          PID(2, 1, 0), # X
+          PID(2, 0.2, 0), # X
           PID(2, 1, 0), # Y
           PID(2, 1, 0)  # Z
         ]
@@ -30,7 +30,7 @@ class VelocityNode(Node):
         self.pid_angular = [
           PID(2, 0, 0), # R
           PID(2, 0, 0), # P
-          PID(2, 0, 0)  # Y
+          PID(2, 0.2, 0)  # Y
         ]
 
         # ROS infrastructure

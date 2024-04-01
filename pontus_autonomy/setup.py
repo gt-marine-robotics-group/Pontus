@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'gate_node = pontus_autonomy.gate_node:main'
+            'prequalification_node = pontus_autonomy.prequalification_node:main'
         ],
     },
 )
