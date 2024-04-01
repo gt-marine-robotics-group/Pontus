@@ -42,7 +42,7 @@ class PrequalificationNode(Node):
         self.approaching_gate = False
 
         # We are passing through the gate, keep driving fowards
-        self.drive_timestamp = None
+        self.gate_timestamp = None
 
         # values can be near 0 or 180 so we have to threshold twice then merge
         self.gate_hsv1 = np.uint8([0, 255, 100])
@@ -59,14 +59,22 @@ class PrequalificationNode(Node):
 
         # Vertical Marker Variables
 
+        # We are driving past the marker, keep driving fowards
+        self.drive_past_pole = False
+        self.marker_timestamp = None
+
+        # Circle around the pole
         self.looping_pole = False
 
-        self.marker_hsv = np.uint8([60, 255, 255])
-        self.marker_lower = self.gate_hsv1 - np.uint8([10, 20, 20,])
-        self.marker_upper= self.gate_hsv1 + np.uint8([10, 0, 0,])
+        # how far to the side to keep the pole while driving toward it
+        self.marker_offset = 10.0 # This will almost certainly need tuning depending on camera resolution and pole width
+
+        self.marker_hsv = np.uint8([30, 255, 255])
+        self.marker_lower = self.marker_hsv - np.uint8([10, 20, 20,])
+        self.marker_upper= self.marker_hsv + np.uint8([10, 0, 0,])
 
         self.circle_radius = 0.5 # This is going to end up being very approximate
-        self.circle_linear_velocity = 0.3
+        self.circle_linear_velocity = 0.4
         self.circle_time = (2 * np.pi * self.circle_radius) / self.circle_linear_velocity # Time to complete full circle
         self.circle_angular_velocity = 2 * np.pi /  self.circle_time
 
@@ -124,18 +132,15 @@ class PrequalificationNode(Node):
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         by_size = sorted(contours, key = lambda c: cv2.contourArea(c))
 
+        canvas = cv2.cvtColor(hsv_frame.copy(), cv2.COLOR_HSV2BGR)
         marker = None
         for contour in by_size:
-            # only consider the 2 largest blobs
-            # This can be tweaked if we want to consider the two side bars and the middle marker
-            if len(markers) > 1:
-                break
-
             M = cv2.moments(contour)
 
             # Only use contours with nonzero area
             if M["m00"] != 0:
-                return (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+                center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+                return center
 
         # Didn't find the pole
         return None
@@ -153,9 +158,9 @@ class PrequalificationNode(Node):
 
         # Drive towards the center of the gate
         if len(markers) == 2:
-            print("Drive Mode")
+            #print("Drive Toward Gate")
             self.approaching_gate = True
-            self.drive_timestamp = self.get_clock().now()
+            self.gate_timestamp = self.get_clock().now()
 
             target_x = (markers[0][0] + markers[1][0]) / 2
             target_y = (markers[0][1] + markers[1][1]) / 2
@@ -172,18 +177,19 @@ class PrequalificationNode(Node):
             # Just keep driving forward for a bit to pass through the gate
             if self.approaching_gate:
 
-                if self.get_clock().now() - self.drive_timestamp > Duration(seconds=3.0):
+                if self.get_clock().now() - self.gate_timestamp > Duration(seconds=3.0):
                     print("Gate Complete")
                     self.state += 1
-                    self.drive_timestamp = None
+                    self.approaching_gate = False
+                    self.gate_timestamp = None
                     msg.linear.x = 0.0
                 else:
-                    print("Passing Through Gate")
+                    #print("Passing Through Gate")
                     msg.linear.x = 0.5
 
             # Look for the gate
             else:
-                print("Looking for Gate")
+                #print("Looking for Gate")
 
                 # Spin towards gate
                 if len(markers) == 1:
@@ -207,14 +213,26 @@ class PrequalificationNode(Node):
         # If we can see the gate we have completed the vertical_marker_task
         if len(gate_markers):
             print("Marker Complete")
-            self.looping_pole = False
             self.state += 1
+            self.looping_pole = False
         else:
+
+            # Passed the pole
+            if self.drive_past_pole and self.get_clock().now() - self.marker_timestamp > Duration(seconds=3.0):
+                self.marker_timestamp = None
+                self.drive_past_pole = False
+                self.looping_pole = True
+
+            # Drive past the pole so we don't hit it as we turn
+            elif self.drive_past_pole:
+                #print("Driving Past Marker")
+                msg.linear.x = 0.5
+
             # Loop around the pole
-            if self.looping_pole:
-                print("Looping Around Marker")
+            elif self.looping_pole:
+                #print("Looping Around Marker")
                 msg.linear.x = self.circle_linear_velocity
-                msg.angular.z = 4.0 * self.circle_angular_velocity # Need to compensate for bad controls :(
+                msg.angular.z = 2.0 * self.circle_angular_velocity # Need to compensate for bad controls :(
 
             # Drive forward keeping the pole off to our side so we can pass it
             else:
@@ -222,13 +240,15 @@ class PrequalificationNode(Node):
 
                 # Hopefully we just passed by the marker
                 if marker == None:
-                    self.looping_around_pole = True
+                    self.drive_past_pole = True
+                    self.marker_timestamp = self.get_clock().now()
                 else:
-                    print("Driving to Marker")
+                    #print("Driving to Marker")
                     msg.linear.x = 1.0
                     msg.linear.z = 0.5 if marker[1] < height/2 else -0.5
-                    # Rotate towards the center
-                    msg.angular.z = 1.0 if marker[0] < width/6 else -1.0
+
+                    # Keep the marker far off to the side so we don't hit it
+                    msg.angular.z = 0.4 if marker[0] < width/self.marker_offset else -0.4
                 
         return msg
 
