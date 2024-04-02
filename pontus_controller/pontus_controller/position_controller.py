@@ -52,23 +52,26 @@ class PositionNode(Node):
         # Store the commanded positions to use in the odometry callback
         quat = msg.orientation
         (r, p, y) = euler_from_quaternion([quat.x, quat.y, quat.z, quat.w])
-        self.cmd_linear = np.array([msg.position.x, msg.position.y, msg.position.z])
+        self.cmd_linear = [msg.position.x, msg.position.y, msg.position.z]
         self.cmd_angular = np.array([r, p, y])
 
 
     def odometry_callback(self, msg):
         # Get the current positions from odometry
         quat = msg.pose.pose.orientation
-        (r, p, y) = euler_from_quaternion([quat.x, quat.y, quat.z, quat.w])
+        quat = [quat.x, quat.y, quat.z, quat.w]
 
-
-        p_linear = np.array([msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z])
+        # transform world frame to body frame
+        u = np.array(quat[:3])
+        s = quat[3]
+        linear_err = self.cmd_linear - np.array([msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z])
+        linear_err = 2.0 * np.dot(u, linear_err) * u + (s**2 - np.dot(u, u)) * linear_err + 2.0 * s * np.cross(u, linear_err)
+        
+        # find angular error
+        (r, p, y) = euler_from_quaternion(quat)
         p_angular = np.array([r, p ,y])
-
-        # Compute the error between desired position and current position
-        linear_err = self.cmd_linear - p_linear
-        angular_diff = (np.array([0, 0, np.arctan2(self.cmd_linear[1], self.cmd_linear[0])]) 
-                        if np.sqrt(linear_err @ linear_err.T) > self.thresh else self.cmd_angular - p_angular)
+        angular_diff = (np.array([0, np.arctan2(self.cmd_linear[2], self.cmd_linear[0]), np.arctan2(self.cmd_linear[1], self.cmd_linear[0])]) 
+                        if np.linalg.norm(linear_err) > self.thresh else self.cmd_angular) - p_angular
         
         # find the shorter turn for angles
         angular_adj = np.sign(angular_diff) * 2 * np.pi
