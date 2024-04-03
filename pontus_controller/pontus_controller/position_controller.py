@@ -30,7 +30,7 @@ class PositionNode(Node):
           PID(0.5, 0, 0)  # Y
         ]
 
-        self.thresh = 0.1
+        self.thresh = 0.2
 
         # ROS infrastructure
         self.cmd_pos_sub = self.create_subscription(
@@ -52,7 +52,7 @@ class PositionNode(Node):
         # Store the commanded positions to use in the odometry callback
         quat = msg.orientation
         (r, p, y) = euler_from_quaternion([quat.x, quat.y, quat.z, quat.w])
-        self.cmd_linear = [msg.position.x, msg.position.y, msg.position.z]
+        self.cmd_linear = np.array([msg.position.x, msg.position.y, msg.position.z])
         self.cmd_angular = np.array([r, p, y])
 
 
@@ -63,20 +63,25 @@ class PositionNode(Node):
 
         # transform world frame to body frame
         u = np.array(quat[:3])
+        u[1] = -u[1]
+        u[2] = -u[2]
         s = quat[3]
         linear_err = self.cmd_linear - np.array([msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z])
         linear_err = 2.0 * np.dot(u, linear_err) * u + (s**2 - np.dot(u, u)) * linear_err + 2.0 * s * np.cross(u, linear_err)
-        
+
         # find angular error
         (r, p, y) = euler_from_quaternion(quat)
         p_angular = np.array([r, p ,y])
-        angular_diff = (np.array([0, np.arctan2(self.cmd_linear[2], self.cmd_linear[0]), np.arctan2(self.cmd_linear[1], self.cmd_linear[0])]) 
-                        if np.linalg.norm(linear_err) > self.thresh else self.cmd_angular) - p_angular
-        
-        # find the shorter turn for angles
-        angular_adj = np.sign(angular_diff) * 2 * np.pi
-        angular_diff_alt = angular_diff - angular_adj
-        angular_err = np.where(np.abs(angular_diff) < np.abs(angular_diff_alt), angular_diff, angular_diff_alt)
+
+        if np.linalg.norm(linear_err) > self.thresh:
+          angular_err = np.array([0, np.arctan2(self.cmd_linear[2], self.cmd_linear[0]), np.arctan2(self.cmd_linear[1], self.cmd_linear[0])]) 
+        else:
+          angular_diff = self.cmd_angular - p_angular
+          
+          # find the shorter turn for angles
+          angular_adj = np.sign(angular_diff) * 2 * np.pi
+          angular_diff_alt = angular_diff - angular_adj
+          angular_err = np.where(np.abs(angular_diff) < np.abs(angular_diff_alt), angular_diff, angular_diff_alt)
 
         # Compute and publish the body vel commands, we cannot move in y direction
         msg = Twist()
