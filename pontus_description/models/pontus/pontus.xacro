@@ -34,7 +34,7 @@
 
     </inertial>
 
-    <!-- <visual>
+    <visual>
       <origin xyz="0 0 0" rpy="0 ${-90*pi/180} 0"/>
       <geometry>
         <cylinder length="${length}" radius="${radius}"/>
@@ -43,7 +43,7 @@
       <material name="acrylic">
         <color rgba="0.9 0.9 0.9 0.4"/>
       </material>
-    </visual> -->
+    </visual>
 
     <collision>
       <origin xyz="0 0 0" rpy="0 ${-90*pi/180} 0"/>
