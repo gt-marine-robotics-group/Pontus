@@ -72,10 +72,17 @@ class ParticleFilterNode(Node):
         
         self.start_up = 0
 
-        # init particles
+        # init particles for start up
         self.particles = []
-        for particle in range(NUM_PARTICLES):
-            self.particles.append(Particle(0, 0, 0, 0))
+        total_grid_width = GRID_LINE_LENGTH + GRID_LINE_THICKNESS
+        num_rows = np.sqrt(START_UP_ITERATIONS)
+        for row in range(num_rows):
+            for col in range(num_rows):
+                for angle in NUM_START_UP_ANGLES:
+                    x = row * total_grid_width / num_rows + total_grid_width / 20
+                    y = col * total_grid_width / num_rows + total_grid_width / 20
+                    # Need to sample betwee 0 and pi/2 for the angle
+                    self.particles.append(Particle(x, y, DEPTH, np.pi / 2 * angle / NUM_START_UP_ANGLES))
 
     def get_odom_from_imu(self, msg):
         # Get current time
@@ -163,8 +170,29 @@ class ParticleFilterNode(Node):
         return avg_position, avg_yaw
 
     # Get the markers from the particle
+    # Idea:
+    # Take the maximal distance from the center of the particle in all four directions
+    # This can be calculated using horizontal and vertical FOV
     def get_markers_from_particle(self, particle):
-        pass
+        horizontal_FOV_magnitude = particle.depth * np.tan(np.radians(HORIZONTAL_FOV / 2))
+        vertical_FOV_magnitude = particle.depth * np.tan(np.radians(VERTICAL_FOV / 2))
+        
+        # This probably needs to be fixed 
+        horizontal_vector = horizontal_FOV_magnitude * np.array([abs(np.cos(particle.yaw)), abs(np.sin(particle.yaw))])
+        vertical_vector = vertical_FOV_magnitude * np.array([abs(np.sin(particle.yaw)), abs(np.cos(particle.yaw))])
+
+        true_x_max = 0
+        true_y_max = 0
+
+        # Assuming that the values above are correct
+        position_x = particle.position[0]
+        position_y = particle.positoin[1]
+
+        end_position_x = position_x + true_x_max
+        end_position_y = position_y + true_y_max
+
+        
+
     
     # Given the markers from the particle and the caemra markers
     # Generate pairs of markers that are close to each other 
@@ -203,7 +231,7 @@ class ParticleFilterNode(Node):
         l = self.generate_marker_pairs_and_calculate_likelihood(particle_makers, camera_markers)
         return l
     
-    def get_observation_from_camera(self):
+    def get_observation_from_camera(self, left_image, right_image):
         pass
     
     # Rotates point
@@ -235,7 +263,7 @@ class ParticleFilterNode(Node):
     
     # IDEA #2
     
-    def convert_to_global_frame(self, camera_markers_r):
+    def convert_to_global_frame(self, camera_markers_r, particle):
         camera_markers_g = []
         for marker in camera_markers_r:
             x = marker[0]
@@ -243,16 +271,16 @@ class ParticleFilterNode(Node):
             z = marker[2]
             theta = marker[3]
             # I think this is right?
-            theta = theta + self.yaw
+            theta = theta + particle.yaw
             # Rotate the point to the global frame
-            x_g, y_g = self.rotate_point(x, y, self.yaw)
+            x_g, y_g = self.rotate_point(x, y, particle.yaw)
             # Translate the point to the global frame
-            x_g += self.position[0]
-            y_g += self.position[1]
+            x_g = x_g + particle.position[0]
+            y_g = y_g + particle.position[1]
             z_g = z
             camera_markers_g.append(np.array([x_g, y_g, z_g, theta]))
         return camera_markers_g
-    
+
     # Run the particle filter every time we get an input of imu + camera data
     # All angles will be in radians
     # All global frame coordinates will reflect real world units, therefore, meters
@@ -269,10 +297,7 @@ class ParticleFilterNode(Node):
         # Keep on running until the start_up iterations are done
         if self.start_up < START_UP_ITERATIONS:
             self.start_up += 1
-            # Sample 100 particles uniformly within a grid
-            
-            return
-        
+
         # When we have met the start up iterations, we can start running the particle filter.
         # Here we need to set the offsets for the position.
         # That is, the original position of the robot should be 0,0.
@@ -283,13 +308,12 @@ class ParticleFilterNode(Node):
         # This means that when we return the position of the robot, we return
         # self.position - self.offset
         elif self.start_up == START_UP_ITERATIONS:
-            self.start_up += 1
+            self.start_up = START_UP_ITERATIONS + 1
             # Reset all particles to the origin
-            for particle in self.particles:
-                particle.position[0] = self.position[0]
-                particle.position[1] = self.position[1]
-                particle.position[2] = DEPTH
-                particle.yaw = self.yaw
+            new_particles = []
+            for particle in NUM_PARTICLES:
+                new_particles.append(Particle(self.position[0], self.position[1], DEPTH, self.yaw))
+            self.particles = new_particles
 
             # Set the offsets
             self.x_offset = self.position[0]
@@ -341,7 +365,7 @@ class ParticleFilterNode(Node):
         #   )
         #   ...
         # ]
-        camera_markers_r = self.get_observation_from_camera()
+        camera_markers_r = self.get_observation_from_camera(left_image_msg, right_image_msg)
         
         # Convert the camera observations into the global frame and into cartesian coordinates
         # camera_markers_g would return
@@ -352,12 +376,12 @@ class ParticleFilterNode(Node):
                 #    ]),
         #   ...
         # ]
-        camera_markers_g = self.convert_to_global_frame(camera_markers_r)
         
         # Calculate prob of each particle given the current camera image
         # P(Particle | Camera Image)
         particle_likelihoods = []
         for particle in self.particles:
+            camera_markers_g = self.convert_to_global_frame(camera_markers_r, particle)
             likelihood = self.get_particle_likelihood(particle, camera_markers_g)
             particle_likelihoods.append(likelihood)
         
@@ -377,12 +401,13 @@ class ParticleFilterNode(Node):
         
         # Publish the odometry
         # These values are centered to be the starting point of the sub
-        odom_msg = Odometry()
-        odom_msg.pose.pose.position.x = avg_position[0] - self.x_offset
-        odom_msg.pose.pose.position.y = avg_position[1] - self.y_offset
-        odom_msg.pose.pose.position.z = avg_position[2] 
-        odom_msg.pose.pose.orientation.z = avg_yaw - self.yaw_offset
-        self.odom_pub.publish(odom_msg)
+        if self.start_up >= self.START_UP_ITERATIONS:
+            odom_msg = Odometry()
+            odom_msg.pose.pose.position.x = avg_position[0] - self.x_offset
+            odom_msg.pose.pose.position.y = avg_position[1] - self.y_offset
+            odom_msg.pose.pose.position.z = avg_position[2] 
+            odom_msg.pose.pose.orientation.z = avg_yaw - self.yaw_offset
+            self.odom_pub.publish(odom_msg)
 
 def main(args = None):
     rclpy.init(args=args)

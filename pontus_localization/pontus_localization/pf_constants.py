@@ -1,3 +1,14 @@
+## Pool specific constants
+
+# This is the assumed depth of the pool in cm
+DEPTH = 500
+
+# In Cm
+GRID_LINE_LENGTH = 276
+GRID_LINE_THICKNESS = 30
+
+
+
 # This is the maximum distance new particles should be from the assumed position of thesub
 # This value should be no greater than half the size of a grid cell
 CUTOFF_DISTANCE = 5.0
@@ -19,15 +30,17 @@ MARKER_DISTANCE_SIGMA = 0.3
 MARKER_ANGLE_SIGMA = 0.5
 
 # This is the number of iterations to run the particle filter before the sub starts moving to get the initial position
-START_UP_ITERATIONS = 10
+START_UP_ITERATIONS = 100
 
-# This is the assumed depth of the pool in cm
-DEPTH = 500
+# Angles
+NUM_START_UP_ANGLES = 4
 
 # Grid dimenions and properties
 GRID_ROWS = 30
 GRID_COLUMNS = 30
 
-# In Cm
-GRID_LINE_LENGTH = 276
-GRID_LINE_THICKNESS = 30
+## Camera intrinsics
+
+# In Degrees
+HORIZONTAL_FOV = 60
+VERTICAL_FOV = 40 
