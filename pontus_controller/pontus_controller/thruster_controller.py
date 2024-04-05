@@ -14,11 +14,10 @@ from std_msgs.msg import Float64
 class ThrusterController(Node):
 
     class Thruster:
-        def __init__(self, Node, thruster_id,  pos, quaternion):
+        def __init__(self, Node, thruster_id, max_thrust,  pos, quaternion):
             self.pub = Node.create_publisher(Float64, 'pontus/thruster_' + str(thruster_id) + '/cmd_thrust', 10)
 
-            # TODO: Make this a parameter or something
-            self.max_thrust = 52
+            self.max_thrust = max_thrust
 
             q = quaternion
             axis = np.array([0, 0, 1]) # Our thrusters rotate the propeller around the z axis
@@ -70,6 +69,7 @@ class ThrusterController(Node):
 
         #TODO: make these parameters or something
         self.vehicle_name = 'pontus'
+        self.max_thrust = 52.0
 
         #TODO: These could be pulled from the robot description topic
 
@@ -132,9 +132,24 @@ class ThrusterController(Node):
         # Calculate individual thruster force to generate desired total force
         thruster_forces = self.inverse_jacobian.dot(force_torque)
 
-        # Publish thruster commands
-        for index, thruster in enumerate(self.thrusters):
-            thruster.set_thrust(thruster_forces[index])
+        # Handle matching sets of thrusters (vertical and horizontal) independently.
+        # Otherwise trying to command full forward velocity could cause our 
+        # vertical thrusters to decrease their output making us sink
+        for i in range(2):
+
+            start = 4*i
+            end = (4*i) + 4
+
+            # Calculate the highest commanded output thrust so we can scale
+            # all of the thrusters down if we exceed max thrust.
+            # This helps pevent issues with multiple thrusters being saturated
+            # leading to the vehicle moving in unintended directions
+            max_commanded = np.max(thruster_forces[start:end])
+            scale = (max_commanded / self.max_thrust) if max_commanded > self.max_thrust else 1.0
+
+            # Publish thruster commands
+            for index in range(start, end):
+                self.thrusters[index].set_thrust(thruster_forces[index] / scale)
 
 
     def generate_thrusters(self):
@@ -164,7 +179,7 @@ class ThrusterController(Node):
                                       transform.transform.rotation.z,
                                       transform.transform.rotation.w])
 
-            self.thrusters.append(self.Thruster(self, i, pos, quaternion))
+            self.thrusters.append(self.Thruster(self, i, self.max_thrust, pos, quaternion))
             self.jacobian_matrix[:, i] = self.thrusters[i].jacobian_column
 
         # Eliminate small values
