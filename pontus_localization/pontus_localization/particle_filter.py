@@ -64,9 +64,14 @@ class ParticleFilterNode(Node):
         # self.rotation = np.zeros((1,3))
         self.yaw = 0
         self.position = np.array([0.0, 0.0, 0.0])
+        self.position_offset = np.array([0.0, 0.0, 0.0])
+        self.yaw_offset = 0
+
         self.velocity = np.array([0.0, 0.0, 0.0])
         self.acceleration = np.array([0.0, 0.0, 0.0])
         
+        self.start_up = 0
+
         # init particles
         self.particles = []
         for particle in range(NUM_PARTICLES):
@@ -189,7 +194,7 @@ class ParticleFilterNode(Node):
     # Calculates the probabily of two given markers being the same
     def calculate_likelihood(self, particle_marker, camera_marker):
         grid_distance = np.sum(np.square(particle_marker[:3] - camera_marker[:3]))
-        angle_distance = np.abs(particle_marker[3] - camera_marker[3])
+        angle_distance = self.rotation_range(np.abs(particle_marker[3] - camera_marker[3]))
         return np.exp(-grid_distance**2 / (2 * MARKER_DISTANCE_SIGMA**2) - angle_distance**2 / (2 * MARKER_ANGLE_SIGMA**2))
     
     # Calculates the likelihood of a particle given the current camera image
@@ -252,6 +257,45 @@ class ParticleFilterNode(Node):
     # All angles will be in radians
     # All global frame coordinates will reflect real world units, therefore, meters
     def motion_update(self, left_image_msg, right_image_msg, imu_msg):
+        # Startup protocol
+        # When the robot starts, we need to know where the robot currently is within the map to set its origin
+        # Steps
+        # Basically run the particle filter
+        # Assume that the map has already been set up
+        # Sample 100 particle uniformly within a grid
+        # Calculate the likelihood of each particle given the current camera image
+        # Resample the particles based on the likelihoods
+
+        # Keep on running until the start_up iterations are done
+        if self.start_up < START_UP_ITERATIONS:
+            self.start_up += 1
+            # Sample 100 particles uniformly within a grid
+            
+            return
+        
+        # When we have met the start up iterations, we can start running the particle filter.
+        # Here we need to set the offsets for the position.
+        # That is, the original position of the robot should be 0,0.
+        # However, the origin of the map will be considered the center of the pre configured map
+        # (Center of a grid)
+        # Therefore the robot's position may not necessarly be the middle of the map
+        # We need an offset here to account for this
+        # This means that when we return the position of the robot, we return
+        # self.position - self.offset
+        elif self.start_up == START_UP_ITERATIONS:
+            self.start_up += 1
+            # Reset all particles to the origin
+            for particle in self.particles:
+                particle.position[0] = self.position[0]
+                particle.position[1] = self.position[1]
+                particle.position[2] = DEPTH
+                particle.yaw = self.yaw
+
+            # Set the offsets
+            self.x_offset = self.position[0]
+            self.y_offset = self.position[1]
+            self.yaw_offset = self.yaw
+
         # Get odometry from IMU
         dx_r, dy_r, dz_g, dr_g = self.get_odom_from_imu(imu_msg)
         
@@ -332,11 +376,12 @@ class ParticleFilterNode(Node):
         self.yaw = avg_yaw
         
         # Publish the odometry
+        # These values are centered to be the starting point of the sub
         odom_msg = Odometry()
-        odom_msg.pose.pose.position.x = avg_position[0]
-        odom_msg.pose.pose.position.y = avg_position[1]
-        odom_msg.pose.pose.position.z = avg_position[2]
-        odom_msg.pose.pose.orientation.z = avg_yaw
+        odom_msg.pose.pose.position.x = avg_position[0] - self.x_offset
+        odom_msg.pose.pose.position.y = avg_position[1] - self.y_offset
+        odom_msg.pose.pose.position.z = avg_position[2] 
+        odom_msg.pose.pose.orientation.z = avg_yaw - self.yaw_offset
         self.odom_pub.publish(odom_msg)
 
 def main(args = None):

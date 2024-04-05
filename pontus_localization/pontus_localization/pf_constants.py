@@ -17,3 +17,17 @@ NUM_PARTICLES = 50
 # This is used for the marker likelihood function 
 MARKER_DISTANCE_SIGMA = 0.3
 MARKER_ANGLE_SIGMA = 0.5
+
+# This is the number of iterations to run the particle filter before the sub starts moving to get the initial position
+START_UP_ITERATIONS = 10
+
+# This is the assumed depth of the pool in cm
+DEPTH = 500
+
+# Grid dimenions and properties
+GRID_ROWS = 30
+GRID_COLUMNS = 30
+
+# In Cm
+GRID_LINE_LENGTH = 276
+GRID_LINE_THICKNESS = 30
