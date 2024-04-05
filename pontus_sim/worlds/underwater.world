@@ -814,9 +814,9 @@
             </cylinder>
           </geometry>
           <material>
-            <ambient>1.0, 1.0, 0, 1</ambient>
-            <diffuse>1.0, 1.0, 0, 1</diffuse>
-            <specular>1.0, 1.0, 0, 1</specular>
+            <ambient>0.0, 0.0, 0.0, 1</ambient>
+            <diffuse>0.0, 0.0, 0.0, 1</diffuse>
+            <specular>0.0, 0.0, 0.0, 1</specular>
           </material>
         </visual>
         <pose>0 0 0 0 0 0</pose>

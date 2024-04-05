@@ -69,9 +69,9 @@ class PrequalificationNode(Node):
         # how far to the side to keep the pole while driving toward it
         self.marker_offset = 10.0 # This will almost certainly need tuning depending on camera resolution and pole width
 
-        self.marker_hsv = np.uint8([30, 255, 255])
-        self.marker_lower = self.marker_hsv - np.uint8([10, 20, 20,])
-        self.marker_upper= self.marker_hsv + np.uint8([10, 0, 0,])
+        self.marker_hsv = np.uint8([90, 128, 0])
+        self.marker_lower = self.marker_hsv - np.uint8([90, 128, 0,])
+        self.marker_upper= self.marker_hsv + np.uint8([90, 127, 5,])
 
         self.circle_radius = 0.5 # This is going to end up being very approximate
         self.circle_linear_velocity = 0.4
@@ -132,7 +132,8 @@ class PrequalificationNode(Node):
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         by_size = sorted(contours, key = lambda c: cv2.contourArea(c))
 
-        canvas = cv2.cvtColor(hsv_frame.copy(), cv2.COLOR_HSV2BGR)
+        #canvas = cv2.cvtColor(hsv_frame.copy(), cv2.COLOR_HSV2BGR)
+
         marker = None
         for contour in by_size:
             M = cv2.moments(contour)
