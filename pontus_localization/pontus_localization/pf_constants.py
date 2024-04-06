@@ -36,8 +36,8 @@ START_UP_ITERATIONS = 100
 NUM_START_UP_ANGLES = 4
 
 # Grid dimenions and properties
-GRID_ROWS = 30
-GRID_COLUMNS = 30
+GRID_ROWS = 31
+GRID_COLUMNS = 31
 
 ## Camera intrinsics
 

@@ -173,25 +173,85 @@ class ParticleFilterNode(Node):
     # Idea:
     # Take the maximal distance from the center of the particle in all four directions
     # This can be calculated using horizontal and vertical FOV
+    # Take the four corners of the frame box
+    # Rotate them to be in the global frame,
+    # Then take the maximal x value and y value
+    # Returns:
+    # [ ( x -> x coordinate in real world in robot frame,
+        #     y -> y coordinate in real world in robot frame,
+        #     z -> z coordinate in real world in robot frame,
+        #     theta -> angle of the line in robot frame
+        #   )
+        #   ...
+        # ]
     def get_markers_from_particle(self, particle):
+        # This represents how much in centimeteres the robot can see in the x and y direction
         horizontal_FOV_magnitude = particle.depth * np.tan(np.radians(HORIZONTAL_FOV / 2))
         vertical_FOV_magnitude = particle.depth * np.tan(np.radians(VERTICAL_FOV / 2))
         
-        # This probably needs to be fixed 
-        horizontal_vector = horizontal_FOV_magnitude * np.array([abs(np.cos(particle.yaw)), abs(np.sin(particle.yaw))])
-        vertical_vector = vertical_FOV_magnitude * np.array([abs(np.sin(particle.yaw)), abs(np.cos(particle.yaw))])
+        # Getting corners in global frame
+        corner_top_left = np.abs(np.array([self.rotate_point(-horizontal_FOV_magnitude, vertical_FOV_magnitude, particle.yaw)]))
+        corner_top_right = np.abs(np.array([self.rotate_point(horizontal_FOV_magnitude, vertical_FOV_magnitude, particle.yaw)]))
+        corner_bottom_left = np.abs(np.array([self.rotate_point(-horizontal_FOV_magnitude, -vertical_FOV_magnitude, particle.yaw)]))
+        corner_bottom_right = np.abs(np.array([self.rotate_point(horizontal_FOV_magnitude, -vertical_FOV_magnitude, particle.yaw)]))
 
-        true_x_max = 0
-        true_y_max = 0
+        # Get the true max values
+        # These values basically indicate the maximum area that the robot can see
+        # This might be an issue with the depth, as the maximum area tends to include more grid cells than it should
+        # This might lead to a slight positive bias to depth
+        # Should be fine with depth sensor
+        true_x_max = np.max([corner_top_left[0], corner_top_right[0], corner_bottom_left[0], corner_bottom_right[0]])
+        true_y_max = np.max([corner_top_left[1], corner_top_right[1], corner_bottom_left[1], corner_bottom_right[1]])
 
         # Assuming that the values above are correct
         position_x = particle.position[0]
         position_y = particle.positoin[1]
-
-        end_position_x = position_x + true_x_max
-        end_position_y = position_y + true_y_max
-
         
+        end_positions = [(position_x + true_x_max, 0), 
+                         (position_x - true_x_max, 0),
+                         (0, position_y + true_y_max), 
+                         (0, position_y - true_y_max)]
+        
+        markers = []
+        
+        grid_length = GRID_LINE_LENGTH + GRID_LINE_THICKNESS
+        
+        # Get all rows that are seen
+        # This will compose of all the lanes that span horizontally that appear in the camera
+        # The rows_seen array will contain all the y coordinates of the lines
+        rows_seen = []
+        # This represents the row coordinate of the last row. 
+        current_row = - (GRID_LINE_LENGTH / 2 + GRID_LINE_THICKNESS + GRID_ROWS // 2 * grid_length)
+        for row in range(GRID_ROWS):
+            # Check outer line
+            if end_positions[3][1] <= current_row <= end_positions[2][1]:
+                rows_seen.append(current_row)
+                
+            # Check inner line
+            if end_positions[3][1] <= current_row + GRID_LINE_THICKNESS <= end_positions[2][1]:
+                rows_seen.append(current_row + GRID_LINE_THICKNESS)
+            
+            current_row += grid_length 
+
+        # Do the same for columns
+        columns_seen = []
+        current_column = - (GRID_LINE_LENGTH / 2 + GRID_LINE_THICKNESS + GRID_COLUMNS // 2 * grid_length)
+        for column in range(GRID_COLUMNS):
+            # Check outer line
+            if end_positions[1][0] <= current_column <= end_positions[0][0]:
+                columns_seen.append(current_column)
+                
+            # Check inner line
+            if end_positions[1][0] <= current_column + GRID_LINE_THICKNESS <= end_positions[0][0]:
+                columns_seen.append(current_column + GRID_LINE_THICKNESS)
+            
+            current_column += grid_length 
+        
+        for row in rows_seen:
+            for column in columns_seen:
+                markers.append(np.array([column, row, particle.depth, particle.yaw]))   
+
+        return markers
 
     
     # Given the markers from the particle and the caemra markers
@@ -298,14 +358,14 @@ class ParticleFilterNode(Node):
         if self.start_up < START_UP_ITERATIONS:
             self.start_up += 1
 
-        # When we have met the start up iterations, we can start running the particle filter.
+        # When we have met the start up iterations, we can start running the localization.
         # Here we need to set the offsets for the position.
         # That is, the original position of the robot should be 0,0.
         # However, the origin of the map will be considered the center of the pre configured map
         # (Center of a grid)
         # Therefore the robot's position may not necessarly be the middle of the map
         # We need an offset here to account for this
-        # This means that when we return the position of the robot, we return
+        # This means that when we return the position of the robot for odometry, we return
         # self.position - self.offset
         elif self.start_up == START_UP_ITERATIONS:
             self.start_up = START_UP_ITERATIONS + 1
