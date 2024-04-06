@@ -6,6 +6,7 @@ from nav_msgs.msg import Odometry
 from cv_bridge import CvBridge
 from .mono_optical_flow_calc import MonoOpticalFlowCalculations
 from sensor_msgs.msg import Imu
+import LineDetection
 
 # Where does this dependency go lol
 from message_filters import ApproximateTimeSynchronizer
@@ -53,6 +54,8 @@ class ParticleFilterNode(Node):
         self.sync_sub = ApproximateTimeSynchronizer([self.camera_sub_left, self.camera_sub_right, self.imu_sub], 10, 0.1)
         self.sync_sub.registerCallback(self.motion_update)
 
+        self.bridge = CvBridge()
+        
         # Used to integrate the IMU data
         # Not sure if this should be set to None first
         # This may cause error
@@ -247,9 +250,15 @@ class ParticleFilterNode(Node):
             
             current_column += grid_length 
         
+        # Add the positions of the rows and columns to the markers
+        # The hough transform returns the closest distance to the line. 
+        # This means that it will always return the perpendicular distance to the line
+        # Since we convert our measurements from the robot to the global frame,
+        # We can assume that the distance to the line is the perpendicular distance 
         for row in rows_seen:
-            for column in columns_seen:
-                markers.append(np.array([column, row, particle.depth, particle.yaw]))   
+            markers.append(np.array([particle.position[0], row, particle.depth, particle.yaw])) 
+        for column in columns_seen:
+            markers.append(np.array([column, particle.position[1], particle.depth, particle.yaw]))   
 
         return markers
 
@@ -292,7 +301,9 @@ class ParticleFilterNode(Node):
         return l
     
     def get_observation_from_camera(self, left_image, right_image):
-        pass
+        cv_left_image = self.bridge.imgmsg_to_cv2(left_image, 'mono8')
+        cv_right_image = self.bridge.imgmsg_to_cv2(right_image, 'mono8')
+        return LineDetection.get_lines(cv_left_image, cv_right_image)
     
     # Rotates point
     def rotate_point(self, x, y, theta):

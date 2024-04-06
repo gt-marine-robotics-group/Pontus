@@ -30,7 +30,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-        	"odometry_node = pontus_localization.mono_optical_flow_odom_node:main"
+        	# "odometry_node = pontus_localization.mono_optical_flow_odom_node:main"
+            "odometry_node_pf = pontus_localization.particle_filter:main",
         ],
     },
 )
