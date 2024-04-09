@@ -35,7 +35,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'yolo = pontus_perception.yolo.yolo_node:main'
+            'yolo = pontus_perception.yolo.yolo_node:main',
+            'image_preprocessing = pontus_perception.image_preprocessing.preprocessing_node:main'
         ],
     },
 )
