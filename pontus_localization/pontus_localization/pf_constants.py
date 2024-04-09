@@ -1,12 +1,17 @@
 ## Pool specific constants
 
 # This is the assumed depth of the pool in cm
-DEPTH = 500
+POOL_DEPTH = 130
 
 # In Cm
 GRID_LINE_LENGTH = 276
 GRID_LINE_THICKNESS = 30
 
+# Camera intrinsics
+# Horizontal FOV in degrees
+FOV_H = 69
+# Vertical FOV in degrees
+FOV_V = 55
 
 
 # This is the maximum distance new particles should be from the assumed position of thesub

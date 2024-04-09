@@ -111,11 +111,6 @@
     <origin xyz="-.28 .0375 -.15" rpy="0 1.57 0" />
   </xacro:camera_macro>
 
-  <!-- Bottom Camera 2 -->
-  <xacro:camera_macro camera_id="2">
-    <origin xyz="-.28 -.0375 -.15" rpy="0 1.57 0" />
-  </xacro:camera_macro>
-
   <!-- Forward Sonar -->
   <xacro:p900_macro sonar_id="0">
     <origin xyz="0.28 0 -0.15" rpy="0 ${45*pi/180} 0" />

@@ -4,15 +4,14 @@ from sensor_msgs.msg import Image
 from tf2_msgs.msg import TFMessage
 from nav_msgs.msg import Odometry
 from cv_bridge import CvBridge
-from .mono_optical_flow_calc import MonoOpticalFlowCalculations
 from sensor_msgs.msg import Imu
-import LineDetection
+from .line_detection import LineDetection
 
 # Where does this dependency go lol
-from message_filters import ApproximateTimeSynchronizer
+from message_filters import Subscriber, ApproximateTimeSynchronizer
 
 import numpy as np
-from pf_constants import *
+from .pf_constants import *
 
 class Particle:
     def __init__(self, x = 0, y = 0, z = 0, yaw = 0):
@@ -24,34 +23,45 @@ class Particle:
 
 class ParticleFilterNode(Node):
     def __init__(self):
-        super().__init__("odometry_node_pf")
+        super().__init__("odometry_node")
 
 
-        self.camera_sub_left = self.create_subscription(
+        self.camera_sub_left = Subscriber(
+            self,
             Image,
             "/pontus/camera_1", # this will get remapped in launch file
         )
 
-        self.camera_sub_right = self.create_subscription(
-            Image,
-            "/pontus/camera_2", # this will get remapped in launch file
-        )
-
-        self.imu_sub = self.create_subscription(
-            Imu,
+        self.imu_sub = Subscriber(
+            self,
+            Imu, 
             "/pontus/imu_0",
         )
+
+        self.depth_sub = Subscriber(
+            self,
+            Odometry,
+            "/pontus/depth_0",
+        )
+
+        # self.depth_sub = self.create_subscription(
+        #     Odometry,
+        #     "/pontus/depth_0",
+        #     self.depth_callback,
+        #     10,
+        # )
 
         self.odom_pub = self.create_publisher(
             Odometry,
             "/pf_odometry",
+            10,
         )
 
         # Synchronize the subscriptions
         # This means that the cameras and imu will be synced
         # This is important for odometry
         
-        self.sync_sub = ApproximateTimeSynchronizer([self.camera_sub_left, self.camera_sub_right, self.imu_sub], 10, 0.1)
+        self.sync_sub = ApproximateTimeSynchronizer([self.camera_sub_left, self.imu_sub, self.depth_sub], 10, 0.2)
         self.sync_sub.registerCallback(self.motion_update)
 
         self.bridge = CvBridge()
@@ -78,14 +88,20 @@ class ParticleFilterNode(Node):
         # init particles for start up
         self.particles = []
         total_grid_width = GRID_LINE_LENGTH + GRID_LINE_THICKNESS
-        num_rows = np.sqrt(START_UP_ITERATIONS)
+        num_rows = int(np.sqrt(START_UP_ITERATIONS))
         for row in range(num_rows):
             for col in range(num_rows):
-                for angle in NUM_START_UP_ANGLES:
+                for angle in range(NUM_START_UP_ANGLES):
                     x = row * total_grid_width / num_rows + total_grid_width / 20
                     y = col * total_grid_width / num_rows + total_grid_width / 20
                     # Need to sample betwee 0 and pi/2 for the angle
-                    self.particles.append(Particle(x, y, DEPTH, np.pi / 2 * angle / NUM_START_UP_ANGLES))
+                    self.particles.append(Particle(x, y, POOL_DEPTH, np.pi / 2 * angle / NUM_START_UP_ANGLES))
+
+        self.get_logger().info("Started up particle filter node2")
+
+    def depth_callback(self, msg):
+        self.get_logger().info("Here")  
+        self.get_logger().info(str(msg.pose.pose.position.z))
 
     def get_odom_from_imu(self, msg):
         # Get current time
@@ -300,10 +316,9 @@ class ParticleFilterNode(Node):
         l = self.generate_marker_pairs_and_calculate_likelihood(particle_makers, camera_markers)
         return l
     
-    def get_observation_from_camera(self, left_image, right_image):
+    def get_observation_from_camera(self, left_image, depth):
         cv_left_image = self.bridge.imgmsg_to_cv2(left_image, 'mono8')
-        cv_right_image = self.bridge.imgmsg_to_cv2(right_image, 'mono8')
-        return LineDetection.get_lines(cv_left_image, cv_right_image)
+        return LineDetection.get_lines(cv_left_image, depth)
     
     # Rotates point
     def rotate_point(self, x, y, theta):
@@ -355,7 +370,7 @@ class ParticleFilterNode(Node):
     # Run the particle filter every time we get an input of imu + camera data
     # All angles will be in radians
     # All global frame coordinates will reflect real world units, therefore, meters
-    def motion_update(self, left_image_msg, right_image_msg, imu_msg):
+    def motion_update(self, left_image_msg, imu_msg, depth_msg):
         # Startup protocol
         # When the robot starts, we need to know where the robot currently is within the map to set its origin
         # Steps
@@ -364,7 +379,14 @@ class ParticleFilterNode(Node):
         # Sample 100 particle uniformly within a grid
         # Calculate the likelihood of each particle given the current camera image
         # Resample the particles based on the likelihoods
-
+        self.get_logger().info("Here2")
+        depth = depth_msg.pose.pose.position.z
+        self.get_logger().info(str(depth))
+        return
+        # depth = 1.3
+        ret = self.get_observation_from_camera(left_image_msg, depth)
+        self.get_logger().info(str(ret))
+        return
         # Keep on running until the start_up iterations are done
         if self.start_up < START_UP_ITERATIONS:
             self.start_up += 1
@@ -383,7 +405,7 @@ class ParticleFilterNode(Node):
             # Reset all particles to the origin
             new_particles = []
             for particle in NUM_PARTICLES:
-                new_particles.append(Particle(self.position[0], self.position[1], DEPTH, self.yaw))
+                new_particles.append(Particle(self.position[0], self.position[1], POOL_DEPTH, self.yaw))
             self.particles = new_particles
 
             # Set the offsets

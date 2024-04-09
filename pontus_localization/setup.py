@@ -31,7 +31,8 @@ setup(
     entry_points={
         'console_scripts': [
         	# "odometry_node = pontus_localization.mono_optical_flow_odom_node:main"
-            "odometry_node_pf = pontus_localization.particle_filter:main",
+            "odometry_node = pontus_localization.particle_filter:main",
+            "depth_republisher_node = pontus_localization.depth_republisher:main",
         ],
     },
 )
