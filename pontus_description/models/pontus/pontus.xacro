@@ -112,9 +112,9 @@
   </xacro:camera_macro>
 
   <!-- Forward Sonar -->
-  <xacro:p900_macro sonar_id="0">
+  <!-- <xacro:p900_macro sonar_id="0">
     <origin xyz="0.28 0 -0.15" rpy="0 ${45*pi/180} 0" />
-  </xacro:p900_macro>
+  </xacro:p900_macro> -->
 
   <!-- IMU -->
   <xacro:imu_macro imu_id="0">
@@ -122,9 +122,9 @@
   </xacro:imu_macro>
 
   <!-- Pressure -->
-  <xacro:pressure_macro pressure_id="0">
+  <!-- <xacro:pressure_macro pressure_id="0">
     <origin xyz="0 0 0" rpy="0 0 0" />
-  </xacro:pressure_macro>
+  </xacro:pressure_macro> -->
 
 
   <!-- Lock Pontus in place for sensor testing -->

@@ -1,11 +1,11 @@
 ## Pool specific constants
 
 # This is the assumed depth of the pool in cm
-POOL_DEPTH = 130
+POOL_DEPTH = 1.30
 
 # In Cm
-GRID_LINE_LENGTH = 276
-GRID_LINE_THICKNESS = 30
+GRID_LINE_LENGTH = 2.76
+GRID_LINE_THICKNESS = 0.30
 
 # Camera intrinsics
 # Horizontal FOV in degrees
@@ -16,7 +16,7 @@ FOV_V = 55
 
 # This is the maximum distance new particles should be from the assumed position of thesub
 # This value should be no greater than half the size of a grid cell
-CUTOFF_DISTANCE = 5.0
+CUTOFF_DISTANCE = GRID_LINE_LENGTH / 3
 
 # These values are used to sample from a Gaussian distribution to simulate noise in odometry
 TRANS_MU = 0

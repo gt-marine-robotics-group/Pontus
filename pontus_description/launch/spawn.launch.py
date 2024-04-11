@@ -14,8 +14,6 @@ import os
 import pathlib
 import xacro
 
-
-
 def generate_launch_description():
 
     # Set up launch arguments
@@ -87,5 +85,6 @@ def generate_launch_description():
     return LaunchDescription([
         static_arg,
         robot_state_publisher,
-        spawn
+        spawn,
+        
     ])
