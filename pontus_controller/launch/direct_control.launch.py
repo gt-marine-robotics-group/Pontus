@@ -19,12 +19,7 @@ def generate_launch_description():
         auv_arg,
         Node(
             package='pontus_controller',
-            executable='thruster_controller',
-            output='screen'
-        ),
-        Node(
-            package='pontus_controller',
-            executable='velocity_controller',
+            executable='direct_thruster_controller',
             output='screen'
         ),
         Node(

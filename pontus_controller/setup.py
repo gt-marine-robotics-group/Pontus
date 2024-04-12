@@ -30,7 +30,9 @@ setup(
     entry_points={
         'console_scripts': [
             'velocity_controller = pontus_controller.velocity_controller:main',
-            'thruster_controller = pontus_controller.thruster_controller:main'
+            'thruster_controller = pontus_controller.thruster_controller:main',
+            'direct_thruster_controller = pontus_controller.direct_thruster_controller:main',
+            'firmware_cmds = pontus_controller.firmware_cmds:main'
         ],
     },
 )

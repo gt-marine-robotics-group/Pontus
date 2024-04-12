@@ -68,6 +68,7 @@ install(PROGRAMS
   # add python executable file paths here
   pontus_sensors/imu_monitor.py
   pontus_sensors/camera_republish.py
+  pontus_sensors/imu_republish.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
