@@ -71,12 +71,25 @@ class ParticleFilterNode(Node):
             "/particle_topic",
             10
         )
+        self.true_pub = self.create_publisher(
+            Marker,
+            "/sub_true",
+            10
+        )
+
+        # Subscriber to odometry to get the true position of the robot
+        self.odom_sub = self.create_subscription(
+            Odometry,
+            "/pontus/odometry",
+            self.odom_callback,
+            10
+        )
 
         # This will be used to calculate the time between each imu callback
         self.previous_time = self.get_clock().now()
         self.velocity = np.array([0.0, 0.0])
         self.acceleration = np.array([0.0, 0.0])
-        self.position = np.array([0.0, 0.0])
+        self.position = np.array([0.0, 0.0, POOL_DEPTH])
         
         # Particles
         self.particles = []
@@ -131,10 +144,32 @@ class ParticleFilterNode(Node):
             markers.markers.append(marker)
             marker_id += 1
 
+        # Display assumed position
+        avg_pos, avg_yaw = self.calculate_avg_position_yaw()
+        marker = Marker()
+        new_yaw = avg_yaw + np.pi / 2
+        marker.header.frame_id = 'map'  # Set the frame ID
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = 'particle_markers'
+        marker.id = marker_id
+        marker.type = Marker.ARROW
+        marker.action = Marker.ADD
+        marker.pose.position.x = avg_pos[0]
+        marker.pose.position.y = avg_pos[1]
+        marker.pose.position.z = avg_pos[2]
+        marker.pose.orientation.x = 0.0
+        marker.pose.orientation.y = 0.0
+        marker.pose.orientation.z = np.sin(new_yaw/ 2.0)
+        marker.pose.orientation.w = np.cos(new_yaw / 2.0)
+        marker.scale = Vector3(x=0.4, y=0.15, z=0.15) 
+        marker.color = ColorRGBA(r=1.0, g=0.0, b=0.0, a=1.0)  
+        marker.lifetime = Duration(sec=0)
+        markers.markers.append(marker)
+        marker_id += 1
+
         self.particle_pub_arrow.publish(markers)
         self.get_logger().info('Published particle markers')
 
-        
     # This function will uniformly initialize the particles in the grid
     # This is used to detect where the robot starts
     def init_particles(self):
@@ -148,9 +183,45 @@ class ParticleFilterNode(Node):
                     # Need to sample betwee 0 and pi/2 for the angle
                     self.particles.append(Particle(x, y, POOL_DEPTH, np.pi / 2 * angle / NUM_START_UP_ANGLES))
     
+    # This calculates the average position and yaw of the particles
+    # This is what our odometry would be
+    def calculate_avg_position_yaw(self):
+        avg_position = np.zeros((3,))
+        avg_yaw = 0
+        for particle in self.particles:
+            avg_position += particle.position
+            avg_yaw += particle.yaw
+        avg_position = avg_position / len(self.particles)
+        avg_yaw = avg_yaw / len(self.particles)
+        return avg_position, avg_yaw
+
     ######################
     # Callback functions
     ######################
+    # Odometry call back
+    # This is only used for displaying the true position of the sub in Rviz
+    def odom_callback(self, msg):
+        # Display true position
+        marker = Marker()
+        marker.header.frame_id = 'map'  # Set the frame ID
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = 'particle_markers'
+        marker.id = 0
+        marker.type = Marker.ARROW
+        marker.action = Marker.ADD
+        marker.pose.position.x = msg.pose.pose.position.x
+        marker.pose.position.y = msg.pose.pose.position.y
+        marker.pose.position.z = msg.pose.pose.position.z
+        marker.pose.orientation.x = msg.pose.pose.orientation.x
+        marker.pose.orientation.y = msg.pose.pose.orientation.y
+        marker.pose.orientation.z = msg.pose.pose.orientation.z
+        marker.pose.orientation.w = msg.pose.pose.orientation.w
+        marker.scale = Vector3(x=0.4, y=0.15, z=0.15) 
+        marker.color = ColorRGBA(r=0.0, g=1.0, b=0.0, a=1.0)  
+        marker.lifetime = Duration(sec=0)
+        self.true_pub.publish(marker)
+        self.get_logger().info("Published true position marker")
+
     # Imu callback
     # This callback function calculates the translation and rotation of the sub based on the imu. 
     # This function will also update the particles based on the imu data.
