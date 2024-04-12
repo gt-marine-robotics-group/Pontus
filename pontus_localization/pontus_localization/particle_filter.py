@@ -41,12 +41,12 @@ class ParticleFilterNode(Node):
         # )
         
         # # Imu subscription
-        # self.imu_sub = self.create_subscription(
-        #     Imu, 
-        #     "/pontus/imu_0",
-        #     self.imu_callback,
-        #     10
-        # )
+        self.imu_sub = self.create_subscription(
+            Imu, 
+            "/pontus/imu_0",
+            self.imu_callback,
+            10
+        )
         
         # self.depth_sub = self.create_subscription(
         #     Odometry,
@@ -89,9 +89,12 @@ class ParticleFilterNode(Node):
 
         # This will be used to calculate the time between each imu callback
         self.previous_time = self.get_clock().now()
-        self.velocity = np.array([0.0, 0.0])
-        self.acceleration = np.array([0.0, 0.0])
+        self.velocity = np.array([0.0, 0.0, 0.0])
+        self.acceleration = np.array([0.0, 0.0, 0.0])
         self.position = np.array([0.0, 0.0, POOL_DEPTH])
+        self.previous_yaw = 0
+        self.imu_batch_size = 0    
+        self.linear_acceleration_current = np.zeros((3,))
         
         # Particles
         self.particles = []
@@ -102,6 +105,7 @@ class ParticleFilterNode(Node):
     # so it can be displayed in Rviz
     def particles_display(self):
         
+        # Display particle spheres
         msg = PointCloud2()
         
         particle_positions = [(p.position[0], p.position[1], p.position[2]) for p in self.particles]
@@ -122,11 +126,13 @@ class ParticleFilterNode(Node):
         msg.data = np.array(particle_positions, dtype=np.float32).tobytes()
         self.particle_pub.publish(msg)
         
+        
+        # Display yaw
         markers = MarkerArray()
         marker_id = 0
         for particle in self.particles:
             marker = Marker()
-            new_yaw = particle.yaw + np.pi / 2
+            new_yaw = particle.yaw
             marker.header.frame_id = 'map'  # Set the frame ID
             marker.header.stamp = self.get_clock().now().to_msg()
             marker.ns = 'particle_markers'
@@ -149,7 +155,7 @@ class ParticleFilterNode(Node):
         # Display assumed position
         avg_pos, avg_yaw = self.calculate_avg_position_yaw()
         marker = Marker()
-        new_yaw = avg_yaw + np.pi / 2
+        new_yaw = avg_yaw 
         marker.header.frame_id = 'map'  # Set the frame ID
         marker.header.stamp = self.get_clock().now().to_msg()
         marker.ns = 'particle_markers'
@@ -170,8 +176,11 @@ class ParticleFilterNode(Node):
         marker_id += 1
 
         self.particle_pub_arrow.publish(markers)
-        self.get_logger().info('Published particle markers')
+        # self.get_logger().info('Published particle markers')
 
+    ######################
+    # Particle related functions
+    ######################
     # This function will uniformly initialize the particles in the grid
     # This is used to detect where the robot starts
     def init_particles(self):
@@ -179,7 +188,7 @@ class ParticleFilterNode(Node):
         num_rows = int(np.sqrt(START_UP_ITERATIONS))
         for row in range(num_rows):
             for col in range(num_rows):
-                for angle in range(NUM_START_UP_ANGLES + 1):
+                for angle in range(NUM_START_UP_ANGLES):
                     x = row * total_grid_width / num_rows - total_grid_width / 2
                     y = col * total_grid_width / num_rows - total_grid_width / 2
                     # Need to sample betwee 0 and pi/2 for the angle
@@ -196,6 +205,23 @@ class ParticleFilterNode(Node):
         avg_position = avg_position / len(self.particles)
         avg_yaw = avg_yaw / len(self.particles)
         return avg_position, avg_yaw
+
+    # This updates the particles with the new position and yaw
+    def update_particles(self, change_in_position, change_in_yaw):
+        for particle in self.particles:
+            # Update position
+            particle.position += change_in_position
+            # Update yaw
+            particle.yaw = self.yaw_norm(particle.yaw + change_in_yaw)
+        self.particles_display()
+            
+    # This function ensures that particle yaw are in the range [-pi, pi)
+    def yaw_norm(self, yaw):
+        while yaw >= np.pi:
+            yaw -= 2 * np.pi
+        while yaw < -np.pi:
+            yaw += 2 * np.pi
+        return yaw
 
     ######################
     # Callback functions
@@ -222,21 +248,28 @@ class ParticleFilterNode(Node):
         marker.color = ColorRGBA(r=0.0, g=1.0, b=0.0, a=1.0)  
         marker.lifetime = Duration(sec=0)
         self.true_pub.publish(marker)
-        self.get_logger().info("Published true position marker")
+        # self.get_logger().info("Published true position marker")
 
     # Imu callback
     # This callback function calculates the translation and rotation of the sub based on the imu. 
     # This function will also update the particles based on the imu data.
     def imu_callback(self, msg):
+        self.linear_acceleration_current += np.array([msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z - 9.7999999])
+        
+        self.imu_batch_size += 1
+        if self.imu_batch_size != 100:
+            return
         # Get current time
         current_time = self.get_clock().now()    
         # Calculate the change in time
-        dt = current_time - self.previous_time
+        dt = (current_time - self.previous_time).nanoseconds / 1e9
+        self.get_logger().info("dt: " + str(dt))
+        self.linear_acceleration_current = self.linear_acceleration_current / self.imu_batch_size
+        self.imu_batch_size = 0
         
         # Calculate the change in velocity
-        linear_acceleration_current = np.array([msg.linear_acceleration.x, msg.linear_acceleration.y])
         # Use average acceleration to gestimate the velocity
-        change_in_velocity = (self.acceleration + linear_acceleration_current) / 2 * dt
+        change_in_velocity = self.linear_acceleration_current * dt
         
         # Update current velocity
         self.velocity = self.velocity + change_in_velocity
@@ -249,15 +282,15 @@ class ParticleFilterNode(Node):
         self.previous_time = current_time
         self.previous_yaw = msg.orientation.z
         
-        self.position += change_in_position
-        
-        self.get_logger().info("Change in position: " + str(change_in_position))
-        self.get_logger().info("Change in yaw: " + str(change_in_yaw))
+        # self.get_logger().info("Change in position: " + str(change_in_position))
+        # self.get_logger().info("Change in yaw: " + str(change_in_yaw))
+        self.get_logger().info("Change in velocity: " + str(self.linear_acceleration_current))
         self.get_logger().info("Change in velocity: " + str(change_in_velocity))
-        self.get_logger().info("Current velocity: " + str(self.velocity))
-         
-    
-    
+        # self.get_logger().info("Current velocity: " + str(self.velocity))
+        self.linear_acceleration_current = np.zeros((3,))
+        self.update_particles(change_in_position, change_in_yaw) 
+        
+        
 def main(args = None):
     rclpy.init(args=args)
     node = ParticleFilterNode()
