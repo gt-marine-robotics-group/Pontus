@@ -74,7 +74,7 @@ class PositionNode(Node):
         p_angular = np.array([r, p ,y])
 
         if np.linalg.norm(linear_err) > self.thresh:
-          angular_err = np.array([0, np.arctan2(self.cmd_linear[2], self.cmd_linear[0]), np.arctan2(self.cmd_linear[1], self.cmd_linear[0])]) 
+          angular_err = np.array([0, np.arctan2(linear_err[2], linear_err[0]), np.arctan2(linear_err[1], linear_err[0])]) 
         else:
           angular_diff = self.cmd_angular - p_angular
           
