@@ -5,6 +5,7 @@ from nav_msgs.msg import Odometry
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Imu
 from .line_detection import LineDetection
+from pontus_msgs.msg import ParticleMsg, ParticleList
 from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Pose, Vector3
@@ -16,6 +17,14 @@ import numpy as np
 from .pf_constants import *
 
 # ros2 run tf2_ros static_transform_publisher --x 0 --y 0 --z 0 --qx 0 --qy 0 --qz 0 --qw 1 --frame-id map --child-frame-id world
+
+class Particle:
+    def __init__(self, x = 0, y = 0, z = 0, yaw = 0):
+        self.position = np.zeros((3,))
+        self.position[0] = x
+        self.position[1] = y
+        self.position[2] = z
+        self.yaw = yaw
         
 class ParticleFilterNode(Node):
     def __init__(self):
@@ -80,17 +89,17 @@ class ParticleFilterNode(Node):
 
         # This will be used to calculate the time between each imu callback
         self.previous_time = self.get_clock().now()
-        self.velocity = np.array([0.0, 0.0, 0.0, 0.0])
+        self.velocity = np.array([0.0, 0.0, 0.0])
         self.acceleration = np.array([0.0, 0.0, 0.0])
-        self.position = np.array([0.0, 0.0, POOL_DEPTH, 0.0])
-        self.linear_acceleration_current = np.zeros((4,))
-        self.previous_angular_velocity = 0
-
+        self.position = np.array([0.0, 0.0, POOL_DEPTH])
+        self.previous_yaw = 0
+        self.imu_batch_size = 0    
+        self.linear_acceleration_current = np.zeros((3,))
+        
         # Particles
-        self.particles = np.zeros((400, 4))
+        self.particles = []
         self.init_particles()
-        if DISPLAY_PARTICLES:
-            self.particles_display()
+        self.particles_display()
         
     # This function is used to publish particles to the particles topic
     # so it can be displayed in Rviz
@@ -99,7 +108,8 @@ class ParticleFilterNode(Node):
         # Display particle spheres
         msg = PointCloud2()
         
-        particle_positions = self.particles[:, :3]
+        particle_positions = [(p.position[0], p.position[1], p.position[2]) for p in self.particles]
+        
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = 'map'
         msg.height = 1
@@ -111,32 +121,31 @@ class ParticleFilterNode(Node):
         ]
         msg.is_bigendian = False
         msg.point_step = 12
-        msg.row_step = msg.point_step * len(particle_positions)
+        msg.row_step = msg.point_step * len(self.particles)
         msg.is_dense = True
         msg.data = np.array(particle_positions, dtype=np.float32).tobytes()
-        
         self.particle_pub.publish(msg)
-
+        
         
         # Display yaw
         markers = MarkerArray()
         marker_id = 0
         for particle in self.particles:
             marker = Marker()
-            yaw = particle[3]
+            new_yaw = particle.yaw
             marker.header.frame_id = 'map'  # Set the frame ID
             marker.header.stamp = self.get_clock().now().to_msg()
             marker.ns = 'particle_markers'
             marker.id = marker_id
             marker.type = Marker.ARROW
             marker.action = Marker.ADD
-            marker.pose.position.x = particle[0]
-            marker.pose.position.y = particle[1]
-            marker.pose.position.z = particle[2]
+            marker.pose.position.x = particle.position[0]
+            marker.pose.position.y = particle.position[1]
+            marker.pose.position.z = particle.position[2]
             marker.pose.orientation.x = 0.0
             marker.pose.orientation.y = 0.0
-            marker.pose.orientation.z = np.sin(yaw / 2.0)
-            marker.pose.orientation.w = np.cos(yaw / 2.0)
+            marker.pose.orientation.z = np.sin(new_yaw/ 2.0)
+            marker.pose.orientation.w = np.cos(new_yaw / 2.0)
             marker.scale = Vector3(x=0.2, y=0.02, z=0.02) 
             marker.color = ColorRGBA(r=0.0, g=0.67, b=1.0, a=1.0)  
             marker.lifetime = Duration(sec=0)
@@ -144,9 +153,9 @@ class ParticleFilterNode(Node):
             marker_id += 1
 
         # Display assumed position
-        avg_pos = self.calculate_avg_position_yaw()
+        avg_pos, avg_yaw = self.calculate_avg_position_yaw()
         marker = Marker()
-        yaw = avg_pos[3]
+        new_yaw = avg_yaw 
         marker.header.frame_id = 'map'  # Set the frame ID
         marker.header.stamp = self.get_clock().now().to_msg()
         marker.ns = 'particle_markers'
@@ -158,8 +167,8 @@ class ParticleFilterNode(Node):
         marker.pose.position.z = avg_pos[2]
         marker.pose.orientation.x = 0.0
         marker.pose.orientation.y = 0.0
-        marker.pose.orientation.z = np.sin(yaw/ 2.0)
-        marker.pose.orientation.w = np.cos(yaw / 2.0)
+        marker.pose.orientation.z = np.sin(new_yaw/ 2.0)
+        marker.pose.orientation.w = np.cos(new_yaw / 2.0)
         marker.scale = Vector3(x=0.4, y=0.15, z=0.15) 
         marker.color = ColorRGBA(r=1.0, g=0.0, b=0.0, a=1.0)  
         marker.lifetime = Duration(sec=0)
@@ -177,25 +186,34 @@ class ParticleFilterNode(Node):
     def init_particles(self):
         total_grid_width = GRID_LINE_LENGTH + GRID_LINE_THICKNESS
         num_rows = int(np.sqrt(START_UP_ITERATIONS))
-        counter = 0
         for row in range(num_rows):
             for col in range(num_rows):
                 for angle in range(NUM_START_UP_ANGLES):
                     x = row * total_grid_width / num_rows - total_grid_width / 2
                     y = col * total_grid_width / num_rows - total_grid_width / 2
                     # Need to sample betwee 0 and pi/2 for the angle
-                    self.particles[counter] = np.array([x, y, POOL_DEPTH, angle * np.pi / 2])
-                    counter+=1  
+                    self.particles.append(Particle(x, y, POOL_DEPTH, np.pi / 2 * angle / NUM_START_UP_ANGLES))
     
     # This calculates the average position and yaw of the particles
     # This is what our odometry would be
     def calculate_avg_position_yaw(self):
-        avg_position = np.mean(self.particles, axis=0)
-        return avg_position
+        avg_position = np.zeros((3,))
+        avg_yaw = 0
+        for particle in self.particles:
+            avg_position += particle.position
+            avg_yaw += particle.yaw
+        avg_position = avg_position / len(self.particles)
+        avg_yaw = avg_yaw / len(self.particles)
+        return avg_position, avg_yaw
 
     # This updates the particles with the new position and yaw
-    def update_particles(self, change_in_position): 
-        self.particles += change_in_position    
+    def update_particles(self, change_in_position, change_in_yaw):
+        for particle in self.particles:
+            # Update position
+            particle.position += change_in_position
+            # Update yaw
+            particle.yaw = self.yaw_norm(particle.yaw + change_in_yaw)
+        self.particles_display()
             
     # This function ensures that particle yaw are in the range [-pi, pi)
     def yaw_norm(self, yaw):
@@ -211,8 +229,6 @@ class ParticleFilterNode(Node):
     # Odometry call back
     # This is only used for displaying the true position of the sub in Rviz
     def odom_callback(self, msg):
-        if not DISPLAY_PARTICLES:
-            return
         # Display true position
         marker = Marker()
         marker.header.frame_id = 'map'  # Set the frame ID
@@ -243,52 +259,34 @@ class ParticleFilterNode(Node):
         # Calculate the change in time
         dt = (current_time - self.previous_time).nanoseconds / 1e9
         self.get_logger().info("dt: " + str(dt))
-        self.previous_time = current_time
-
-        if DISPLAY_PARTICLES:
-            self.particles_display()
-
-        # Get imu data and interpolate the data to calculate change in position
+        
         self.linear_acceleration_current = np.array([msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z - 9.7999999])
-        change_in_position = self.interpolate_imu_data(self.linear_acceleration_current, self.acceleration, msg.angular_velocity.z, self.previous_angular_velocity, dt, 0.05)
-        self.acceleration = self.linear_acceleration_current
-        self.previous_angular_velocity = msg.angular_velocity.z
-        self.update_particles(change_in_position) 
-        return
 
+        # Calculate the change in velocity
+        # Use average acceleration to gestimate the velocity
+        change_in_velocity = self.linear_acceleration_current * dt
+        
+        # d = vt
+        change_in_position = self.velocity  * dt
+
+        # Update current velocity
+        self.velocity = self.velocity + change_in_velocity
+        
+        change_in_yaw = msg.orientation.z - self.previous_yaw
+        
+        # Update previous variables
+        self.previous_time = current_time
+        self.previous_yaw = msg.orientation.z
+        
+        # self.get_logger().info("Change in position: " + str(change_in_position))
+        # self.get_logger().info("Change in yaw: " + str(change_in_yaw))
         self.get_logger().info("Change in velocity: " + str(self.linear_acceleration_current))
         self.get_logger().info("Change in velocity: " + str(change_in_velocity))
+        # self.get_logger().info("Current velocity: " + str(self.velocity))
+        self.linear_acceleration_current = np.zeros((3,))
+        self.update_particles(change_in_position, change_in_yaw) 
         
-    ######################
-    # Data processing functions
-    ######################
-    # This function will take in the current IMU data, and previous IMU data and interpolate the data over a timestep
-    # This should return change in position
-    def interpolate_imu_data(self, current_imu_data, previous_imu_data, current_angular_velocity, previous_angular_velocity, dt, desired_time_step):
-        change_in_acceleration = (current_imu_data - previous_imu_data) / dt
-        change_in_angular_velocity = (current_angular_velocity - previous_angular_velocity) / dt
-        change_in_position = 0
-        current_step = 0
-        while current_step < dt:
-            # Calculate the time step
-            time_step = desired_time_step
-            if current_step + desired_time_step > dt:
-                time_step = dt - current_step
-            # Get current acceleration based on time step
-            current_acceleration = previous_imu_data + change_in_acceleration * current_step
-            change_in_velocity = current_acceleration / 2 * time_step
-            change_in_velocity = np.append(change_in_velocity, 0)
-            # Update new velocity
-            self.velocity = self.velocity + change_in_velocity
-            # Calculate current angular velocity
-            angular_velocity = previous_angular_velocity + change_in_angular_velocity * current_step
-            self.velocity[3] = angular_velocity
-            # Calculate change in position
-            change_in_position = change_in_position + self.velocity * time_step
-            current_step = current_step + time_step
-        return change_in_position
-
-
+        
 def main(args = None):
     rclpy.init(args=args)
     node = ParticleFilterNode()

@@ -4,7 +4,7 @@
 POOL_DEPTH = 1.3
 
 # In Cm
-GRID_LINE_LENGTH = 2.76
+GRID_LINE_LENGTH = 5
 GRID_LINE_THICKNESS = 0.30
 
 # Camera intrinsics
@@ -13,6 +13,7 @@ FOV_H = 69
 # Vertical FOV in degrees
 FOV_V = 55
 
+DISPLAY_PARTICLES = True
 
 # This is the maximum distance new particles should be from the assumed position of thesub
 # This value should be no greater than half the size of a grid cell
