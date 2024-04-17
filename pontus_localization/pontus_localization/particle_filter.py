@@ -184,7 +184,7 @@ class ParticleFilterNode(Node):
                     x = row * total_grid_width / num_rows - total_grid_width / 2
                     y = col * total_grid_width / num_rows - total_grid_width / 2
                     # Need to sample betwee 0 and pi/2 for the angle
-                    self.particles[counter] = np.array([x, y, POOL_DEPTH, angle * np.pi / 2])
+                    self.particles[counter] = np.array([x, y, POOL_DEPTH, angle / NUM_START_UP_ANGLES * np.pi / 2])
                     counter+=1  
     
     # This calculates the average position and yaw of the particles
@@ -242,7 +242,7 @@ class ParticleFilterNode(Node):
         current_time = self.get_clock().now()    
         # Calculate the change in time
         dt = (current_time - self.previous_time).nanoseconds / 1e9
-        self.get_logger().info("dt: " + str(dt))
+        # self.get_logger().info("dt: " + str(dt))
         self.previous_time = current_time
 
         if DISPLAY_PARTICLES:
@@ -274,9 +274,12 @@ class ParticleFilterNode(Node):
             time_step = desired_time_step
             if current_step + desired_time_step > dt:
                 time_step = dt - current_step
-            # Get current acceleration based on time step
-            current_acceleration = previous_imu_data + change_in_acceleration * current_step
-            change_in_velocity = current_acceleration / 2 * time_step
+            # Get current acceleration based on time step with respect to the robot frame
+            current_acceleration_robot = previous_imu_data + change_in_acceleration * current_step
+            # Change the current acceleration to the global frame
+            current_aceleration_global = self.rotate_point(current_acceleration_robot, -self.position[3])
+            # Calculate change in velocity based on time_step
+            change_in_velocity = current_aceleration_global / 2 * time_step
             change_in_velocity = np.append(change_in_velocity, 0)
             # Update new velocity
             self.velocity = self.velocity + change_in_velocity
@@ -288,6 +291,14 @@ class ParticleFilterNode(Node):
             current_step = current_step + time_step
         return change_in_position
 
+    # This function will rotate a point in the robot frame to the global frame
+    def rotate_point(self, point, yaw):
+        rotation_matrix = np.array([
+            [np.cos(yaw), -np.sin(yaw), 0],
+            [np.sin(yaw), np.cos(yaw), 0],
+            [0, 0, 1]
+        ])
+        return np.dot(rotation_matrix, point)
 
 def main(args = None):
     rclpy.init(args=args)
