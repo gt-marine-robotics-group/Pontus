@@ -1,7 +1,7 @@
 ## Pool specific constants
 
 # This is the assumed depth of the pool in cm
-POOL_DEPTH = 1.3
+POOL_DEPTH = 2.7
 
 # In Cm
 GRID_LINE_LENGTH = 5

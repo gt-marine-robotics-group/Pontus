@@ -24,27 +24,27 @@ class ParticleFilterNode(Node):
         # Subscribers
         
         # Camera subscription
-        # self.camera_sub = self.create_subscription(
-        #     Image, 
-        #     "/pontus/camera_1", 
-        #     self.camera_callback, 
-        #     10
-        # )
-        
-        # # Imu subscription
-        self.imu_sub = self.create_subscription(
-            Imu, 
-            "/pontus/imu_0",
-            self.imu_callback,
+        self.camera_sub = self.create_subscription(
+            Image, 
+            "/pontus/camera_1", 
+            self.camera_callback, 
             10
         )
         
-        # self.depth_sub = self.create_subscription(
-        #     Odometry,
-        #     "/pontus/depth_0",
-        #     self.depth_callback,
+        # # Imu subscription
+        # self.imu_sub = self.create_subscription(
+        #     Imu, 
+        #     "/pontus/imu_0",
+        #     self.imu_callback,
         #     10
         # )
+        
+        self.depth_sub = self.create_subscription(
+            Odometry,
+            "/pontus/depth_0",
+            self.depth_callback,
+            10
+        )
 
         # self.odom_pub = self.create_publisher(
         #     Odometry,
@@ -78,19 +78,23 @@ class ParticleFilterNode(Node):
             10
         )
 
+        self.bridge = CvBridge()
+
         # This will be used to calculate the time between each imu callback
-        self.previous_time = self.get_clock().now()
         self.velocity = np.array([0.0, 0.0, 0.0, 0.0])
         self.acceleration = np.array([0.0, 0.0, 0.0])
         self.position = np.array([0.0, 0.0, POOL_DEPTH, 0.0])
+        self.depth = POOL_DEPTH
         self.linear_acceleration_current = np.zeros((4,))
         self.previous_angular_velocity = 0
+        self.previous_time = None
 
         # Particles
         self.particles = np.zeros((400, 4))
         self.init_particles()
         if DISPLAY_PARTICLES:
             self.particles_display()
+        
         
     # This function is used to publish particles to the particles topic
     # so it can be displayed in Rviz
@@ -195,7 +199,8 @@ class ParticleFilterNode(Node):
 
     # This updates the particles with the new position and yaw
     def update_particles(self, change_in_position): 
-        self.particles += change_in_position    
+        self.particles += change_in_position
+        self.particles[:,2] = self.depth    
             
     # This function ensures that particle yaw are in the range [-pi, pi)
     def yaw_norm(self, yaw):
@@ -238,11 +243,15 @@ class ParticleFilterNode(Node):
     # This callback function calculates the translation and rotation of the sub based on the imu. 
     # This function will also update the particles based on the imu data.
     def imu_callback(self, msg):
+        # Get first previous time
+        if self.previous_time is None:
+            self.previous_time = self.get_clock().now()
+            return
         # Get current time
         current_time = self.get_clock().now()    
         # Calculate the change in time
         dt = (current_time - self.previous_time).nanoseconds / 1e9
-        # self.get_logger().info("dt: " + str(dt))
+        self.get_logger().info("dt: " + str(dt))
         self.previous_time = current_time
 
         if DISPLAY_PARTICLES:
@@ -253,21 +262,34 @@ class ParticleFilterNode(Node):
         change_in_position = self.interpolate_imu_data(self.linear_acceleration_current, self.acceleration, msg.angular_velocity.z, self.previous_angular_velocity, dt, 0.05)
         self.acceleration = self.linear_acceleration_current
         self.previous_angular_velocity = msg.angular_velocity.z
+        
+        # Update each particles position with the imu update
         self.update_particles(change_in_position) 
         return
 
         self.get_logger().info("Change in velocity: " + str(self.linear_acceleration_current))
         self.get_logger().info("Change in velocity: " + str(change_in_velocity))
-        
+    
+    # Depth callback
+    # This callback function will update the depth of the sub
+    def depth_callback(self, msg):
+        self.depth = msg.pose.pose.position.z + POOL_DEPTH
+        return
+    
+    # Camera callback
+    def camera_callback(self, msg):
+        stuff = self.get_observation_from_camera(msg)
+
     ######################
     # Data processing functions
     ######################
     # This function will take in the current IMU data, and previous IMU data and interpolate the data over a timestep
     # This should return change in position
+    # This function will also handle converting each particles frame into the global frame
     def interpolate_imu_data(self, current_imu_data, previous_imu_data, current_angular_velocity, previous_angular_velocity, dt, desired_time_step):
         change_in_acceleration = (current_imu_data - previous_imu_data) / dt
         change_in_angular_velocity = (current_angular_velocity - previous_angular_velocity) / dt
-        change_in_position = 0
+        change_in_position = np.zeros((len(self.particles), 4))
         current_step = 0
         while current_step < dt:
             # Calculate the time step
@@ -275,30 +297,43 @@ class ParticleFilterNode(Node):
             if current_step + desired_time_step > dt:
                 time_step = dt - current_step
             # Get current acceleration based on time step with respect to the robot frame
-            current_acceleration_robot = previous_imu_data + change_in_acceleration * current_step
+            current_acceleration = previous_imu_data + change_in_acceleration * current_step
             # Change the current acceleration to the global frame
-            current_aceleration_global = self.rotate_point(current_acceleration_robot, -self.position[3])
             # Calculate change in velocity based on time_step
-            change_in_velocity = current_aceleration_global / 2 * time_step
+            change_in_velocity = current_acceleration / 2 * time_step
             change_in_velocity = np.append(change_in_velocity, 0)
             # Update new velocity
             self.velocity = self.velocity + change_in_velocity
             # Calculate current angular velocity
             angular_velocity = previous_angular_velocity + change_in_angular_velocity * current_step
-            self.velocity[3] = angular_velocity
+            self.velocity[3] = angular_velocity / 2
             # Calculate change in position
-            change_in_position = change_in_position + self.velocity * time_step
+            change_in_position_particle = np.tile((self.velocity * time_step), (400,1))
+            # Rotate the change in position to the global frame
+            change_in_position_global = self.rotate_points(change_in_position_particle, self.particles[:,3])
+            change_in_position = change_in_position + change_in_position_global
             current_step = current_step + time_step
         return change_in_position
 
     # This function will rotate a point in the robot frame to the global frame
-    def rotate_point(self, point, yaw):
-        rotation_matrix = np.array([
-            [np.cos(yaw), -np.sin(yaw), 0],
-            [np.sin(yaw), np.cos(yaw), 0],
-            [0, 0, 1]
-        ])
-        return np.dot(rotation_matrix, point)
+    def rotate_points(self, points, yaws):
+        # Extract change in x and change in y
+        dx_dy = points[:, :2]
+        rotated_dx_dy = np.zeros_like(dx_dy)
+        # Rotate x and y points
+        rotated_dx_dy[:, 0] = dx_dy[:, 0] * np.cos(yaws) - dx_dy[:, 1] * np.sin(yaws)
+        rotated_dx_dy[:, 1] = dx_dy[:, 0] * np.sin(yaws) + dx_dy[:, 1] * np.cos(yaws)
+        # Add depth and rotation back
+        rotated_points = np.concatenate((rotated_dx_dy, points[:, 2:]), axis=1)
+        return rotated_points
+
+    # This function will get the observation from the camera
+    # This will return the an array of lines with their distance and angle
+    def get_observation_from_camera(self, image_msg):
+        cv_image = self.bridge.imgmsg_to_cv2(image_msg, 'mono8')
+        lines = LineDetection.get_lines(cv_image, self.depth)
+        self.get_logger().info(str(lines))
+        return lines
 
 def main(args = None):
     rclpy.init(args=args)

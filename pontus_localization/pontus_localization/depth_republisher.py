@@ -23,7 +23,7 @@ class DepthRepublisher(Node):
     def odom_callback(self, msg):
         depth = msg.pose.pose.position.z
         pub_msg = Odometry()
-        pub_msg.pose.pose.position.z = POOL_DEPTH / 100 - depth
+        pub_msg.pose.pose.position.z = POOL_DEPTH - depth
         self.depth_pub.publish(pub_msg)
     
 def main(args=None):
