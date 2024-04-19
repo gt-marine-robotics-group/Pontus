@@ -228,7 +228,7 @@ class ParticleFilterNode(Node):
         marker.action = Marker.ADD
         marker.pose.position.x = msg.pose.pose.position.x
         marker.pose.position.y = msg.pose.pose.position.y
-        marker.pose.position.z = msg.pose.pose.position.z
+        marker.pose.position.z = POOL_DEPTH + msg.pose.pose.position.z
         marker.pose.orientation.x = msg.pose.pose.orientation.x
         marker.pose.orientation.y = msg.pose.pose.orientation.y
         marker.pose.orientation.z = msg.pose.pose.orientation.z

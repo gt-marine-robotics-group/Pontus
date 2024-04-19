@@ -11,6 +11,8 @@ class LineDetection:
 
         # Get lines
         lines = cv2.HoughLines(edges, 1, np.pi/180, threshold=100)
+        if lines is None:
+            return []
         
         line_pairs = []
         lines = lines[:, 0]
@@ -30,6 +32,13 @@ class LineDetection:
             true_distance_vertical = percentage_vertical * max_distance_vertical
             
             line_pairs.append([(true_distance_horizontal, true_distance_vertical, theta)])
+            
+            x1 = int(x0 + 1000 * (-b))
+            y1 = int(y0 + 1000 * (a))
+            x2 = int(x0 - 1000 * (-b))
+            y2 = int(y0 - 1000 * (a))
+            cv2.line(image, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            
         cv2.imshow("original left", image)
         cv2.imshow("edges", edges)
         cv2.waitKey(1)

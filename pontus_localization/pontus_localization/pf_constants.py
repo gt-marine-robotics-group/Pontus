@@ -1,10 +1,10 @@
 ## Pool specific constants
 
-# This is the assumed depth of the pool in cm
-POOL_DEPTH = 2.7
+# This is the assumed depth of the pool in m
+POOL_DEPTH = 2.3
 
 # In Cm
-GRID_LINE_LENGTH = 5
+GRID_LINE_LENGTH = 2.7
 GRID_LINE_THICKNESS = 0.30
 
 # Camera intrinsics
