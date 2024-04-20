@@ -273,7 +273,8 @@ class ParticleFilterNode(Node):
     # Depth callback
     # This callback function will update the depth of the sub
     def depth_callback(self, msg):
-        self.depth = msg.pose.pose.position.z + POOL_DEPTH
+        # self.depth = -msg.pose.pose.position.z + POOL_DEPTH
+        self.depth = POOL_DEPTH + msg.pose.pose.position.z
         return
     
     # Camera callback

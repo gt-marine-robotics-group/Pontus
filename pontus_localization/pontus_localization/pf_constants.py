@@ -7,6 +7,10 @@ POOL_DEPTH = 2.3
 GRID_LINE_LENGTH = 2.7
 GRID_LINE_THICKNESS = 0.30
 
+# Image processing relating constants
+# This constant is used to determine how similar two lines need to be to be considered the same
+CUTOFF_THRESHOLD = 30
+
 # Camera intrinsics
 # Horizontal FOV in degrees
 FOV_H = 69
