@@ -13,11 +13,11 @@ class MinimalPublisher(Node):
 
         self.msg = Pose()
 
-        self.msg.position.x = 2.0
-        self.msg.position.y = 2.0
+        self.msg.position.x = 0.0
+        self.msg.position.y = 7.0
         self.msg.position.z = 0.0
 
-        x, y, z, w = quaternion_from_euler(0, 0, np.pi/2)
+        x, y, z, w = quaternion_from_euler(0, 0, 0)
 
         self.msg.orientation.x = x
         self.msg.orientation.y = y

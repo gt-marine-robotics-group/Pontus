@@ -23,6 +23,11 @@ def generate_launch_description():
         ),
         Node(
             package='pontus_controller',
+            executable='path_follower',
+            output='screen'
+        ),
+        Node(
+            package='pontus_controller',
             executable='velocity_controller',
             output='screen'
         )

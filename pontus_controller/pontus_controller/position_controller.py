@@ -5,6 +5,7 @@ import numpy as np
 from geometry_msgs.msg import Pose, Twist
 from nav_msgs.msg import Odometry
 from tf_transformations import euler_from_quaternion
+from std_msgs.msg import Bool
 
 from .PID import PID
 
@@ -32,6 +33,8 @@ class PositionNode(Node):
 
         self.thresh = 0.2
 
+        self.hold_point = False
+
         # ROS infrastructure
         self.cmd_pos_sub = self.create_subscription(
           Pose,
@@ -46,6 +49,8 @@ class PositionNode(Node):
           10)
 
         self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+
+        self.hold_point = self.create_publisher(Bool, '/hold_point', 10)
 
 
     def cmd_pos_callback(self, msg):
@@ -74,8 +79,10 @@ class PositionNode(Node):
         p_angular = np.array([r, p ,y])
 
         if np.linalg.norm(linear_err) > self.thresh:
+          self.hold_point = False
           angular_err = np.array([0, np.arctan2(linear_err[2], linear_err[0]), np.arctan2(linear_err[1], linear_err[0])]) 
         else:
+          self.hold_point = True
           angular_diff = self.cmd_angular - p_angular
           
           # find the shorter turn for angles
@@ -94,6 +101,7 @@ class PositionNode(Node):
         msg.angular.z = self.pid_angular[2](angular_err[2], self.get_clock().now() - self.prev_time)
 
         self.cmd_vel_pub.publish(msg)
+        self.hold_point.publish(Bool(data=self.hold_point))
 
         self.prev_time = self.get_clock().now()
 
