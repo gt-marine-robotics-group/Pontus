@@ -12,7 +12,7 @@ class LineDetection:
         line_pairs = np.array([])
         
         # Get lines
-        lines = cv2.HoughLines(edges, 1, np.pi/180, threshold=60)
+        lines = cv2.HoughLines(edges, 1, np.pi/180, threshold=80)
         if lines is not None:
         
             line_pairs = []
@@ -51,8 +51,9 @@ class LineDetection:
                 
                 # See if the potential point is really similar to any other points
                 # If it is, disregard the line
-                new_line = np.array([true_distance_horizontal, true_distance_vertical, theta])
-                test_line = np.array([projected_point[0], projected_point[1], theta])
+                true_theta = (3 * np.pi / 2 - theta) % np.pi
+                new_line = np.array([true_distance_horizontal, true_distance_vertical, true_theta])
+                test_line = np.array([projected_point[0], projected_point[1], true_theta])
                 if len(test_lines) > 0:
                     diff = np.square(test_lines - test_line)
                     if len(diff.shape) == 1:
@@ -68,6 +69,7 @@ class LineDetection:
                     test_lines = test_line
                 cv2.circle(image, (int(projected_point[0]), int(projected_point[1])), 5, (0, 255, 0), -1)
                 cv2.line(image, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                # break
             cv2.imshow("edges", edges)
         cv2.circle(image, (int(image.shape[1]/2), int(image.shape[0]/2)), 5, (0, 255, 0), -1)
         cv2.imshow("original left", image)

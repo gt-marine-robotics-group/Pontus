@@ -91,11 +91,41 @@ class ParticleFilterNode(Node):
 
         # Particles
         self.particles = np.zeros((400, 4))
-        self.init_particles()
+        # self.init_particles()
+        self.particles = np.array([[0, 0, POOL_DEPTH, np.pi/2 + 0.05]])
         if DISPLAY_PARTICLES:
             self.particles_display()
-        
-        
+        self.start_up = 0
+
+    ######################
+    # Particle related functions
+    ######################
+    # This function will uniformly initialize the particles in the grid
+    # This is used to detect where the robot starts
+    def init_particles(self):
+        total_grid_width = GRID_LINE_LENGTH + GRID_LINE_THICKNESS
+        num_rows = int(np.sqrt(START_UP_ITERATIONS))
+        counter = 0
+        for row in range(num_rows):
+            for col in range(num_rows):
+                for angle in range(NUM_START_UP_ANGLES):
+                    x = row * total_grid_width / num_rows - total_grid_width / 2
+                    y = col * total_grid_width / num_rows - total_grid_width / 2
+                    # Need to sample betwee 0 and pi/2 for the angle
+                    self.particles[counter] = np.array([x, y, POOL_DEPTH, angle / NUM_START_UP_ANGLES * np.pi / 2])
+                    counter+=1  
+    
+    # This calculates the average position and yaw of the particles
+    # This is what our odometry would be
+    def calculate_avg_position_yaw(self):
+        avg_position = np.mean(self.particles, axis=0)
+        return avg_position
+
+    # This updates the particles with the new position and yaw
+    def update_particles(self, change_in_position): 
+        self.particles += change_in_position
+        self.particles[:,2] = self.depth    
+
     # This function is used to publish particles to the particles topic
     # so it can be displayed in Rviz
     def particles_display(self):
@@ -173,42 +203,13 @@ class ParticleFilterNode(Node):
         self.particle_pub_arrow.publish(markers)
         # self.get_logger().info('Published particle markers')
 
-    ######################
-    # Particle related functions
-    ######################
-    # This function will uniformly initialize the particles in the grid
-    # This is used to detect where the robot starts
-    def init_particles(self):
-        total_grid_width = GRID_LINE_LENGTH + GRID_LINE_THICKNESS
-        num_rows = int(np.sqrt(START_UP_ITERATIONS))
-        counter = 0
-        for row in range(num_rows):
-            for col in range(num_rows):
-                for angle in range(NUM_START_UP_ANGLES):
-                    x = row * total_grid_width / num_rows - total_grid_width / 2
-                    y = col * total_grid_width / num_rows - total_grid_width / 2
-                    # Need to sample betwee 0 and pi/2 for the angle
-                    self.particles[counter] = np.array([x, y, POOL_DEPTH, angle / NUM_START_UP_ANGLES * np.pi / 2])
-                    counter+=1  
-    
-    # This calculates the average position and yaw of the particles
-    # This is what our odometry would be
-    def calculate_avg_position_yaw(self):
-        avg_position = np.mean(self.particles, axis=0)
-        return avg_position
-
-    # This updates the particles with the new position and yaw
-    def update_particles(self, change_in_position): 
-        self.particles += change_in_position
-        self.particles[:,2] = self.depth    
-            
     # This function ensures that particle yaw are in the range [-pi, pi)
     def yaw_norm(self, yaw):
-        while yaw >= np.pi:
-            yaw -= 2 * np.pi
-        while yaw < -np.pi:
-            yaw += 2 * np.pi
+        yaw = np.where(yaw >= np.pi, yaw - 2 * np.pi, yaw)
+        yaw = np.where(yaw < -np.pi, yaw + 2 * np.pi, yaw)
         return yaw
+
+
 
     ######################
     # Callback functions
@@ -279,7 +280,7 @@ class ParticleFilterNode(Node):
     
     # Camera callback
     def camera_callback(self, msg):
-        stuff = self.get_observation_from_camera(msg)
+        self.motion_update(msg)
 
     ######################
     # Data processing functions
@@ -309,7 +310,7 @@ class ParticleFilterNode(Node):
             angular_velocity = previous_angular_velocity + change_in_angular_velocity * current_step
             self.velocity[3] = angular_velocity / 2
             # Calculate change in position
-            change_in_position_particle = np.tile((self.velocity * time_step), (400,1))
+            change_in_position_particle = np.tile((self.velocity * time_step), (len(self.particles),1))
             # Rotate the change in position to the global frame
             change_in_position_global = self.rotate_points(change_in_position_particle, self.particles[:,3])
             change_in_position = change_in_position + change_in_position_global
@@ -319,6 +320,8 @@ class ParticleFilterNode(Node):
     # This function will rotate a point in the robot frame to the global frame
     def rotate_points(self, points, yaws):
         # Extract change in x and change in y
+        if len(points.shape) == 1:
+            points = np.expand_dims(points, axis=0)
         dx_dy = points[:, :2]
         rotated_dx_dy = np.zeros_like(dx_dy)
         # Rotate x and y points
@@ -333,11 +336,52 @@ class ParticleFilterNode(Node):
     def get_observation_from_camera(self, image_msg):
         cv_image = self.bridge.imgmsg_to_cv2(image_msg, 'mono8')
         lines = LineDetection.get_lines(cv_image, self.depth)
-        self.get_logger().info(str(lines))
+        # self.get_logger().info(str(lines))
         return lines
 
+    ######################]
+    # Particle filter functions
+    ######################
+    # This function will update the particles based on the observation
+    def motion_update(self, image_msg):
+        # Start up iteration to center particles at robot
+        # if self.start_up < START_UP_ITERATIONS:
+        #     self.start_up += 1
+        # # When we reach the start up iterations, we will set all particles to the robots current location
+        # elif self.start_up == START_UP_ITERATIONS:
+        #     self.start_up = START_UP_ITERATIONS + 1
+        #     # Reset all particles to the origin
+        #     origin_particle = np.array([0, 0, self.depth, 0])
+        #     self.particles = np.tile(origin_particle, (NUM_PARTICLES, 1))
+
+        #     # Set the offsets
+        #     self.x_offset = self.position[0]
+        #     self.y_offset = self.position[1]
+        #     self.yaw_offset = self.position[3]
+
+        # If we are past the start up iterations, we will update the particles based on the observation
+        # Get the observation from the camera
+        camera_markers_r = self.get_observation_from_camera(image_msg)
+        likelihoods = []
+        
+        # Calculate the likelihood of each particle given the camera
+        if len(camera_markers_r) > 0:
+            for particle in self.particles:
+                # Convert the camera markers to the global frame with respect to the particle
+                self.get_logger().info("Before: \n" + str(camera_markers_r))
+                # Make sure that camera_markers_r stays the same here
+                camera_markers_g = self.rotate_points(camera_markers_r, particle[3])
+                camera_markers_g[:, 0] += particle[0]
+                camera_markers_g[:, 1] += particle[1]
+                camera_markers_g[:, 2] = (particle[3] + camera_markers_g[:, 2]) % np.pi
+                
+                self.get_logger().info("Camera markers: \n" + str(camera_markers_g))
+            
+        if DISPLAY_PARTICLES:
+            self.particles_display()
+            
 def main(args = None):
-    rclpy.init(args=args)
+    rclpy.init(args=args)   
     node = ParticleFilterNode()
     rclpy.spin(node)
     node.destroy_node()

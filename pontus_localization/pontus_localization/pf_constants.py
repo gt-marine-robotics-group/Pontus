@@ -9,7 +9,7 @@ GRID_LINE_THICKNESS = 0.30
 
 # Image processing relating constants
 # This constant is used to determine how similar two lines need to be to be considered the same
-CUTOFF_THRESHOLD = 30
+CUTOFF_THRESHOLD = 40
 
 # Camera intrinsics
 # Horizontal FOV in degrees
