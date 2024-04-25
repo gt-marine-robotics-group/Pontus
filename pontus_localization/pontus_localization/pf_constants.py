@@ -22,6 +22,7 @@ DISPLAY_PARTICLES = True
 # This is the maximum distance new particles should be from the assumed position of thesub
 # This value should be no greater than half the size of a grid cell
 CUTOFF_DISTANCE = GRID_LINE_LENGTH / 2.2
+CUTOFF_ANGLE = 0.75
 
 # These values are used to sample from a Gaussian distribution to simulate noise in odometry
 # mu should always be 0 unless there is some drift

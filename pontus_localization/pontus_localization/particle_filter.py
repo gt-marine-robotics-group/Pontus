@@ -92,7 +92,7 @@ class ParticleFilterNode(Node):
         # Particles
         self.particles = np.zeros((400, 4))
         self.init_particles()
-        self.particles = np.tile([0, 0, POOL_DEPTH, np.pi/2 + 0.05], (400, 1))
+        self.particles = np.tile([0, 0, POOL_DEPTH, 0], (400, 1))
         if DISPLAY_PARTICLES:
             self.particles_display()
         self.start_up = 0
@@ -129,7 +129,6 @@ class ParticleFilterNode(Node):
         self.particles[:, 3] = self.particles[:, 3] + change_in_position[:, 3] + self.guassian_noise(ROTATE_MU, ROTATE_SIGMA, change_in_position[:, 3].shape)
         # Bound the particles by their x,y position and angle
         # Ensures that adding guassian noise does not cause particles to wander too far
-        self.bound_particles()
         self.particles[:,2] = self.depth    
 
     # This function is used to publish particles to the particles topic
@@ -184,18 +183,17 @@ class ParticleFilterNode(Node):
             marker_id += 1
 
         # Display assumed position
-        avg_pos = self.calculate_avg_position_yaw()
         marker = Marker()
-        yaw = avg_pos[3]
+        yaw = self.position[3]
         marker.header.frame_id = 'map'  # Set the frame ID
         marker.header.stamp = self.get_clock().now().to_msg()
         marker.ns = 'particle_markers'
         marker.id = marker_id
         marker.type = Marker.ARROW
         marker.action = Marker.ADD
-        marker.pose.position.x = avg_pos[0]
-        marker.pose.position.y = avg_pos[1]
-        marker.pose.position.z = avg_pos[2]
+        marker.pose.position.x = self.position[0]
+        marker.pose.position.y = self.position[1]
+        marker.pose.position.z = self.position[2]
         marker.pose.orientation.x = 0.0
         marker.pose.orientation.y = 0.0
         marker.pose.orientation.z = np.sin(yaw/ 2.0)
@@ -243,6 +241,12 @@ class ParticleFilterNode(Node):
 
         # Adjust particle positions for the selected indices
         self.particles[indices, :2] = self.position[:2] + CUTOFF_DISTANCE * unit_vectors
+        
+        # Bound yaw
+        diffs = self.particles[:, 3] - self.position[3]
+        diffs = (diffs + np.pi) % (2 * np.pi) - np.pi
+        bounded_angles = np.where(diffs > CUTOFF_ANGLE, self.position[3] + CUTOFF_ANGLE, np.where(diffs < -CUTOFF_ANGLE, self.position[3] - CUTOFF_ANGLE, self.particles[:, 3]))
+        self.particles[:, 3] = self.yaw_norm(bounded_angles)
 
     ######################
     # Callback functions
@@ -290,15 +294,17 @@ class ParticleFilterNode(Node):
 
         # Get imu data and interpolate the data to calculate change in position
         self.linear_acceleration_current = np.array([msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z - 9.7999999])
-        change_in_position = self.interpolate_imu_data(self.linear_acceleration_current, self.acceleration, msg.angular_velocity.z, self.previous_angular_velocity, dt, 0.05)
+        change_in_position = self.interpolate_imu_data(self.linear_acceleration_current, self.acceleration, msg.angular_velocity.z, self.previous_angular_velocity, dt, 0.01)
         self.acceleration = self.linear_acceleration_current
         self.previous_angular_velocity = msg.angular_velocity.z
         
         # Update each particles position with the imu update
         self.update_particles(change_in_position) 
-        
+        self.bound_particles()
+        self.position = self.calculate_avg_position_yaw()
         if DISPLAY_PARTICLES:
             self.particles_display()
+        
         return
 
         self.get_logger().info("Change in velocity: " + str(self.linear_acceleration_current))
@@ -335,7 +341,7 @@ class ParticleFilterNode(Node):
             current_acceleration = previous_imu_data + change_in_acceleration * current_step
             # Change the current acceleration to the global frame
             # Calculate change in velocity based on time_step
-            change_in_velocity = current_acceleration / 2 * time_step
+            change_in_velocity = current_acceleration / 4 * time_step
             change_in_velocity = np.append(change_in_velocity, 0)
             # Update new velocity
             self.velocity = self.velocity + change_in_velocity
