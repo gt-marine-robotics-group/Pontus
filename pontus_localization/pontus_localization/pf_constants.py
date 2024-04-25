@@ -21,14 +21,16 @@ DISPLAY_PARTICLES = True
 
 # This is the maximum distance new particles should be from the assumed position of thesub
 # This value should be no greater than half the size of a grid cell
-CUTOFF_DISTANCE = GRID_LINE_LENGTH / 3
+CUTOFF_DISTANCE = GRID_LINE_LENGTH / 2.2
 
 # These values are used to sample from a Gaussian distribution to simulate noise in odometry
+# mu should always be 0 unless there is some drift
+# sigma will determine how fast the noise grows, the larger the sigma the faster the particles disperse
 TRANS_MU = 0
-TRANS_SIGMA = 0.5
+TRANS_SIGMA = 0.05  
 
 ROTATE_MU = 0
-ROTATE_SIGMA = 0.2
+ROTATE_SIGMA = 0.1
 ROTATE_SAMPLE_MAX = 1
 
 # The number of particles to use in the particle filter
@@ -48,9 +50,3 @@ NUM_START_UP_ANGLES = 4
 # Grid dimenions and properties
 GRID_ROWS = 31
 GRID_COLUMNS = 31
-
-## Camera intrinsics
-
-# In Degrees
-HORIZONTAL_FOV = 60
-VERTICAL_FOV = 40 

@@ -24,20 +24,20 @@ class ParticleFilterNode(Node):
         # Subscribers
         
         # Camera subscription
-        self.camera_sub = self.create_subscription(
-            Image, 
-            "/pontus/camera_1", 
-            self.camera_callback, 
-            10
-        )
-        
-        # # Imu subscription
-        # self.imu_sub = self.create_subscription(
-        #     Imu, 
-        #     "/pontus/imu_0",
-        #     self.imu_callback,
+        # self.camera_sub = self.create_subscription(
+        #     Image, 
+        #     "/pontus/camera_1", 
+        #     self.camera_callback, 
         #     10
         # )
+        
+        # Imu subscription
+        self.imu_sub = self.create_subscription(
+            Imu, 
+            "/pontus/imu_0",
+            self.imu_callback,
+            10
+        )
         
         self.depth_sub = self.create_subscription(
             Odometry,
@@ -91,8 +91,8 @@ class ParticleFilterNode(Node):
 
         # Particles
         self.particles = np.zeros((400, 4))
-        # self.init_particles()
-        self.particles = np.array([[0, 0, POOL_DEPTH, np.pi/2 + 0.05]])
+        self.init_particles()
+        self.particles = np.tile([0, 0, POOL_DEPTH, np.pi/2 + 0.05], (400, 1))
         if DISPLAY_PARTICLES:
             self.particles_display()
         self.start_up = 0
@@ -123,7 +123,13 @@ class ParticleFilterNode(Node):
 
     # This updates the particles with the new position and yaw
     def update_particles(self, change_in_position): 
-        self.particles += change_in_position
+        # Update the particles with the change in position
+        # Add guassian noise to simulate uncertainty / error in imu readings
+        self.particles[:, :2] = self.particles[:, :2] + change_in_position[:, :2] + self.guassian_noise(TRANS_MU, TRANS_SIGMA, change_in_position[:, :2].shape)
+        self.particles[:, 3] = self.particles[:, 3] + change_in_position[:, 3] + self.guassian_noise(ROTATE_MU, ROTATE_SIGMA, change_in_position[:, 3].shape)
+        # Bound the particles by their x,y position and angle
+        # Ensures that adding guassian noise does not cause particles to wander too far
+        self.bound_particles()
         self.particles[:,2] = self.depth    
 
     # This function is used to publish particles to the particles topic
@@ -209,7 +215,34 @@ class ParticleFilterNode(Node):
         yaw = np.where(yaw < -np.pi, yaw + 2 * np.pi, yaw)
         return yaw
 
+    # This function reutrns guassian noise 
+    def guassian_noise(self, mu, sigma, shape):
+        return np.random.normal(mu, sigma, shape)
 
+    # This function will rotate a point in the robot frame to the global frame
+    def rotate_points(self, points, yaws):
+        # Extract change in x and change in y
+        if len(points.shape) == 1:
+            points = np.expand_dims(points, axis=0)
+        dx_dy = points[:, :2]
+        rotated_dx_dy = np.zeros_like(dx_dy)
+        # Rotate x and y points
+        rotated_dx_dy[:, 0] = dx_dy[:, 0] * np.cos(yaws) - dx_dy[:, 1] * np.sin(yaws)
+        rotated_dx_dy[:, 1] = dx_dy[:, 0] * np.sin(yaws) + dx_dy[:, 1] * np.cos(yaws)
+        # Add depth and rotation back
+        rotated_points = np.concatenate((rotated_dx_dy, points[:, 2:]), axis=1)
+        return rotated_points
+
+    # This function will bound the particles by the x and y position and yaw
+    def bound_particles(self):
+        # If the distance of the particle between the assumed position is greater than the CUTOFF_DISTANCE,
+        # then the particle is set to the max_distance_particle 
+        squared_distances = np.sum(np.square(self.particles[:, :2] - self.position[:2]), axis=1)
+        indices = np.where(squared_distances > CUTOFF_DISTANCE ** 2)
+        unit_vectors = ((self.particles[indices, :2] - self.position[:2])) / np.linalg.norm(self.particles[indices, :2] - self.position[:2], axis=1)[:, np.newaxis]
+
+        # Adjust particle positions for the selected indices
+        self.particles[indices, :2] = self.position[:2] + CUTOFF_DISTANCE * unit_vectors
 
     ######################
     # Callback functions
@@ -255,9 +288,6 @@ class ParticleFilterNode(Node):
         self.get_logger().info("dt: " + str(dt))
         self.previous_time = current_time
 
-        if DISPLAY_PARTICLES:
-            self.particles_display()
-
         # Get imu data and interpolate the data to calculate change in position
         self.linear_acceleration_current = np.array([msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z - 9.7999999])
         change_in_position = self.interpolate_imu_data(self.linear_acceleration_current, self.acceleration, msg.angular_velocity.z, self.previous_angular_velocity, dt, 0.05)
@@ -266,6 +296,9 @@ class ParticleFilterNode(Node):
         
         # Update each particles position with the imu update
         self.update_particles(change_in_position) 
+        
+        if DISPLAY_PARTICLES:
+            self.particles_display()
         return
 
         self.get_logger().info("Change in velocity: " + str(self.linear_acceleration_current))
@@ -316,20 +349,6 @@ class ParticleFilterNode(Node):
             change_in_position = change_in_position + change_in_position_global
             current_step = current_step + time_step
         return change_in_position
-
-    # This function will rotate a point in the robot frame to the global frame
-    def rotate_points(self, points, yaws):
-        # Extract change in x and change in y
-        if len(points.shape) == 1:
-            points = np.expand_dims(points, axis=0)
-        dx_dy = points[:, :2]
-        rotated_dx_dy = np.zeros_like(dx_dy)
-        # Rotate x and y points
-        rotated_dx_dy[:, 0] = dx_dy[:, 0] * np.cos(yaws) - dx_dy[:, 1] * np.sin(yaws)
-        rotated_dx_dy[:, 1] = dx_dy[:, 0] * np.sin(yaws) + dx_dy[:, 1] * np.cos(yaws)
-        # Add depth and rotation back
-        rotated_points = np.concatenate((rotated_dx_dy, points[:, 2:]), axis=1)
-        return rotated_points
 
     # This function will get the observation from the camera
     # This will return the an array of lines with their distance and angle
