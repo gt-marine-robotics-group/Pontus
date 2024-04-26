@@ -24,20 +24,20 @@ class ParticleFilterNode(Node):
         # Subscribers
         
         # Camera subscription
-        # self.camera_sub = self.create_subscription(
-        #     Image, 
-        #     "/pontus/camera_1", 
-        #     self.camera_callback, 
-        #     10
-        # )
-        
-        # Imu subscription
-        self.imu_sub = self.create_subscription(
-            Imu, 
-            "/pontus/imu_0",
-            self.imu_callback,
+        self.camera_sub = self.create_subscription(
+            Image, 
+            "/pontus/camera_1", 
+            self.camera_callback, 
             10
         )
+        
+        # Imu subscription
+        # self.imu_sub = self.create_subscription(
+        #     Imu, 
+        #     "/pontus/imu_0",
+        #     self.imu_callback,
+        #     10
+        # )
         
         self.depth_sub = self.create_subscription(
             Odometry,
@@ -92,7 +92,7 @@ class ParticleFilterNode(Node):
         # Particles
         self.particles = np.zeros((400, 4))
         self.init_particles()
-        self.particles = np.tile([0, 0, POOL_DEPTH, 0], (400, 1))
+        self.particles = np.tile([0, 0, POOL_DEPTH + 0.19, 0], (1, 1))
         if DISPLAY_PARTICLES:
             self.particles_display()
         self.start_up = 0
@@ -217,7 +217,7 @@ class ParticleFilterNode(Node):
     def guassian_noise(self, mu, sigma, shape):
         return np.random.normal(mu, sigma, shape)
 
-    # This function will rotate a point in the robot frame to the global frame
+    # This function will rotate a numpy array of points in the robot frame to the global frame
     def rotate_points(self, points, yaws):
         # Extract change in x and change in y
         if len(points.shape) == 1:
@@ -231,6 +231,12 @@ class ParticleFilterNode(Node):
         rotated_points = np.concatenate((rotated_dx_dy, points[:, 2:]), axis=1)
         return rotated_points
 
+    # This function will return a point rotated by theta
+    def rotate_point(self, x, y, theta):
+        new_x = x * np.cos(theta) - y * np.sin(theta)
+        new_y = x * np.sin(theta) + y * np.cos(theta)
+        return new_x, new_y
+    
     # This function will bound the particles by the x and y position and yaw
     def bound_particles(self):
         # If the distance of the particle between the assumed position is greater than the CUTOFF_DISTANCE,
@@ -248,6 +254,123 @@ class ParticleFilterNode(Node):
         bounded_angles = np.where(diffs > CUTOFF_ANGLE, self.position[3] + CUTOFF_ANGLE, np.where(diffs < -CUTOFF_ANGLE, self.position[3] - CUTOFF_ANGLE, self.particles[:, 3]))
         self.particles[:, 3] = self.yaw_norm(bounded_angles)
 
+    # This function will get the likelihood of the paticle given the camera_markers
+    def get_particle_likelihood(self, camera_markers, particle):
+        # Pair the camera markers with the particle
+        particle_markers = self.get_markers_from_particle(particle)
+        # self.get_logger().info(str(particle_markers))
+        likelihood = self.get_likelihood(particle_markers, camera_markers)
+        self.get_logger().info(str(likelihood))
+        
+    # Given a particle, return the expected lines it sees
+    def get_markers_from_particle(self, particle):
+         # This represents how much in centimeteres the robot can see in the x and y direction
+        horizontal_FOV_magnitude = particle[2] * np.tan(np.radians(FOV_H / 2))
+        vertical_FOV_magnitude = particle[2] * np.tan(np.radians(FOV_V / 2))
+        
+        # Getting corners in global frame
+        corner_top_left = np.abs(self.rotate_point(-horizontal_FOV_magnitude, vertical_FOV_magnitude, particle[3]))
+        corner_top_right = np.abs(self.rotate_point(horizontal_FOV_magnitude, vertical_FOV_magnitude, particle[3]))
+        corner_bottom_left = np.abs(self.rotate_point(-horizontal_FOV_magnitude, -vertical_FOV_magnitude, particle[3]))
+        corner_bottom_right = np.abs(self.rotate_point(horizontal_FOV_magnitude, -vertical_FOV_magnitude, particle[3]))
+
+        # Convert the maximum x and y values to the global frame in real life coordiantes
+        true_x_max = np.max([corner_top_left[0], corner_top_right[0], corner_bottom_left[0], corner_bottom_right[0]])
+        true_y_max = np.max([corner_top_left[1], corner_top_right[1], corner_bottom_left[1], corner_bottom_right[1]])
+
+        
+        # Assuming that the values above are correct
+        position_x = particle[0]
+        position_y = particle[1]
+        
+        end_positions = [(position_x + true_x_max, 0), 
+                         (position_x - true_x_max, 0),
+                         (0, position_y + true_y_max), 
+                         (0, position_y - true_y_max)]
+        
+        markers = []
+        
+        grid_length = GRID_LINE_LENGTH + GRID_LINE_THICKNESS
+        
+        # Get all rows that are seen
+        # This will compose of all the lanes that span horizontally that appear in the camera
+        # The rows_seen array will contain all the y coordinates of the lines
+        rows_seen = []
+        # This represents the row coordinate of the last row. 
+        current_row = np.floor((end_positions[3][1] - (GRID_LINE_LENGTH / 2 + GRID_LINE_THICKNESS)) / grid_length) * grid_length - (GRID_LINE_LENGTH / 2 + GRID_LINE_THICKNESS) 
+        while current_row <= end_positions[2][1]:
+            # Check outer line
+            if end_positions[3][1] <= current_row <= end_positions[2][1]:
+                rows_seen.append(current_row)
+                
+            # Check inner line
+            if end_positions[3][1] <= current_row + GRID_LINE_THICKNESS <= end_positions[2][1]:
+                rows_seen.append(current_row + GRID_LINE_THICKNESS)
+            
+            current_row += grid_length 
+            # self.get_logger().info(str(current_row))
+        # self.get_logger().info("Rows:" + str(rows_seen))
+        # Do the same for columns
+        columns_seen = []
+        current_column = np.floor((end_positions[1][0] - (GRID_LINE_LENGTH / 2 + GRID_LINE_THICKNESS)) / grid_length) * grid_length - (GRID_LINE_LENGTH / 2 + GRID_LINE_THICKNESS) 
+        while current_column <= end_positions[0][0]:
+            # Check outer line
+            if end_positions[1][0] <= current_column <= end_positions[0][0]:
+                columns_seen.append(current_column)
+                
+            # Check inner line
+            if end_positions[1][0] <= current_column + GRID_LINE_THICKNESS <= end_positions[0][0]:
+                columns_seen.append(current_column + GRID_LINE_THICKNESS)
+            
+            current_column += grid_length 
+        # self.get_logger().info("Cols:" + str(columns_seen))
+        # Add the positions of the rows and columns to the markers
+        # The hough transform returns the closest distance to the line. 
+        # This means that it will always return the perpendicular distance to the line
+        # Since we convert our measurements from the robot to the global frame,
+        # We can assume that the distance to the line is the perpendicular distance 
+        for row in rows_seen:
+            markers.append(np.array([particle[0], row, 0])) 
+        for column in columns_seen:
+            markers.append(np.array([column, particle[1], np.pi / 2]))   
+
+        return markers
+
+    # This function will get the pairs of markers that are closest to each other
+    # using nearest neighbor
+    def get_likelihood(self, particle_markers, camera_markers):
+        l = 1
+        # If no markers are detected, return 0 because we are super uncertain about our location
+        if len(particle_markers) == 0 or len(camera_markers) == 0:
+            # self.get_logger("No markers detected")
+            return 0
+        
+        # Iterate through each particle marker and find the closest camera marker
+        for particle_marker in particle_markers:
+            max_likelihood = 0
+            best_camera_marker = None
+            for camera_marker in camera_markers:
+                # Rejection criteria
+                if np.abs(particle_marker[2] - camera_marker[2]) > np.pi / 2 or np.abs(np.linalg.norm(particle_marker[:2] - camera_marker[:2])) > 1:
+                    # self.get_logger().info("Rejection criteria met")
+                    continue
+                # self.get_logger().info("Passed rejection criteria")
+                current_likelihood = self.calculate_marker_pair_likelihood(particle_marker, camera_marker)
+                if current_likelihood > max_likelihood:
+                    max_likelihood = current_likelihood
+                    best_camera_marker = camera_marker
+            if max_likelihood != 0:
+                # self.get_logger().info("Max likelihood: " + str(max_likelihood) + " for particle: " + str(particle_marker) + " and camera: " + str(best_camera_marker))
+                l = l * max_likelihood
+        return l
+    
+    # This function will return the distance between two markers
+    def calculate_marker_pair_likelihood(self, marker1, marker2):
+        grid_distance = np.sum(np.square(marker1[:2] - marker2[:2]))
+        # Used to account for wrapping
+        angle_distance = np.min([abs(marker1[2] - marker2[2]), abs(np.pi - abs(marker1[2] - marker2[2]))])
+        return np.exp(- grid_distance**2 / (2 * MARKER_DISTANCE_SIGMA**2) - angle_distance**2 / (2 * MARKER_ANGLE_SIGMA**2))
+        
     ######################
     # Callback functions
     ######################
@@ -289,7 +412,7 @@ class ParticleFilterNode(Node):
         current_time = self.get_clock().now()    
         # Calculate the change in time
         dt = (current_time - self.previous_time).nanoseconds / 1e9
-        self.get_logger().info("dt: " + str(dt))
+        # self.get_logger().info("dt: " + str(dt))
         self.previous_time = current_time
 
         # Get imu data and interpolate the data to calculate change in position
@@ -393,15 +516,16 @@ class ParticleFilterNode(Node):
         if len(camera_markers_r) > 0:
             for particle in self.particles:
                 # Convert the camera markers to the global frame with respect to the particle
-                self.get_logger().info("Before: \n" + str(camera_markers_r))
-                # Make sure that camera_markers_r stays the same here
                 camera_markers_g = self.rotate_points(camera_markers_r, particle[3])
                 camera_markers_g[:, 0] += particle[0]
                 camera_markers_g[:, 1] += particle[1]
                 camera_markers_g[:, 2] = (particle[3] + camera_markers_g[:, 2]) % np.pi
                 
-                self.get_logger().info("Camera markers: \n" + str(camera_markers_g))
-            
+                likelihood = self.get_particle_likelihood(camera_markers_g, particle)
+                likelihoods.append(likelihood)
+                
+                # self.get_logger().info("Camera markers: \n" + str(camera_markers_g))
+            self.resample_particles()
         if DISPLAY_PARTICLES:
             self.particles_display()
             

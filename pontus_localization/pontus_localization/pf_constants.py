@@ -39,8 +39,9 @@ NUM_PARTICLES = 50
 
 # This is used to demonstrate the uncertainty in our marker comparison measures
 # This is used for the marker likelihood function 
+# A higher value means that particles further away from the marker will have a higher density
 MARKER_DISTANCE_SIGMA = 0.3
-MARKER_ANGLE_SIGMA = 0.5
+MARKER_ANGLE_SIGMA = 1
 
 # This is the number of iterations to run the particle filter before the sub starts moving to get the initial position
 START_UP_ITERATIONS = 100
