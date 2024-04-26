@@ -35,19 +35,19 @@ ROTATE_SIGMA = 0.1
 ROTATE_SAMPLE_MAX = 1
 
 # The number of particles to use in the particle filter
-NUM_PARTICLES = 50
+NUM_PARTICLES = 100
 
 # This is used to demonstrate the uncertainty in our marker comparison measures
 # This is used for the marker likelihood function 
 # A higher value means that particles further away from the marker will have a higher density
-MARKER_DISTANCE_SIGMA = 0.3
-MARKER_ANGLE_SIGMA = 1
+MARKER_DISTANCE_SIGMA = 0.2
+MARKER_ANGLE_SIGMA = 0.3
 
 # This is the number of iterations to run the particle filter before the sub starts moving to get the initial position
 START_UP_ITERATIONS = 100
 
 # Angles
-NUM_START_UP_ANGLES = 4
+NUM_START_UP_ANGLES = 1
 
 # Grid dimenions and properties
 GRID_ROWS = 31
