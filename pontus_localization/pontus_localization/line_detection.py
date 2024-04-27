@@ -19,7 +19,9 @@ class LineDetection:
             lines = lines[:, 0]
             test_lines = []
             # Calculate the maximum distance in the horizontal and vertical direction in meters
+            # print("Depth:", depth)
             max_distance_horizontal = np.tan(np.radians(FOV_H/2)) * depth * 2
+            # print("Distance horizontal:", max_distance_horizontal)
             max_distance_vertical = np.tan(np.radians(FOV_V/2)) * depth * 2
             for line in lines:
                 # Convert the line to cartesian

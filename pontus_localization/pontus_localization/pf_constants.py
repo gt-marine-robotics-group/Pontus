@@ -17,6 +17,9 @@ FOV_H = 69
 # Vertical FOV in degrees
 FOV_V = 55
 
+# This is the distance from the depth sensor to the camera in m
+CAMERA_DEPTH_OFFSET = 0.15
+
 DISPLAY_PARTICLES = True
 
 # This is the maximum distance new particles should be from the assumed position of thesub
@@ -28,7 +31,7 @@ CUTOFF_ANGLE = 0.75
 # mu should always be 0 unless there is some drift
 # sigma will determine how fast the noise grows, the larger the sigma the faster the particles disperse
 TRANS_MU = 0
-TRANS_SIGMA = 0.05  
+TRANS_SIGMA = 0.1  
 
 ROTATE_MU = 0
 ROTATE_SIGMA = 0.1

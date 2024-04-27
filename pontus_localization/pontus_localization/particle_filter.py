@@ -496,7 +496,7 @@ class ParticleFilterNode(Node):
     # This will return the an array of lines with their distance and angle
     def get_observation_from_camera(self, image_msg):
         cv_image = self.bridge.imgmsg_to_cv2(image_msg, 'mono8')
-        lines = LineDetection.get_lines(cv_image, self.depth)
+        lines = LineDetection.get_lines(cv_image, self.depth - CAMERA_DEPTH_OFFSET)
         # self.get_logger().info(str(lines))
         return lines
 
@@ -527,7 +527,7 @@ class ParticleFilterNode(Node):
         # Get the observation from the camera
         camera_markers_r = self.get_observation_from_camera(image_msg)
         likelihoods = []
-        
+        # return 
         dt = (self.get_clock().now() - self.camera_previous_time).nanoseconds / 1e9
         self.camera_previous_time = self.get_clock().now()
         # Calculate the likelihood of each particle given the camera
