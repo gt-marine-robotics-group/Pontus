@@ -32,12 +32,12 @@ class ParticleFilterNode(Node):
         )
         
         # Imu subscription
-        self.imu_sub = self.create_subscription(
-            Imu, 
-            "/pontus/imu_0",
-            self.imu_callback,
-            10
-        )
+        # self.imu_sub = self.create_subscription(
+        #     Imu, 
+        #     "/pontus/imu_0",
+        #     self.imu_callback,
+        #     10
+        # )
         
         self.depth_sub = self.create_subscription(
             Odometry,
@@ -93,7 +93,7 @@ class ParticleFilterNode(Node):
         # Particles
         self.particles = np.zeros((400, 4))
         self.init_particles()
-        # self.particles = np.tile([0, 0, POOL_DEPTH + 0.19, 0], (1, 1))
+        self.particles = np.tile([0.426, 0, POOL_DEPTH + 0.19, 0], (1, 1))
         # self.particles = np.array([[0, 0, POOL_DEPTH + 0.19, 0],
         #                            [0.1,0.4, POOL_DEPTH + 0.19, 0],
         #                            [0.6,-0.1, POOL_DEPTH + 0.19, 0.2]])
@@ -126,11 +126,12 @@ class ParticleFilterNode(Node):
         return avg_position
 
     # This updates the particles with the new position and yaw
-    def update_particles(self, change_in_position): 
+    def update_particles(self, change_in_position, use_guassian_noise = True): 
         # Update the particles with the change in position
         # Add guassian noise to simulate uncertainty / error in imu readings
-        self.particles[:, :2] = self.particles[:, :2] + change_in_position[:, :2] + self.guassian_noise(TRANS_MU, TRANS_SIGMA, change_in_position[:, :2].shape)
-        self.particles[:, 3] = self.particles[:, 3] + change_in_position[:, 3] + self.guassian_noise(ROTATE_MU, ROTATE_SIGMA, change_in_position[:, 3].shape)
+        if use_guassian_noise:
+            self.particles[:, :2] = self.particles[:, :2] + change_in_position[:, :2] + self.guassian_noise(TRANS_MU, TRANS_SIGMA, change_in_position[:, :2].shape)
+            self.particles[:, 3] = self.particles[:, 3] + change_in_position[:, 3] + self.guassian_noise(ROTATE_MU, ROTATE_SIGMA, change_in_position[:, 3].shape)
         # Bound the particles by their x,y position and angle
         # Ensures that adding guassian noise does not cause particles to wander too far
         self.particles[:,2] = self.depth    
@@ -262,7 +263,7 @@ class ParticleFilterNode(Node):
     def get_particle_likelihood(self, camera_markers, particle):
         # Pair the camera markers with the particle
         particle_markers = self.get_markers_from_particle(particle)
-        # self.get_logger().info(str(particle_markers))
+        self.get_logger().info("Particle Markers:\n" + str(particle_markers))
         likelihood = self.get_likelihood(particle_markers, camera_markers)
         # self.get_logger().info(str(likelihood))
         return likelihood
@@ -451,6 +452,7 @@ class ParticleFilterNode(Node):
     def depth_callback(self, msg):
         # self.depth = -msg.pose.pose.position.z + POOL_DEPTH
         self.depth = POOL_DEPTH + msg.pose.pose.position.z
+        self.update_particles(np.array([0, 0, self.depth, 0]), False)
         return
     
     # Camera callback
@@ -509,19 +511,19 @@ class ParticleFilterNode(Node):
             self.camera_previous_time = self.get_clock().now()
             return
         # Start up iteration to center particles at robot
-        if self.start_up < START_UP_ITERATIONS:
-            self.start_up += 1
-        # When we reach the start up iterations, we will set all particles to the robots current location
-        elif self.start_up == START_UP_ITERATIONS:
-            self.start_up = START_UP_ITERATIONS + 1
-            # Reset all particles to the origin
-            origin_particle = np.array([0, 0, self.depth, 0])
-            self.particles = np.tile(origin_particle, (NUM_PARTICLES, 1))
+        # if self.start_up < START_UP_ITERATIONS:
+        #     self.start_up += 1
+        # # When we reach the start up iterations, we will set all particles to the robots current location
+        # elif self.start_up == START_UP_ITERATIONS:
+        #     self.start_up = START_UP_ITERATIONS + 1
+        #     # Reset all particles to the origin
+        #     origin_particle = np.array([0, 0, self.depth, 0])
+        #     self.particles = np.tile(origin_particle, (NUM_PARTICLES, 1))
 
-            # Set the offsets
-            self.x_offset = self.position[0]
-            self.y_offset = self.position[1]
-            self.yaw_offset = self.position[3]
+        #     # Set the offsets
+        #     self.x_offset = self.position[0]
+        #     self.y_offset = self.position[1]
+        #     self.yaw_offset = self.position[3]
 
         # If we are past the start up iterations, we will update the particles based on the observation
         # Get the observation from the camera
@@ -534,17 +536,19 @@ class ParticleFilterNode(Node):
         if len(camera_markers_r) > 0:
             for particle in self.particles:
                 # Convert the camera markers to the global frame with respect to the particle
-                camera_markers_g = self.rotate_points(camera_markers_r, particle[3])
+                camera_markers_g = self.rotate_points(camera_markers_r, particle[3] - np.pi / 2)
+                camera_markers_g[:, 2] = (particle[3] + camera_markers_g[:, 2] - np.pi / 2) % np.pi
+                # Only add the particles current position to the camera markers if its angle corresponds with it
+                
                 camera_markers_g[:, 0] += particle[0]
                 camera_markers_g[:, 1] += particle[1]
-                camera_markers_g[:, 2] = (particle[3] + camera_markers_g[:, 2]) % np.pi
                 
                 likelihood = self.get_particle_likelihood(camera_markers_g, particle)
                 likelihoods.append(likelihood)
                 
-                # self.get_logger().info("Camera markers: \n" + str(camera_markers_g))
+                self.get_logger().info("Camera markers: \n" + str(camera_markers_g))
             # self.get_logger().info(str(likelihoods))
-            self.resample_particles(np.array(likelihoods))
+            # self.resample_particles(np.array(likelihoods))
         # Calculate change in position based on particle filter
         previous_position = self.position
         self.position = self.calculate_avg_position_yaw()
