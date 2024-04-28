@@ -11,6 +11,10 @@ GRID_LINE_THICKNESS = 0.30
 # This constant is used to determine how similar two lines need to be to be considered the same
 CUTOFF_THRESHOLD = 40
 
+# This is used to determine the direction of the gradient from the line
+# If set to true, that means the line has a greater light intensity compared to the background
+GRADIENT_POINTS_INTO_LINE = False
+
 # Camera intrinsics
 # Horizontal FOV in degrees
 FOV_H = 69
@@ -47,7 +51,7 @@ MARKER_DISTANCE_SIGMA = 0.2
 MARKER_ANGLE_SIGMA = 0.3
 
 # This is the number of iterations to run the particle filter before the sub starts moving to get the initial position
-START_UP_ITERATIONS = 100
+START_UP_ITERATIONS = 25
 
 # Angles
 NUM_START_UP_ANGLES = 1

@@ -32,12 +32,12 @@ class ParticleFilterNode(Node):
         )
         
         # Imu subscription
-        # self.imu_sub = self.create_subscription(
-        #     Imu, 
-        #     "/pontus/imu_0",
-        #     self.imu_callback,
-        #     10
-        # )
+        self.imu_sub = self.create_subscription(
+            Imu, 
+            "/pontus/imu_0",
+            self.imu_callback,
+            10
+        )
         
         self.depth_sub = self.create_subscription(
             Odometry,
@@ -93,7 +93,7 @@ class ParticleFilterNode(Node):
         # Particles
         self.particles = np.zeros((400, 4))
         self.init_particles()
-        self.particles = np.tile([0.426, 0, POOL_DEPTH + 0.19, 0], (1, 1))
+        # self.particles = np.tile([0.7, 0, POOL_DEPTH + 0.19, 0], (1, 1))
         # self.particles = np.array([[0, 0, POOL_DEPTH + 0.19, 0],
         #                            [0.1,0.4, POOL_DEPTH + 0.19, 0],
         #                            [0.6,-0.1, POOL_DEPTH + 0.19, 0.2]])
@@ -263,7 +263,7 @@ class ParticleFilterNode(Node):
     def get_particle_likelihood(self, camera_markers, particle):
         # Pair the camera markers with the particle
         particle_markers = self.get_markers_from_particle(particle)
-        self.get_logger().info("Particle Markers:\n" + str(particle_markers))
+        # self.get_logger().info("Particle Markers:\n" + str(particle_markers))
         likelihood = self.get_likelihood(particle_markers, camera_markers)
         # self.get_logger().info(str(likelihood))
         return likelihood
@@ -275,10 +275,10 @@ class ParticleFilterNode(Node):
         vertical_FOV_magnitude = particle[2] * np.tan(np.radians(FOV_V / 2))
         
         # Getting corners in global frame
-        corner_top_left = np.abs(self.rotate_point(-horizontal_FOV_magnitude, vertical_FOV_magnitude, particle[3]))
-        corner_top_right = np.abs(self.rotate_point(horizontal_FOV_magnitude, vertical_FOV_magnitude, particle[3]))
-        corner_bottom_left = np.abs(self.rotate_point(-horizontal_FOV_magnitude, -vertical_FOV_magnitude, particle[3]))
-        corner_bottom_right = np.abs(self.rotate_point(horizontal_FOV_magnitude, -vertical_FOV_magnitude, particle[3]))
+        corner_top_left = np.abs(self.rotate_point(-vertical_FOV_magnitude, horizontal_FOV_magnitude, particle[3]))
+        corner_top_right = np.abs(self.rotate_point(vertical_FOV_magnitude, horizontal_FOV_magnitude, particle[3]))
+        corner_bottom_left = np.abs(self.rotate_point(-vertical_FOV_magnitude, -horizontal_FOV_magnitude, particle[3]))
+        corner_bottom_right = np.abs(self.rotate_point(vertical_FOV_magnitude, -horizontal_FOV_magnitude, particle[3]))
 
         # Convert the maximum x and y values to the global frame in real life coordiantes
         true_x_max = np.max([corner_top_left[0], corner_top_right[0], corner_bottom_left[0], corner_bottom_right[0]])
@@ -307,11 +307,19 @@ class ParticleFilterNode(Node):
         while current_row <= end_positions[2][1]:
             # Check outer line
             if end_positions[3][1] <= current_row <= end_positions[2][1]:
-                rows_seen.append(current_row)
+                if GRADIENT_POINTS_INTO_LINE:
+                    gradient_angle = np.pi / 2
+                else:
+                    gradient_angle = -np.pi / 2
+                rows_seen.append((current_row, gradient_angle))
                 
             # Check inner line
             if end_positions[3][1] <= current_row + GRID_LINE_THICKNESS <= end_positions[2][1]:
-                rows_seen.append(current_row + GRID_LINE_THICKNESS)
+                if GRADIENT_POINTS_INTO_LINE:
+                    gradient_angle = -np.pi / 2
+                else:
+                    gradient_angle = np.pi / 2
+                rows_seen.append((current_row + GRID_LINE_THICKNESS, gradient_angle))
             
             current_row += grid_length 
             # self.get_logger().info(str(current_row))
@@ -322,11 +330,19 @@ class ParticleFilterNode(Node):
         while current_column <= end_positions[0][0]:
             # Check outer line
             if end_positions[1][0] <= current_column <= end_positions[0][0]:
-                columns_seen.append(current_column)
+                if GRADIENT_POINTS_INTO_LINE:
+                    gradient_angle = 0
+                else:
+                    gradient_angle = np.pi
+                columns_seen.append((current_column, gradient_angle))
                 
             # Check inner line
             if end_positions[1][0] <= current_column + GRID_LINE_THICKNESS <= end_positions[0][0]:
-                columns_seen.append(current_column + GRID_LINE_THICKNESS)
+                if GRADIENT_POINTS_INTO_LINE:
+                    gradient_angle = np.pi
+                else:
+                    gradient_angle = 0
+                columns_seen.append((current_column + GRID_LINE_THICKNESS, gradient_angle))
             
             current_column += grid_length 
         # self.get_logger().info("Cols:" + str(columns_seen))
@@ -335,10 +351,10 @@ class ParticleFilterNode(Node):
         # This means that it will always return the perpendicular distance to the line
         # Since we convert our measurements from the robot to the global frame,
         # We can assume that the distance to the line is the perpendicular distance 
-        for row in rows_seen:
-            markers.append(np.array([particle[0], row, 0])) 
-        for column in columns_seen:
-            markers.append(np.array([column, particle[1], np.pi / 2]))   
+        for row, gradient_angle in rows_seen:
+            markers.append(np.array([particle[0], row, 0, gradient_angle])) 
+        for column, gradient_angle in columns_seen:
+            markers.append(np.array([column, particle[1], np.pi / 2, gradient_angle]))   
 
         return markers
 
@@ -361,6 +377,9 @@ class ParticleFilterNode(Node):
                 #     # self.get_logger().info("Rejection criteria met")
                 #     continue
                 # self.get_logger().info("Passed rejection criteria")
+                gradient_angle_distance = self.angle_absolute_difference(camera_marker[3], particle_marker[3])
+                if gradient_angle_distance > np.pi / 4:
+                    continue
                 current_likelihood = self.calculate_marker_pair_likelihood(particle_marker, camera_marker)
                 if current_likelihood > max_likelihood:
                     max_likelihood = current_likelihood
@@ -501,6 +520,16 @@ class ParticleFilterNode(Node):
         lines = LineDetection.get_lines(cv_image, self.depth - CAMERA_DEPTH_OFFSET)
         # self.get_logger().info(str(lines))
         return lines
+    
+    def angle_absolute_difference(self, angle1, angle2):
+        # Compute the absolute difference between the angles
+        diff = abs(angle1 - angle2)
+        
+        # Ensure the result is between 0 and 2π
+        diff = diff % (2 * np.pi)
+        
+        # Adjust to the smallest angle (either diff or 2π - diff)
+        return min(diff, 2 * np.pi - diff)
 
     ######################]
     # Particle filter functions
@@ -511,19 +540,19 @@ class ParticleFilterNode(Node):
             self.camera_previous_time = self.get_clock().now()
             return
         # Start up iteration to center particles at robot
-        # if self.start_up < START_UP_ITERATIONS:
-        #     self.start_up += 1
-        # # When we reach the start up iterations, we will set all particles to the robots current location
-        # elif self.start_up == START_UP_ITERATIONS:
-        #     self.start_up = START_UP_ITERATIONS + 1
-        #     # Reset all particles to the origin
-        #     origin_particle = np.array([0, 0, self.depth, 0])
-        #     self.particles = np.tile(origin_particle, (NUM_PARTICLES, 1))
+        if self.start_up < START_UP_ITERATIONS:
+            self.start_up += 1
+        # When we reach the start up iterations, we will set all particles to the robots current location
+        elif self.start_up == START_UP_ITERATIONS:
+            self.start_up = START_UP_ITERATIONS + 1
+            # Reset all particles to the origin
+            origin_particle = np.array([0, 0, self.depth, 0])
+            self.particles = np.tile(origin_particle, (NUM_PARTICLES, 1))
 
-        #     # Set the offsets
-        #     self.x_offset = self.position[0]
-        #     self.y_offset = self.position[1]
-        #     self.yaw_offset = self.position[3]
+            # Set the offsets
+            self.x_offset = self.position[0]
+            self.y_offset = self.position[1]
+            self.yaw_offset = self.position[3]
 
         # If we are past the start up iterations, we will update the particles based on the observation
         # Get the observation from the camera
@@ -536,19 +565,22 @@ class ParticleFilterNode(Node):
         if len(camera_markers_r) > 0:
             for particle in self.particles:
                 # Convert the camera markers to the global frame with respect to the particle
+                # self.get_logger().info("Camera markers raw: \n" + str(camera_markers_r))
                 camera_markers_g = self.rotate_points(camera_markers_r, particle[3] - np.pi / 2)
                 camera_markers_g[:, 2] = (particle[3] + camera_markers_g[:, 2] - np.pi / 2) % np.pi
+                camera_markers_g[:, 3] = self.yaw_norm((particle[3] + camera_markers_g[:, 3] - np.pi / 2) % (2 * np.pi))
                 # Only add the particles current position to the camera markers if its angle corresponds with it
                 
                 camera_markers_g[:, 0] += particle[0]
                 camera_markers_g[:, 1] += particle[1]
-                
+                # print(camera_markers_g)
                 likelihood = self.get_particle_likelihood(camera_markers_g, particle)
+                # print(likelihood)
                 likelihoods.append(likelihood)
                 
-                self.get_logger().info("Camera markers: \n" + str(camera_markers_g))
+                # self.get_logger().info("Camera markers: \n" + str(camera_markers_g))
             # self.get_logger().info(str(likelihoods))
-            # self.resample_particles(np.array(likelihoods))
+            self.resample_particles(np.array(likelihoods))
         # Calculate change in position based on particle filter
         previous_position = self.position
         self.position = self.calculate_avg_position_yaw()

@@ -8,11 +8,12 @@ class LineDetection:
     def get_lines(image, depth):
         # Detect edges for both images
         edges = cv2.Canny(image, 50, 150, apertureSize=3)
-
+        image_copy = image.copy()
         line_pairs = np.array([])
         
         # Get lines
-        lines = cv2.HoughLines(edges, 1, np.pi/180, threshold=80)
+        # lines = cv2.HoughLines(edges, 1, np.pi/180, threshold=80)
+        lines = cv2.HoughLines(edges, 1, np.pi/180, threshold=90)
         if lines is not None:
         
             line_pairs = []
@@ -44,6 +45,55 @@ class LineDetection:
                 p0 = np.array([x1, y1])
                 projected_point = p0 + ((p - p0).dot(v) / np.linalg.norm(v)**2) * v
                 
+                # Calculate the gradient perpendicular to the line
+                # This will tell us which part of the line we are looking at
+                gradient_theta = (theta + np.pi/2) % np.pi
+                
+                # Need to see if its either -gradient_theta or gradient_theta
+                # Sample area
+                sample_area = 10
+                true_theta = (3 * np.pi / 2 - theta) % np.pi
+                total_left = []
+                total_right = []
+                # Sample one side
+                for sample in range(1, 10):
+                    sample_x = np.linspace((projected_point[0] + sample * np.sin(true_theta)) - 20 * np.sin(-theta), 
+                                        (projected_point[0] + sample * np.sin(true_theta)) + 20 * np.sin(-theta), sample_area)
+                    sample_y = np.linspace((projected_point[1] + sample * np.cos(true_theta)) - 20 * np.cos(-theta), 
+                                        (projected_point[1] + sample * np.cos(true_theta)) + 20 * np.cos(-theta), sample_area)
+                    
+                    for sample_x, sample_y in zip(sample_x, sample_y):
+                        if int(sample_y) < 0 or int(sample_y) >= image.shape[0] or int(sample_x) < 0 or int(sample_x) >= image.shape[1]:
+                            continue
+                        total_left.append(image_copy[int(sample_y), int(sample_x)])
+                        cv2.circle(image, (int(sample_x), int(sample_y)), 2, (255, 0, 0), -1)   
+                        # pass
+                        
+                # Sample other side
+                for sample in range(1,10):
+                    sample_x = np.linspace((projected_point[0] - sample * np.sin(true_theta)) - 20 * np.sin(-theta), 
+                                        (projected_point[0] - sample * np.sin(true_theta)) + 20 * np.sin(-theta), sample_area)
+                    sample_y = np.linspace((projected_point[1] - sample * np.cos(true_theta)) - 20 * np.cos(-theta), 
+                                        (projected_point[1] - sample * np.cos(true_theta)) + 20 * np.cos(-theta), sample_area)
+                    
+                    for sample_x, sample_y in zip(sample_x, sample_y):
+                        if int(sample_y) < 0 or int(sample_y) >= image.shape[0] or int(sample_x) < 0 or int(sample_x) >= image.shape[1]:
+                            continue
+                        total_right.append(image_copy[int(sample_y), int(sample_x)])
+                        cv2.circle(image, (int(sample_x), int(sample_y)), 2, (127, 0, 0), -1)
+                        # pass
+                total_left_mean = np.mean(total_left)
+                total_right_mean = np.mean(total_right)
+                # print("Total left mean:", total_left_mean, "Total right mean:", total_right_mean)
+                
+                if total_left_mean > total_right_mean:
+                    sampled_point = ((projected_point[0] + 5 * np.sin(true_theta)), (projected_point[1] + 5 * np.cos(true_theta)))
+                    gradient_theta = np.arctan2(-(sampled_point[1] - projected_point[1]), (sampled_point[0] - projected_point[0]))
+                else:
+                    sampled_point = ((projected_point[0] - 5 * np.sin(true_theta)), (projected_point[1] - 5 * np.cos(true_theta)))
+                    gradient_theta = np.arctan2(-(sampled_point[1] - projected_point[1]), (sampled_point[0] - projected_point[0]))
+                # print("Gradient_theta", gradient_theta, "True theta:", true_theta)
+                
                 # Convert to real world coordinates and center to the origin of the camera
                 percentage_horizontal = (projected_point[0] - image.shape[1]/2) / image.shape[1]
                 percentage_vertical = (image.shape[0]/2 - projected_point[1]) / image.shape[0]
@@ -54,8 +104,8 @@ class LineDetection:
                 # See if the potential point is really similar to any other points
                 # If it is, disregard the line
                 true_theta = (3 * np.pi / 2 - theta) % np.pi
-                new_line = np.array([true_distance_horizontal, true_distance_vertical, true_theta])
-                test_line = np.array([projected_point[0], projected_point[1], true_theta])
+                new_line = np.array([true_distance_horizontal, true_distance_vertical, true_theta, gradient_theta])
+                test_line = np.array([projected_point[0], projected_point[1], true_theta, gradient_theta])
                 if len(test_lines) > 0:
                     diff = np.square(test_lines - test_line)
                     if len(diff.shape) == 1:
