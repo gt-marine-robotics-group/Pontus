@@ -587,7 +587,8 @@ class ParticleFilterNode(Node):
         change_in_position = self.position - previous_position
         velocity_pf = change_in_position / dt
         # Average Imu and particle filter velocity
-        # self.velocity = velocity_pf*0.1 + self.velocity * 0.9
+        self.velocity = velocity_pf*0.2 + self.velocity * 0.8
+        self.get_logger().info(str(self.velocity))
         if DISPLAY_PARTICLES:
             self.particles_display()
             
