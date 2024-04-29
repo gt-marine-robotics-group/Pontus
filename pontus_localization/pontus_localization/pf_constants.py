@@ -24,12 +24,14 @@ FOV_V = 55
 # This is the distance from the depth sensor to the camera in m
 CAMERA_DEPTH_OFFSET = 0.15
 
+PADDING = 0.2
+
 DISPLAY_PARTICLES = True
 
 # This is the maximum distance new particles should be from the assumed position of thesub
 # This value should be no greater than half the size of a grid cell
 CUTOFF_DISTANCE = GRID_LINE_LENGTH / 2.2
-CUTOFF_ANGLE = 0.75
+CUTOFF_ANGLE = 0.70
 
 # These values are used to sample from a Gaussian distribution to simulate noise in odometry
 # mu should always be 0 unless there is some drift
@@ -52,6 +54,7 @@ MARKER_ANGLE_SIGMA = 0.3
 
 # This is the number of iterations to run the particle filter before the sub starts moving to get the initial position
 START_UP_ITERATIONS = 25
+START_UP_PARTICLES = 100
 
 # Angles
 NUM_START_UP_ANGLES = 1
