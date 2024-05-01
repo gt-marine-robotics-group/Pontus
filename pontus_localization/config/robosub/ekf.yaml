@@ -75,6 +75,25 @@ ekf_filter_node:
         base_link_frame: base_link  # Defaults to "base_link" if unspecified
         world_frame: odom                 # Defaults to the value of odom_frame if unspecified
 
+        odom0: /pontus/depth_0
+
+        odom0_config: [false, false, true,
+                      false, false, false,
+                      false, false, false,
+                      false, false, false,
+                      false, false, false]
+
+        #        [x_pos   , y_pos    , z_pos,
+        #         roll    , pitch    , yaw,
+        #         x_vel   , y_vel    , z_vel,
+        #         roll_vel, pitch_vel, yaw_vel,
+        #         x_accel , y_accel  , z_accel]
+
+        odom0_nodelay: false
+        odom0_differential: false
+        odom0_relative: false
+        odom0_queue_size: 7
+
 # The filter accepts an arbitrary number of inputs from each input message type (nav_msgs/Odometry,
 # geometry_msgs/PoseWithCovarianceStamped, geometry_msgs/TwistWithCovarianceStamped,
 # sensor_msgs/Imu). To add an input, simply append the next number in the sequence to its "base" name, e.g., odom0,

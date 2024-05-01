@@ -69,6 +69,7 @@ install(PROGRAMS
   pontus_sensors/imu_monitor.py
   pontus_sensors/camera_republish.py
   pontus_sensors/imu_republish.py
+  pontus_sensors/depth_republish.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
