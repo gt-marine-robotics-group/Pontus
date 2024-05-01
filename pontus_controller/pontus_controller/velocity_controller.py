@@ -28,7 +28,7 @@ class VelocityNode(Node):
         ]
 
         self.pid_angular = [
-          PID(2, 0.2, 0, 2), # R
+          PID(2, 0, 0, 2), # R
           PID(2, 0, 0, 2), # P
           PID(2, 0, 0, 2)  # Y
         ]
