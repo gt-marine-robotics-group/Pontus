@@ -24,7 +24,7 @@ def generate_launch_description():
         ),
         Node(
             package='pontus_controller',
-            executable='velocity_controller',
+            executable='limited_vel_controller',
             output='screen'
         ),
         Node(
