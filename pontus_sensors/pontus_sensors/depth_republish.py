@@ -29,8 +29,15 @@ class DepthRepublishNode(Node):
 
         odom_msg = Odometry()
         odom_msg.header.frame_id = 'odom' # TODO: should this be odom or map
-        odom_msg.pose.pose.position.z = -msg.data
-        self.imuPublisher.publish(odom_msg)
+        odom_msg.header.stamp = self.get_clock().now().to_msg()
+        odom_msg.pose.pose.position.z = (-msg.data + 194.5) / 17.8
+
+        '''
+        for i in range(0, 36):
+            odom_msg.pose.covariance[i] = 0.001
+        '''
+
+        self.pub.publish(odom_msg)
 
 
 def main(args=None):

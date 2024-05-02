@@ -22,15 +22,15 @@ class LimitedVelNode(Node):
 
         # TODO: Tune these
         self.pid_linear = [
-          PID(2, 0.2, 0, 2), # X
-          PID(2, 1, 0, 2), # Y
-          PID(2, 1, 0, 2)  # Z
+          PID(2, 0, 0, 2), # X
+          PID(2, 0, 0, 2), # Y
+          PID(40, 0.0, 10.0, 0.5)  # Z
         ]
 
         self.pid_angular = [
-          PID(2, 0.2, 0, 2), # R
-          PID(2, 0, 0, 2), # P
-          PID(2, 0, 0, 2)  # Y
+          PID(0.005, 0, 15.0, 2), # R
+          PID(0.005, 0, 15.0, 2), # P
+          PID(0.5, 0, 0, 2)  # Y
         ]
 
         # ROS infrastructure
@@ -70,13 +70,16 @@ class LimitedVelNode(Node):
 
         # Compute and publish the body accelerations
         msg = Twist()
-        msg.linear.x = 12.0 * linear_err[0]
-        msg.linear.y = 12.0 * linear_err[1]
+        msg.linear.x = 12.0 * self.cmd_linear[0]
+        msg.linear.y = 12.0 * self.cmd_linear[1]
         msg.linear.z = self.pid_linear[2](linear_err[2], self.get_clock().now() - self.prev_time)
 
-        msg.angular.x = self.pid_angular[0](angular_err[0], self.get_clock().now() - self.prev_time)
-        msg.angular.y = self.pid_angular[1](angular_err[1], self.get_clock().now() - self.prev_time)
-        msg.angular.z = angular_err[2] / 3.0
+        #msg.angular.x = self.pid_angular[0](angular_err[0], self.get_clock().now() - self.prev_time)
+        #msg.angular.y = self.pid_angular[1](angular_err[1], self.get_clock().now() - self.prev_time)
+        msg.angular.x = self.cmd_angular[0] / 3.0
+        msg.angular.y = self.cmd_angular[1] / 3.0
+
+        msg.angular.z = self.cmd_angular[2] / 3.0
 
         self.cmd_accel_pub.publish(msg)
 

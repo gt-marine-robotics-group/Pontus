@@ -19,8 +19,16 @@ def generate_launch_description():
             executable='imu_monitor.py',
             name='imu_monitor',
         ),
-        Node(
-            package='pontus_sensors',
-            executable='imu_republish.py',
-        )
+       Node(
+           package='tf2_ros',
+           executable='static_transform_publisher',
+           name='imu_to_base',
+           # 90, 90, 0
+           #arguments=['--qx', '-0.5', '--qy', '-0.5', '--qz', '0.5', '--qw', '0.5', '--frame-id', 'base_link', '--child-frame-id', 'sensor']
+           arguments=['0', '0', '0', '1.57', '3.141', '1.57', 'base_link', 'sensor']
+	),
+       Node(
+           package='pontus_sensors',
+           executable='imu_republish.py'
+       )
     ])

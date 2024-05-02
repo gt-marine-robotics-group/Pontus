@@ -15,11 +15,11 @@ setup(
         # Include all launch files.
         (os.path.join('share', package_name, 'launch'), glob(os.path.join('launch', '*.launch.py'))),
 
-        (os.path.join('share', package_name, 'config/robosub'), 
-            glob(os.path.join('config', 'robosub', '*.yaml'))),
+        (os.path.join('share', package_name, 'config/auv'), 
+            glob(os.path.join('config', 'auv', '*.yaml'))),
 
-        (os.path.join('share', package_name, 'config/sim_robosub'),
-            glob(os.path.join('config', 'sim_robosub', '*.yaml'))),
+        (os.path.join('share', package_name, 'config/sim'),
+            glob(os.path.join('config', 'sim', '*.yaml'))),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

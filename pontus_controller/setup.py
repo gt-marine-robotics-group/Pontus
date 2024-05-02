@@ -33,7 +33,8 @@ setup(
             'limited_vel_controller = pontus_controller.limited_vel_controller:main',
             'thruster_controller = pontus_controller.thruster_controller:main',
             'direct_thruster_controller = pontus_controller.direct_thruster_controller:main',
-            'firmware_cmds = pontus_controller.firmware_cmds:main'
+            'firmware_cmds = pontus_controller.firmware_cmds:main',
+            'stop = pontus_controller.stop:main'
         ],
     },
 )

@@ -1,7 +1,9 @@
 microstrain_inertial_driver:
   ros__parameters:
-    port: /dev/serial/by-id/usb-MicroStrain__Inc._3DM-GX3-25_Orientation_Sensor_6223.12899______-if00
-    #use_enu_frame: True
+    # port: /dev/serial/by-id/usb-MicroStrain__Inc._3DM-GX3-25_Orientation_Sensor_6223.12899______-if00
+    #port: /dev/serial/by-id/usb-MicroStrain__Inc._3DM-GX3-25_Orientation_Sensor_6223.12892______-if00
+    port: /dev/serial/by-id/usb-MicroStrain__Inc._3DM-GX3-45_Orientation_Sensor_6228.01429______-if00    
+    use_enu_frame: True
     #imu_frame_id: imu_frame
     #device_setup: True
     #debug: True
