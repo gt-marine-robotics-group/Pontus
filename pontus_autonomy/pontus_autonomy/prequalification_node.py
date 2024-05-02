@@ -169,7 +169,10 @@ class PrequalificationNode(Node):
             msg.linear.x = 1.0
 
             # Pass a bit lower so we don't run into the signs
-            msg.linear.z = 0.5 if target_y < height/4 else -0.5
+            if target_y < height/4.5:
+                msg.linear.z = 0.3
+            elif target_y > height/4.0:
+                msg.linear.z = -0.3
 
             # Rotate towards the center
             msg.angular.z = 1.0 if target_x < width/2 else -1.0
@@ -246,7 +249,7 @@ class PrequalificationNode(Node):
                 else:
                     #print("Driving to Marker")
                     msg.linear.x = 1.0
-                    msg.linear.z = 0.5 if marker[1] < height/2 else -0.5
+                    #msg.linear.z = 0.5 if marker[1] < height/2 else -0.5
 
                     # Keep the marker far off to the side so we don't hit it
                     msg.angular.z = 0.4 if marker[0] < width/self.marker_offset else -0.4
