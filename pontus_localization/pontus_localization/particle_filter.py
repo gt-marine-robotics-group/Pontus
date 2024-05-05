@@ -32,12 +32,12 @@ class ParticleFilterNode(Node):
         )
         
         # Imu subscription
-        # self.imu_sub = self.create_subscription(
-        #     Imu, 
-        #     "/pontus/imu_0",
-        #     self.imu_callback,
-        #     10
-        # )
+        self.imu_sub = self.create_subscription(
+            Imu, 
+            "/pontus/imu_0",
+            self.imu_callback,
+            10
+        )
         
         self.depth_sub = self.create_subscription(
             Odometry,
@@ -91,9 +91,9 @@ class ParticleFilterNode(Node):
         self.camera_previous_time = None
         
         # Particles
-        self.particles = np.zeros((400, 4))
+        self.particles = np.zeros((START_UP_PARTICLES, 4))
         self.init_particles()
-        self.particles = np.tile([0, 0, POOL_DEPTH + 0.19, -3 * np.pi / 4 ], (1, 1))
+        # self.particles = np.tile([0, 0, POOL_DEPTH + 0.19, -3 * np.pi / 4 ], (1, 1))
         # self.particles = np.array([[0, 0, POOL_DEPTH + 0.19, 0],
         #                            [0.1,0.4, POOL_DEPTH + 0.19, 0],
         #                            [0.6,-0.1, POOL_DEPTH + 0.19, 0.2]])
@@ -123,6 +123,9 @@ class ParticleFilterNode(Node):
     # This is what our odometry would be
     def calculate_avg_position_yaw(self):
         avg_position = np.mean(self.particles, axis=0)
+        avg_x_theta = np.mean(np.cos(self.particles[:, 3]))
+        avg_y_theta = np.mean(np.sin(self.particles[:, 3]))
+        avg_position[3] = np.arctan2(avg_y_theta, avg_x_theta)
         return avg_position
 
     # This updates the particles with the new position and yaw
@@ -409,6 +412,8 @@ class ParticleFilterNode(Node):
     # Resample particles based on prob distribution 
     def resample_particles(self, particle_likelihoods):
         # Normalize the likelihoods
+        if np.sum(particle_likelihoods) == 0:
+            return self.particles
         particle_likelihoods = particle_likelihoods / np.sum(particle_likelihoods)
         # Resample the particles
         indices = np.random.choice(a = [idx for idx in range(len(self.particles))], size = len(self.particles), p = particle_likelihoods, replace = True)    
@@ -582,7 +587,7 @@ class ParticleFilterNode(Node):
                 camera_markers_g[:, 1] += particle[1]
                 # print(camera_markers_g)
                 likelihood = self.get_particle_likelihood(camera_markers_g, particle)
-                print(likelihood)
+                # print(likelihood)
                 likelihoods.append(likelihood)
                 
                 # self.get_logger().info("Camera markers: \n" + str(camera_markers_g))

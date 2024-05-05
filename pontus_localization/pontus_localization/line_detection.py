@@ -51,16 +51,19 @@ class LineDetection:
                 
                 # Need to see if its either -gradient_theta or gradient_theta
                 # Sample area
-                sample_area = 20
                 true_theta = (3 * np.pi / 2 - theta) % np.pi
                 total_left = []
                 total_right = []
+                max_image_size = max(image.shape)
+                sample_area = int(max_image_size / 7)
+                print(sample_area)
+                
                 # Sample one side
-                for sample in range(1, 10):
-                    sample_x = np.linspace((projected_point[0] + sample * np.sin(true_theta)) - 120 * np.sin(-theta), 
-                                        (projected_point[0] + sample * np.sin(true_theta)) + 120 * np.sin(-theta), sample_area)
-                    sample_y = np.linspace((projected_point[1] + sample * np.cos(true_theta)) - 120 * np.cos(-theta), 
-                                        (projected_point[1] + sample * np.cos(true_theta)) + 120 * np.cos(-theta), sample_area)
+                for sample in range(1, 20):
+                    sample_x = np.linspace((projected_point[0] + sample * np.sin(true_theta)) - max_image_size * np.sin(-theta), 
+                                        (projected_point[0] + sample * np.sin(true_theta)) + max_image_size * np.sin(-theta), sample_area)
+                    sample_y = np.linspace((projected_point[1] + sample * np.cos(true_theta)) - max_image_size * np.cos(-theta), 
+                                        (projected_point[1] + sample * np.cos(true_theta)) + max_image_size * np.cos(-theta), sample_area)
                     
                     for sample_x, sample_y in zip(sample_x, sample_y):
                         if int(sample_y) < 0 or int(sample_y) >= image.shape[0] or int(sample_x) < 0 or int(sample_x) >= image.shape[1]:
@@ -70,11 +73,11 @@ class LineDetection:
                         # pass
                         
                 # Sample other side
-                for sample in range(1,10):
-                    sample_x = np.linspace((projected_point[0] - sample * np.sin(true_theta)) - 120 * np.sin(-theta), 
-                                        (projected_point[0] - sample * np.sin(true_theta)) + 120 * np.sin(-theta), sample_area)
-                    sample_y = np.linspace((projected_point[1] - sample * np.cos(true_theta)) - 120 * np.cos(-theta), 
-                                        (projected_point[1] - sample * np.cos(true_theta)) + 120 * np.cos(-theta), sample_area)
+                for sample in range(1,20):
+                    sample_x = np.linspace((projected_point[0] - sample * np.sin(true_theta)) - max_image_size * np.sin(-theta), 
+                                        (projected_point[0] - sample * np.sin(true_theta)) + max_image_size * np.sin(-theta), sample_area)
+                    sample_y = np.linspace((projected_point[1] - sample * np.cos(true_theta)) - max_image_size * np.cos(-theta), 
+                                        (projected_point[1] - sample * np.cos(true_theta)) + max_image_size * np.cos(-theta), sample_area)
                     
                     for sample_x, sample_y in zip(sample_x, sample_y):
                         if int(sample_y) < 0 or int(sample_y) >= image.shape[0] or int(sample_x) < 0 or int(sample_x) >= image.shape[1]:

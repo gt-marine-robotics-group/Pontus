@@ -37,11 +37,10 @@ CUTOFF_ANGLE = 0.70
 # mu should always be 0 unless there is some drift
 # sigma will determine how fast the noise grows, the larger the sigma the faster the particles disperse
 TRANS_MU = 0
-TRANS_SIGMA = 0.07  
+TRANS_SIGMA = 0.1  
 
 ROTATE_MU = 0
-ROTATE_SIGMA = 0.1
-ROTATE_SAMPLE_MAX = 1
+ROTATE_SIGMA = 0.5
 
 # The number of particles to use in the particle filter
 NUM_PARTICLES = 150
