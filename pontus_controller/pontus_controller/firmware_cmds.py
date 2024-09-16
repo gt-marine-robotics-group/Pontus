@@ -33,7 +33,7 @@ class FirmwareCmdsNode(Node):
     
     def timer_callback(self):
         msg = Float32MultiArray()
-        msg.data = [cmd / 52.0 for cmd in self.thruster_cmds]
+        msg.data = [(cmd / 52.0 if abs(cmd) > 2.6 else 0.0) for cmd in self.thruster_cmds]
         self.thruster_pub.publish(msg)
     
     def thruster0_callback(self, msg: Float64):
