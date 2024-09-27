@@ -24,8 +24,8 @@ class PositionNode(Node):
         self.state = self.State.Maintain_position
         self.transition_threshold = {}
         self.transition_threshold[self.State.Z_correction] = 0.07
-        self.transition_threshold[self.State.Direction_correction] = 0.05
-        self.transition_threshold[self.State.Linear_correction] = 0.1
+        self.transition_threshold[self.State.Direction_correction] = 0.02
+        self.transition_threshold[self.State.Linear_correction] = 0.2
         self.transition_threshold[self.State.Angular_correction] = 0.05
 
         self.deadzone = 0.2
@@ -52,7 +52,7 @@ class PositionNode(Node):
         self.angular_thresh = 0.05
         self.hold_point = False
         
-        self.goal_pose = None
+        self.goal_pose = np.zeros(3)
         self.goal_angle = None
         # ROS infrastructure
         self.cmd_pos_sub = self.create_subscription(
