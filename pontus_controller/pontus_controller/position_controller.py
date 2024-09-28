@@ -7,6 +7,7 @@ from geometry_msgs.msg import Pose, Twist
 from nav_msgs.msg import Odometry
 from tf_transformations import euler_from_quaternion
 from std_msgs.msg import Bool
+from rclpy.duration import Duration
 
 from .PID import PID
 
@@ -29,11 +30,14 @@ class PositionNode(Node):
         self.transition_threshold[self.State.Angular_correction] = 0.05
 
         self.deadzone = 0.2
+        self.stuck_error_threshold = 0.3
+        self.stuck_error_time = Duration(seconds=3)
 
         self.cmd_linear = None
         self.cmd_angular = None
 
         self.prev_time = self.get_clock().now()
+        self.prev_linear_time_under_threshold = self.get_clock().now()
 
         # TODO: Tune these
         self.pid_linear = [
@@ -208,10 +212,12 @@ class PositionNode(Node):
         if np.linalg.norm(angular_err) < self.transition_threshold[self.State.Direction_correction]:
             self.state = self.State.Linear_correction
             self.goal_angle = goal_orientation
+            self.prev_linear_time_under_threshold = self.get_clock().now()
         return linear_err, angular_err
     
 
     def go_to_point(self, current_position, quat):
+        self.get_logger().info(f"{self.prev_linear_time_under_threshold}")
         self.goal_pose = self.cmd_linear
         linear_err = self.calculate_linear_error(self.goal_pose, current_position, quat)
         angular_err = np.zeros(3)
@@ -223,6 +229,13 @@ class PositionNode(Node):
             (r, p, y) = euler_from_quaternion(quat)
             current_orientation = np.array([r, p, y])
             self.goal_angle = current_orientation
+
+        # If we ever get stuck here, transition back to turn_to_point
+        if np.linalg.norm(linear_err) <= self.stuck_error_threshold and self.get_clock().now() - self.prev_linear_time_under_threshold > self.stuck_error_time:
+            self.state = self.State.Direction_correction
+            self.goal_pose = current_position
+        elif np.linalg.norm(linear_err) > self.stuck_error_threshold:
+            self.prev_linear_time_under_threshold = self.get_clock().now()
         return linear_err, angular_err
 
 
