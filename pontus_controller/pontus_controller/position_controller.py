@@ -57,7 +57,7 @@ class PositionNode(Node):
         self.hold_point = False
         
         self.goal_pose = np.zeros(3)
-        self.goal_angle = None
+        self.goal_angle = np.zeros(3)
         # ROS infrastructure
         self.cmd_pos_sub = self.create_subscription(
           Pose,
@@ -117,11 +117,7 @@ class PositionNode(Node):
         s = quat[3]
         current_position = np.array([msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z])
         (r, p, y) = euler_from_quaternion(quat)
-        current_orientation = np.array([r, p, y])
-        if self.goal_pose is None:
-            self.goal_pose = current_position
-            self.goal_angle = current_orientation
-
+        
         quat = msg.pose.pose.orientation
         quat = [quat.x, quat.y, quat.z, quat.w]
         current_position = np.array([msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z])
