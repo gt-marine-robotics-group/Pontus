@@ -27,6 +27,13 @@ class VelocityNode(Node):
           PID(10, 0, 0, 2)  # Z
         ]
 
+        # Sim PID values
+        # self.pid_linear = [
+        #   PID(2, 0.2, 0, 2), # X
+        #   PID(2, 1, 0, 2), # Y
+        #   PID(2, 1, 0, 2)  # Z
+        # ]
+
         self.pid_angular = [
           PID(2, 0, 0, 2), # R
           PID(2, 0, 0, 2), # P
@@ -42,7 +49,7 @@ class VelocityNode(Node):
 
         self.odom_sub = self.create_subscription(
           Odometry,
-          '/dvl/odometry',
+          '/pontus/odometry',
           self.odometry_callback,
           10)
 
