@@ -42,6 +42,8 @@ def generate_launch_description():
         ),
         Node(
             package='pontus_sensors',
-            executable='depth_republish'
+            executable='depth_republish.py',
+            output="screen",
+            emulate_tty=True
         )
     ])

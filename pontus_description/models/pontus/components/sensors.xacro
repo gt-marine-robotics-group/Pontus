@@ -36,6 +36,18 @@
     </gazebo>
   </xacro:macro>
 
+  <!-- DVL  -->
+  <xacro:macro name="dvl_macro" params="dvl_id *origin">
+    <link name="dvl_a50_link"/>
+
+    <joint name="dvl_joint_${dvl_id}" type="fixed">
+      <xacro:insert_block name="origin"/>
+      <parent link="base_link"/>
+      <child link="dvl_a50_link"/>
+      <axis xyz="1 0 0"/>
+    </joint>
+  </xacro:macro>
+
   <!-- P900 Sonar  -->
   <xacro:macro name="p900_macro" params="sonar_id *origin">
     <link name="sonar_${sonar_id}">

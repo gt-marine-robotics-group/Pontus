@@ -42,7 +42,7 @@ class LimitedVelNode(Node):
 
         self.odom_sub = self.create_subscription(
           Odometry,
-          '/pontus/odometry',
+          '/dvl/odometry',
           self.odometry_callback,
           10)
 
@@ -59,7 +59,7 @@ class LimitedVelNode(Node):
         # linear = np.array((msg.linear.x, msg.linear.y, msg.linear.z)) * 12.0
         # angular = np.array((msg.angular.x, msg.angular.y, msg.angular.z)) / 3.0
 
-
+        msg.twist.twist.linear.z = -msg.twist.twist.linear.z
         # Get the current velocities from odometry
         v_linear = np.array([msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z])
         v_angular = np.array([msg.twist.twist.angular.x, msg.twist.twist.angular.y, msg.twist.twist.angular.z])

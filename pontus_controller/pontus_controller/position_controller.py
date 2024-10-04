@@ -20,9 +20,9 @@ class PositionNode(Node):
 
         # TODO: Tune these
         self.pid_linear = [
-          PID(0.5, 0, 0), # X
+          PID(1.0, 0, 0), # X
           PID(0.5, 0, 0), # Y
-          PID(0.5, 0, 0)  # Z
+          PID(5, 0, 0)  # Z
         ]
 
         self.pid_angular = [
@@ -44,7 +44,7 @@ class PositionNode(Node):
 
         self.odom_sub = self.create_subscription(
           Odometry,
-          '/pontus/odometry',
+          '/dvl/odometry',
           self.odometry_callback,
           10)
 
@@ -75,6 +75,7 @@ class PositionNode(Node):
         u[1] = -u[1]
         u[2] = -u[2]
         s = quat[3]
+        msg.pose.pose.position.z = - msg.pose.pose.position.z
         linear_err = self.cmd_linear - np.array([msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z])
         linear_err = 2.0 * np.dot(u, linear_err) * u + (s**2 - np.dot(u, u)) * linear_err + 2.0 * s * np.cross(u, linear_err)
         
@@ -102,9 +103,11 @@ class PositionNode(Node):
         msg.linear.y = 0.0
         msg.linear.z = self.pid_linear[2](linear_err[2], self.get_clock().now() - self.prev_time)
 
+        '''
         msg.angular.x = self.pid_angular[0](angular_err[0], self.get_clock().now() - self.prev_time)
         msg.angular.y = self.pid_angular[1](angular_err[1], self.get_clock().now() - self.prev_time)
         msg.angular.z = self.pid_angular[2](angular_err[2], self.get_clock().now() - self.prev_time)
+        '''
 
         self.cmd_vel_pub.publish(msg)
         self.hold_point_pub.publish(Bool(data=self.hold_point))

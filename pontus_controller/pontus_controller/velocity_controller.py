@@ -22,9 +22,9 @@ class VelocityNode(Node):
 
         # TODO: Tune these
         self.pid_linear = [
-          PID(2, 0.2, 0, 2), # X
-          PID(2, 1, 0, 2), # Y
-          PID(2, 1, 0, 2)  # Z
+          PID(20, 0, 0, 2), # X
+          PID(10, 0, 0, 2), # Y
+          PID(10, 0, 0, 2)  # Z
         ]
 
         self.pid_angular = [
@@ -42,7 +42,7 @@ class VelocityNode(Node):
 
         self.odom_sub = self.create_subscription(
           Odometry,
-          '/pontus/odometry',
+          '/dvl/odometry',
           self.odometry_callback,
           10)
 
@@ -55,7 +55,7 @@ class VelocityNode(Node):
         self.cmd_angular = np.array([msg.angular.x, msg.angular.y, msg.angular.z])
 
     def odometry_callback(self, msg):
-
+        msg.twist.twist.linear.z = -msg.twist.twist.linear.z
         # Get the current velocities from odometry
         v_linear = np.array([msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z])
         v_angular = np.array([msg.twist.twist.angular.x, msg.twist.twist.angular.y, msg.twist.twist.angular.z])
@@ -70,9 +70,14 @@ class VelocityNode(Node):
         msg.linear.y = self.pid_linear[1](linear_err[1], self.get_clock().now() - self.prev_time)
         msg.linear.z = self.pid_linear[2](linear_err[2], self.get_clock().now() - self.prev_time)
 
+        msg.angular.z = self.pid_angular[2](angular_err[2], self.get_clock().now() - self.prev_time)
+
+        '''
         msg.angular.x = self.pid_angular[0](angular_err[0], self.get_clock().now() - self.prev_time)
         msg.angular.y = self.pid_angular[1](angular_err[1], self.get_clock().now() - self.prev_time)
-        msg.angular.z = self.pid_angular[2](angular_err[2], self.get_clock().now() - self.prev_time)
+        '''
+        msg.angular.x = self.cmd_angular[0]
+        msg.angular.y = self.cmd_angular[1]
 
         self.cmd_accel_pub.publish(msg)
 

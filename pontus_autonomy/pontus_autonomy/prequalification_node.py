@@ -29,8 +29,14 @@ class PrequalificationNode(Node):
         self.bridge = CvBridge()
         self.subscription = self.create_subscription(
             Image, 
-            '/pontus/camera_0/image_raw',
+            '/oak/rgb/image_raw',
             self.camera_callback, 
+            qos_profile=qos_profile
+        )
+
+        self.debug_publisher = self.create_publisher(
+            Image, 
+            '/pontus/mask_debug',
             qos_profile=qos_profile
         )
 
@@ -49,12 +55,12 @@ class PrequalificationNode(Node):
         self.gate_hsv2 = np.uint8([180, 255, 100])
 
         # around 0
-        self.lower1 = self.gate_hsv1 - np.uint8([0, 20, 20,])
-        self.upper1 = self.gate_hsv1 + np.uint8([20, 0, 20,])
+        self.lower1 = self.gate_hsv1 - np.uint8([0, 255, 100,])
+        self.upper1 = self.gate_hsv1 + np.uint8([30, 0, 155,])
 
         # around 180
-        self.lower2 = self.gate_hsv2 - np.uint8([20, 20, 20,])
-        self.upper2 = self.gate_hsv2 + np.uint8([0, 0, 20,])
+        self.lower2 = self.gate_hsv2 - np.uint8([30, 255, 100,])
+        self.upper2 = self.gate_hsv2 + np.uint8([0, 0, 155,])
 
 
         # Vertical Marker Variables
@@ -71,28 +77,37 @@ class PrequalificationNode(Node):
 
         self.marker_hsv = np.uint8([90, 128, 0])
         self.marker_lower = self.marker_hsv - np.uint8([90, 128, 0,])
-        self.marker_upper= self.marker_hsv + np.uint8([90, 127, 5,])
+        self.marker_upper= self.marker_hsv + np.uint8([90, 127, 75,])
 
         self.circle_radius = 0.5 # This is going to end up being very approximate
         self.circle_linear_velocity = 0.4
         self.circle_time = (2 * np.pi * self.circle_radius) / self.circle_linear_velocity # Time to complete full circle
         self.circle_angular_velocity = 2 * np.pi /  self.circle_time
 
+    def debug_image(self, image):
+        cv2.namedWindow("debug")
+        cv2.imshow("debug", image)
+        cv2.waitKey(0)
+
     def camera_callback(self, data):
      
         msg = Twist()
 
+        '''
+        # Loop around the marker
+        case 1:
+            print("marker")
+            msg = self.vertical_marker_task(data)
+
+        # Pass back through the gate
+        case 2:
+            print("gate 2")
+            msg = self.gate_task(data)
+        '''
         match self.state:
             # Pass through the gate the first time
             case 0:
-                msg = self.gate_task(data)
-
-            # Loop around the marker
-            case 1:
-                msg = self.vertical_marker_task(data)
-
-            # Pass back through the gate
-            case 2:
+                print("gate 1")
                 msg = self.gate_task(data)
 
             # Do nothing if task complete
@@ -105,6 +120,10 @@ class PrequalificationNode(Node):
         mask1 = cv2.inRange(hsv_frame, self.lower1, self.upper1)
         mask2 = cv2.inRange(hsv_frame, self.lower2, self.upper2)
         mask = mask1 + mask2
+        #self.debug_image(mask)
+
+        image_msg = self.bridge.cv2_to_imgmsg(mask, encoding='mono8')
+        self.debug_publisher.publish(image_msg)
 
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         by_size = sorted(contours, key = lambda c: cv2.contourArea(c))
@@ -128,6 +147,7 @@ class PrequalificationNode(Node):
 
     def detect_marker(self, hsv_frame):
         mask = cv2.inRange(hsv_frame, self.marker_lower, self.marker_upper)
+        #self.debug_image(mask)
 
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         by_size = sorted(contours, key = lambda c: cv2.contourArea(c))
@@ -150,7 +170,10 @@ class PrequalificationNode(Node):
     def gate_task(self, data):
 
         # Convert ROS Image message to OpenCV image
-        hsv_frame = cv2.cvtColor(self.bridge.imgmsg_to_cv2(data), cv2.COLOR_RGB2HSV)
+        hsv_frame = cv2.cvtColor(self.bridge.imgmsg_to_cv2(data, desired_encoding="bgr8"), cv2.COLOR_BGR2HSV)
+
+        #canvas = cv2.cvtColor(hsv_frame.copy(), cv2.COLOR_HSV2BGR)
+        #self.debug_image(canvas)
         height, width, _ = hsv_frame.shape
 
         markers = self.detect_gate(hsv_frame)
@@ -159,23 +182,23 @@ class PrequalificationNode(Node):
 
         # Drive towards the center of the gate
         if len(markers) == 2:
-            #print("Drive Toward Gate")
+            print("Drive Toward Gate")
             self.approaching_gate = True
             self.gate_timestamp = self.get_clock().now()
 
             target_x = (markers[0][0] + markers[1][0]) / 2
             target_y = (markers[0][1] + markers[1][1]) / 2
 
-            msg.linear.x = 1.0
+            msg.linear.x = 0.2
 
             # Pass a bit lower so we don't run into the signs
             if target_y < height/4.5:
-                msg.linear.z = 0.3
+                msg.linear.z = 0.05
             elif target_y > height/4.0:
-                msg.linear.z = -0.3
+                msg.linear.z = -0.05
 
             # Rotate towards the center
-            msg.angular.z = 1.0 if target_x < width/2 else -1.0
+            msg.angular.z = 0.2 if target_x < width/2 else -0.2
 
         else:
             # Just keep driving forward for a bit to pass through the gate
@@ -188,18 +211,18 @@ class PrequalificationNode(Node):
                     self.gate_timestamp = None
                     msg.linear.x = 0.0
                 else:
-                    #print("Passing Through Gate")
-                    msg.linear.x = 0.5
+                    print("Passing Through Gate")
+                    msg.linear.x = 0.2
 
             # Look for the gate
             else:
-                #print("Looking for Gate")
+                print("Looking for Gate")
 
                 # Spin towards gate
                 if len(markers) == 1:
-                   msg.angular.z = 2.0 if markers[0][0] < width/2 else -2.0
+                   msg.angular.z = 0.2 if markers[0][0] < width/2 else -0.2
                 else:
-                    msg.angular.z = 2.0
+                    msg.angular.z = 0.2
 
         return msg
 
@@ -207,12 +230,13 @@ class PrequalificationNode(Node):
     def vertical_marker_task(self, data):
 
         # Convert ROS Image message to OpenCV image
-        hsv_frame = cv2.cvtColor(self.bridge.imgmsg_to_cv2(data), cv2.COLOR_RGB2HSV)
+        hsv_frame = cv2.cvtColor(self.bridge.imgmsg_to_cv2(data, desired_encoding="bgr8"), cv2.COLOR_BGR2HSV)
         height, width, _ = hsv_frame.shape
 
-        gate_markers = self.detect_gate(hsv_frame)
+        gate_markers = self.detect_marker(hsv_frame)
 
         msg = Twist()
+        return msg
 
         # If we can see the gate we have completed the vertical_marker_task
         if len(gate_markers):
@@ -236,7 +260,7 @@ class PrequalificationNode(Node):
             elif self.looping_pole:
                 #print("Looping Around Marker")
                 msg.linear.x = self.circle_linear_velocity
-                msg.angular.z = 2.0 * self.circle_angular_velocity # Need to compensate for bad controls :(
+                msg.angular.z = 0.5 * self.circle_angular_velocity # Need to compensate for bad controls :(
 
             # Drive forward keeping the pole off to our side so we can pass it
             else:
@@ -248,11 +272,11 @@ class PrequalificationNode(Node):
                     self.marker_timestamp = self.get_clock().now()
                 else:
                     #print("Driving to Marker")
-                    msg.linear.x = 1.0
+                    msg.linear.x = 0.5
                     #msg.linear.z = 0.5 if marker[1] < height/2 else -0.5
 
                     # Keep the marker far off to the side so we don't hit it
-                    msg.angular.z = 0.4 if marker[0] < width/self.marker_offset else -0.4
+                    msg.angular.z = 0.3 if marker[0] < width/self.marker_offset else -0.3
                 
         return msg
 
