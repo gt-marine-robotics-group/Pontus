@@ -31,7 +31,7 @@ class PositionNode(Node):
 
         self.deadzone = 0.2
         self.stuck_error_threshold = 0.3
-        self.stuck_error_time = Duration(seconds=3)
+        self.stuck_error_time = Duration(seconds=7)
 
         self.cmd_linear = None
         self.cmd_angular = None
@@ -213,7 +213,7 @@ class PositionNode(Node):
     
 
     def go_to_point(self, current_position, quat):
-        self.get_logger().info(f"{self.prev_linear_time_under_threshold}")
+        # self.get_logger().info(f"{self.prev_linear_time_under_threshold}")
         self.goal_pose = self.cmd_linear
         linear_err = self.calculate_linear_error(self.goal_pose, current_position, quat)
         angular_err = np.zeros(3)
