@@ -2,6 +2,7 @@
 <robot name="pontus" xmlns:xacro="http://www.ros.org/wiki/xacro" >
   <xacro:include filename="$(find pontus_description)/models/pontus/components/thrusters.xacro"/>
   <xacro:include filename="$(find pontus_description)/models/pontus/components/sensors.xacro"/>
+  <xacro:include filename="$(find pontus_description)/models/pontus/components/lights.xacro"/>
 
 
   <!--<xacro:property name="mesh_file" value="file://$(find pontus_description)/models/pontus/meshes/pontus_body_mesh.STL"/>-->
@@ -98,6 +99,10 @@
     <origin xyz="0.2 -${radius + 0.15} 0" rpy="0 ${90*pi/180} 0" />
   </xacro:T200_macro>
 
+
+  <xacro:light_macro light_id="0">
+    <origin xyz="0.405 0 0" rpy="0 0 0" />
+  </xacro:light_macro>
 
   <!-- Sensors -->
 
