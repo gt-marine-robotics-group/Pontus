@@ -1,0 +1,20 @@
+name: ROS CI
+on:
+  pull_request_target:
+    types: [opened, reopened, edited]
+  workflow_dispatch:
+
+jobs:
+  humble:
+    runs-on: ubuntu-latest
+    container:
+      image: osrf/ros:humble-desktop
+      env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: ros-tooling/action-ros-ci@v0.3
+        with:
+          target-ros2-distro: humble
+          skip-tests: true
+          import-token: ${{ secrets.GITHUB_TOKEN }}
+          rosdep-check: true
