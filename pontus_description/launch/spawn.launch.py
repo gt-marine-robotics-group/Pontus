@@ -36,7 +36,7 @@ def generate_launch_description():
     xacro_file = os.path.join(
         get_package_share_directory('pontus_description'),
         'models/pontus',
-        'pontus.xacro'
+        'pontus_real.xacro'
     )
 
     # Build the directories, check for existence

@@ -39,25 +39,35 @@ class PositionNode(Node):
         self.prev_time = self.get_clock().now()
         self.prev_linear_time_under_threshold = self.get_clock().now()
 
-        # TODO: Tune these
-        self.pid_linear = [
-          PID(1.0, 0, 0), # X
-          PID(0.5, 0, 0), # Y
-          PID(5, 0, 0)  # Z
-        ]
-        
-        # Sim PID values
-        # self.pid_linear = [
-        #   PID(0.5, 0, 0), # X
-        #   PID(0.5, 0, 0), # Y
-        #   PID(0.5, 0, 0)  # Z
-        # ]
+        self.declare_parameter('sim_mode', False) 
+        sim_mode = self.get_parameter('sim_mode').get_parameter_value().bool_value
 
-        self.pid_angular = [
-          PID(0.5, 0, 0), # R
-          PID(0.5, 0, 0), # P
-          PID(0.5, 0, 0)  # Y
-        ]
+        # TODO: Tune these
+        # Sim PID values
+        if sim_mode: 
+            self.pid_linear = [
+                PID(1, 0, 0.5), # X
+                PID(1, 0, 0.5), # Y
+                PID(2, 0, 2)  # Z
+            ]
+            self.pid_angular = [
+                PID(0.5, 0, 0), # R
+                PID(0.5, 0, 0), # P
+                PID(0.5, 0, 0)  # Y
+            ]
+        # Real values for sub
+        else:
+            self.pid_linear = [
+                PID(1.0, 0, 0), # X
+                PID(0.5, 0, 0), # Y
+                PID(5, 0, 0)  # Z
+            ]
+            
+            self.pid_angular = [
+                PID(0.5, 0, 0), # R
+                PID(0.5, 0, 0), # P
+                PID(0.5, 0, 0)  # Y
+            ]
 
         self.thresh = 0.2
         self.angular_thresh = 0.05

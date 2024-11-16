@@ -15,8 +15,12 @@ def generate_launch_description():
     auv_arg = DeclareLaunchArgument('auv', default_value='auv')
     auv_config = LaunchConfiguration('auv', default='auv')
     
+    sim_arg = DeclareLaunchArgument('sim', default_value='false')
+    sim_config = LaunchConfiguration('sim', default='false')
+
     return LaunchDescription([
         auv_arg,
+        sim_arg,
         Node(
             package='pontus_controller',
             executable='thruster_controller',
@@ -37,7 +41,10 @@ def generate_launch_description():
         Node(
             package='pontus_controller',
             executable='position_controller',
-            output='screen'
+            output='screen',
+            parameters=[{
+                'sim_mode': PythonExpression(["'", sim_config, "' == 'true'"])
+            }]
         ),
         Node(
             package='pontus_controller',

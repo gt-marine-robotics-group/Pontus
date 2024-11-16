@@ -48,7 +48,7 @@
     </joint>
   </xacro:macro>
 
-  <!-- P900 Sonar  -->
+  <!-- Sonoptix Echo  -->
   <xacro:macro name="sonoptix_macro" params="sonar_id *origin">
     <link name="sonar_${sonar_id}">
      <visual>
