@@ -20,7 +20,7 @@ def generate_launch_description():
     #TODO: publish world frame, add bridges for all necessary topics
     world_arg = DeclareLaunchArgument(
         'world',
-        default_value = 'underwater.world'
+        default_value = 'prequal.world'
     )
     world = LaunchConfiguration('world')
 

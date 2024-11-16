@@ -10,7 +10,7 @@ def generate_launch_description():
 
     world_arg = DeclareLaunchArgument(
         'world',
-        default_value = 'underwater.world'
+        default_value = 'prequal.world'
     )
     world = LaunchConfiguration('world')
 

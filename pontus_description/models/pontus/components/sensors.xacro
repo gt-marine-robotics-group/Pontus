@@ -18,7 +18,7 @@
     <gazebo reference="camera_${camera_id}">
       <sensor name="camera_${camera_id}" type="camera">
         <camera>
-          <horizontal_fov>1.047</horizontal_fov>
+          <horizontal_fov>1.20428</horizontal_fov>
           <image>
             <width>320</width>
             <height>240</height>
@@ -49,10 +49,11 @@
   </xacro:macro>
 
   <!-- P900 Sonar  -->
-  <xacro:macro name="p900_macro" params="sonar_id *origin">
+  <xacro:macro name="sonoptix_macro" params="sonar_id *origin">
     <link name="sonar_${sonar_id}">
      <visual>
         <geometry>
+          <!-- TODO: get the right mesh -->
           <mesh filename="${P900_mesh}"/>
         </geometry>
       </visual>
@@ -72,13 +73,65 @@
             <horizontal>
               <samples>256</samples>
               <resolution>1</resolution>
-              <min_angle>-0.3927</min_angle>
-              <max_angle>0.3927</max_angle>
+              <min_angle>-1.0472</min_angle>
+              <max_angle>1.0472</max_angle>
             </horizontal>
           </scan>
           <range>
-            <min>1.0</min>
-            <max>100.0</max>
+            <min>0.2</min>
+            <max>30.0</max>
+            <resolution>0.008</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.027</stddev>
+          </noise>
+        </lidar>
+        <always_on>1</always_on>
+        <update_rate>25</update_rate>
+        <visualize>true</visualize>
+        <topic>pontus/sonar_${sonar_id}</topic>
+
+        <!-- This tag isn't recognized by SDF but is extremely important for getting the correct TF data for the sonar frame-->
+        <gz_frame_id>sonar_${sonar_id}</gz_frame_id>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- Ping360 Sonar  -->
+  <xacro:macro name="ping360_macro" params="sonar_id *origin">
+    <link name="sonar_${sonar_id}">
+     <visual>
+      <origin xyz="0 0 0" rpy="0 ${-90*pi/180} 0"/>
+        <geometry>
+          <!-- TODO: get the right mesh -->
+          <mesh filename="${P900_mesh}" scale="0.3 0.3 0.3"/>
+        </geometry>
+      </visual>
+    </link>
+
+    <joint name="sonar_joint_${sonar_id}" type="fixed">
+      <xacro:insert_block name="origin"/>
+      <parent link="base_link"/>
+      <child link="sonar_${sonar_id}"/>
+      <axis xyz="1 0 0"/>
+    </joint>
+
+    <gazebo reference="sonar_${sonar_id}">
+      <sensor name="sonar_${sonar_id}" type="gpu_lidar">
+        <lidar>
+          <scan>
+            <horizontal>
+              <samples>180</samples>
+              <resolution>1</resolution>
+              <min_angle>-3.14159</min_angle>
+              <max_angle>3.14159</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.75</min>
+            <max>50.0</max>
             <resolution>0.01</resolution>
           </range>
           <noise>
@@ -88,7 +141,8 @@
           </noise>
         </lidar>
         <always_on>1</always_on>
-        <update_rate>15</update_rate>
+        <!-- The ping360 sweeps a single beam, we would have to simulate it with physically rotating the lidar. This is easier for now-->
+        <update_rate>1</update_rate>
         <visualize>true</visualize>
         <topic>pontus/sonar_${sonar_id}</topic>
 

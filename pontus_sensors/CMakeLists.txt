@@ -27,38 +27,15 @@ include_directories(
   $(rclcpp_INCLUDE_DIRS)
   ${OpenCV_INCLUDE_DIRS}
   colormaps
-  bvtsdk/include
 )
-
-add_library(bvtsdk SHARED IMPORTED GLOBAL)
-set_property(TARGET bvtsdk PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/bvtsdk/lib/libbvtsdk.so)
-
-add_executable(ros_blueview_driver src/blueview_ros_driver.cpp src/blueview_wrapper.cpp)
-
-target_link_libraries(ros_blueview_driver bvtsdk)
-
-ament_target_dependencies(ros_blueview_driver rosidl_default_runtime rclcpp std_msgs sensor_msgs image_transport cv_bridge OpenCV pontus_msgs)
 
 
 install(DIRECTORY
   launch
   pontus_sensors
   config
-  bvtsdk/colormaps
-  bvtsdk/data
   DESTINATION share/${PROJECT_NAME}
 )
-
-install(DIRECTORY
-  bvtsdk/lib/.
-  DESTINATION lib
-)
-
-install (TARGETS ros_blueview_driver
-  LIBRARY DESTINATION lib/${PROJECT_NAME}
-  RUNTIME DESTINATION lib/${PROJECT_NAME}
-)
-
 
 # Python
 ament_python_install_package(${PROJECT_NAME})
