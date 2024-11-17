@@ -48,6 +48,7 @@ install(PROGRAMS
   pontus_sensors/imu_republish.py
   pontus_sensors/depth_republish.py
   pontus_sensors/oak_imu_republish.py
+  pontus_sensors/sim_odom_tf_broadcaster.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

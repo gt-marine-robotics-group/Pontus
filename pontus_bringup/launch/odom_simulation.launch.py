@@ -66,11 +66,17 @@ def generate_launch_description():
         }.items()
     )
 
+    odom_tf_publisher = Node(
+        package='pontus_sensors',
+        executable='sim_odom_tf_broadcaster.py',
+    )
+
     return LaunchDescription([
         world_arg,
         static_arg,
         gzsim,
         spawn_vehicle,
         odom_bridge,
+        odom_tf_publisher,
         controls
     ])

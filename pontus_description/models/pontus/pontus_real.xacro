@@ -187,6 +187,8 @@
     <plugin
       filename="gz-sim-odometry-publisher-system"
       name="gz::sim::systems::OdometryPublisher">
+      <odom_frame>odom</odom_frame>
+      <robot_base_frame>base_link</robot_base_frame>
       <dimensions>3</dimensions>
     </plugin>
   </gazebo>
