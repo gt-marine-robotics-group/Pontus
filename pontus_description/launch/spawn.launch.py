@@ -84,7 +84,7 @@ def generate_launch_description():
     robot_state_publisher = OpaqueFunction(function=create_robot_state_publisher)
 
     # URDF spawner
-    args = ['-name', 'pontus', '-topic', 'robot_description', '-z', '1']
+    args = ['-name', 'pontus', '-topic', 'robot_description']
     spawn = Node(
         package='ros_gz_sim', 
         executable='create', 
