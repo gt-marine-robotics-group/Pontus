@@ -125,6 +125,11 @@
     <origin xyz="0 0 ${radius + 0.02 - 0.1}" rpy="0 0 0" />
   </xacro:ping360_macro>
 
+  <!-- DVL -->
+  <xacro:dvl_macro dvl_id="0">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+  </xacro:dvl_macro>
+
   <!-- IMU -->
   <xacro:imu_macro imu_id="0">
     <origin xyz="0 0 0" rpy="0 0 0" />
