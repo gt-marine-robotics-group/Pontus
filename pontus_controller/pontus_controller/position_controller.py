@@ -46,14 +46,14 @@ class PositionNode(Node):
         # Sim PID values
         if sim_mode: 
             self.pid_linear = [
-                PID(1, 0, 0.5), # X
+                PID(1, 0, 0.7), # X
                 PID(1, 0, 0.5), # Y
                 PID(2, 0, 2)  # Z
             ]
             self.pid_angular = [
                 PID(0.5, 0, 0), # R
                 PID(0.5, 0, 0), # P
-                PID(0.5, 0, 0)  # Y
+                PID(1, 0, 0)  # Y
             ]
         # Real values for sub
         else:
@@ -246,7 +246,7 @@ class PositionNode(Node):
         # If we ever get stuck here, transition back to turn_to_point
         if np.linalg.norm(linear_err) <= self.stuck_error_threshold and self.get_clock().now() - self.prev_linear_time_under_threshold > self.stuck_error_time:
             self.state = self.State.Direction_correction
-            self.goal_pose = current_position
+            self.goal_pose = self.cmd_linear
         elif np.linalg.norm(linear_err) > self.stuck_error_threshold:
             self.prev_linear_time_under_threshold = self.get_clock().now()
         return linear_err, angular_err

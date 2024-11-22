@@ -16,6 +16,7 @@ from std_msgs.msg import Float64
 from sensor_msgs.msg import LaserScan, PointCloud2
 from sensor_msgs_py import point_cloud2
 
+import tf_transformations
 # Helpers
 from pontus_autonomy.helpers.cv_threshold import CVThreshold
 
@@ -24,12 +25,17 @@ from pontus_autonomy.tasks.base_task import BaseTask
 class State(Enum):
     Submerging = 0
     Searching = 1
-    Approaching = 2
+    Aligning = 2
     Passing_Through = 3
+    PassedThrough = 4
 
 class SearchingState(Enum):
     Searching = 0
     Verifying = 1
+
+class VerifyingState(Enum):
+    VerifyingFirst = 0
+    VerifyingSecond = 1
 
 # Standard task to pass through gate
 class GateTask(BaseTask):
@@ -71,6 +77,7 @@ class GateTask(BaseTask):
 
         self.state = State.Submerging
         self.searching_state = None
+        self.verifying_state = None
 
         self.last_seen_gate_time = None
         self.gate_seen_timeout = Duration(seconds=1.0)
@@ -78,10 +85,14 @@ class GateTask(BaseTask):
         self.points = None
         self.current_odometry: Odometry = None
         self.position_command_sent = False
-        self.desired_forward_pose = None
+        self.desired_pose = None
         self.previous_searching_state = None
+        self.previous_verifying_state = None
         self.previous_state = None
         self.pointcloud = None
+        self.potential_gates = None
+        self.current_gate = 0
+        self.selected_gate = []
 
         # TODO: Make a separate set of values for real life and sim
 
@@ -98,13 +109,15 @@ class GateTask(BaseTask):
         # or floor)
         self.variance_threshold = 1
         # Distance at which we are satisfied that we have arrived
-        self.distance_threshold = 0.1
+        self.distance_threshold = 0.3
         # Angle threshold at which we are satisfied that we have arrived
         self.angle_threshold = 0.05
         # The width of the gate
         self.gate_width = 3
         # The allowed error in measurements relating to the gate width
         self.gate_width_epsilon = 0.4
+        # This is the allowed threshold to verify the gate is a gate
+        self.verifying_threshold = 0.2
 
 
     #### Callbacks
@@ -129,12 +142,13 @@ class GateTask(BaseTask):
     #### Helpers
     # Temporary function
     # TODO: Create logic to automatically handle this
-    def go_to_pose(self, desired_pose: Pose):
+    def go_to_pose(self, desired_pose: Pose, verify_only_yaw = False):
         if self.current_odometry is None:
             return False
         at_pose = False
         distance_diff, angle_diff = self.pose_difference(self.current_odometry.pose.pose, desired_pose)
-        if distance_diff < self.distance_threshold and angle_diff < self.angle_threshold:
+        # self.get_logger().info(f"{distance_diff} {angle_diff}")
+        if (distance_diff < self.distance_threshold or verify_only_yaw ) and angle_diff < self.angle_threshold:
             at_pose = True
         
         if self.position_command_sent:
@@ -165,7 +179,7 @@ class GateTask(BaseTask):
     def percent_ground_points(self, filter_depth, points) -> bool:
         return np.sum(points[..., 2] < filter_depth)/points.size
 
-    def get_clusers(self, points):
+    def get_clusters(self, points):
         if points is None:
             return
         clusters = self.cluster_points(points)
@@ -201,6 +215,10 @@ class GateTask(BaseTask):
     # of two clusters such that their distance is self.gate_width apart
     def get_potential_gates(self, clusters):
         potential_gates = []
+        # We need at least two points to see if they are a potential cluster
+        if len(clusters) < 1:
+            return potential_gates
+        
         for i in range(len(clusters) - 1):
             for j in range(i + 1, len(clusters)):
                 euclidean_distance = self.calculate_euclidean_distance(clusters[i], clusters[j])
@@ -210,15 +228,16 @@ class GateTask(BaseTask):
                     potential_gates.append((clusters[i], clusters[j]))
         return potential_gates
 
-
     def state_debugger(self):
-        # self.get_logger().info(f"Goal pose: {self.goal_pose}")
         if self.previous_state != self.state:
             self.get_logger().info(f"Now at: {self.state.name}")
             self.previous_state = self.state
         if self.previous_searching_state != self.searching_state:
             self.get_logger().info(f"Now at: {self.searching_state.name}")
             self.previous_searching_state = self.searching_state
+        if self.previous_verifying_state != self.verifying_state:
+            self.get_logger().info(f"Now at: {self.verifying_state.name}")
+            self.previous_verifying_state = self.verifying_state
 
     #### Autonomy
     # Run the gate state machine
@@ -229,13 +248,29 @@ class GateTask(BaseTask):
                 self.submerge()
             case State.Searching:
                 self.search()
-            # case State.Approaching:
-            #     vel_msg = self.approach(pos, height, width)
-            # case State.Passing_Through:
-            #     vel_msg = self.pass_through()
+            case State.Aligning:
+                self.align()
+            case State.Passing_Through:
+                self.pass_through()
             case _:
                 pass
     
+    def search(self):
+        self.state_debugger()
+        match self.searching_state:
+            case SearchingState.Searching:
+                self.forward()
+            case SearchingState.Verifying:
+                self.verify_potential_gates()
+    
+    def verify_potential_gates(self):
+        self.state_debugger()
+        match self.verifying_state:
+            case VerifyingState.VerifyingFirst:
+                self.verify_side(first = True)
+            case VerifyingState.VerifyingSecond:
+                self.verify_side(first = False)
+
     # This function is used to first submerge 
     def submerge(self):
         desired_pose = Pose()
@@ -245,77 +280,80 @@ class GateTask(BaseTask):
             self.state = State.Searching
             self.searching_state = SearchingState.Searching
 
-    def search(self):
-        self.state_debugger()
-        match self.searching_state:
-            case SearchingState.Searching:
-                self.forward()
-            case SearchingState.Verifying:
-                pass
-                # self.potential_clusters = self.verify
-
-        # return vel_msg
-
     # Keep going forward until we see the gate
     def forward(self):
-        # Flow of logic:
-        # Take our current pose, go forward 0.5 meters
-        # While going forward, check for clusters, and if we see a cluster stop
         if self.pointcloud is None:
             return
-        potential_clusters = self.get_clusers(self.pointcloud)
-        if self.desired_forward_pose is None:
-            self.desired_forward_pose = self.current_odometry.pose.pose
-            self.desired_forward_pose.position.x += 0.25
+        potential_clusters = self.get_clusters(self.pointcloud)
+        if self.desired_pose is None:
+            self.desired_pose = self.current_odometry.pose.pose
+            self.desired_pose.position.z = -1.0
+            self.desired_pose.position.x += 0.25
         potential_gates = self.get_potential_gates(potential_clusters)
-        arrived = self.go_to_pose(self.desired_forward_pose)
+        arrived = self.go_to_pose(self.desired_pose)
         
         if len(potential_gates) == 0 and arrived:
-            self.desired_forward_pose.position.x += 0.25
+            self.desired_pose.position.x += 0.25
         elif len(potential_gates) > 0:
             self.get_logger().info(f"{potential_gates}")
-            self.desired_forward_pose = self.current_odometry.pose.pose
+            self.desired_pose = self.current_odometry.pose.pose
+            arrived = self.go_to_pose(self.desired_pose)
             self.searching_state = SearchingState.Verifying
+            self.verifying_state = VerifyingState.VerifyingFirst
+        self.potential_gates = potential_gates
 
-    def approach(self, pos, height, width):
-        vel_msg = Twist()
-
-        if (pos):
-            # Pass a bit lower so we don't run into the signs
-            if pos[1] < height/4.5:
-                vel_msg.linear.z = 0.3
-            elif pos[1] > height/4.0:
-                vel_msg.linear.z = -0.3
-
-            vel_msg.linear.x = 0.8
-            # Rotate towards the center
-            vel_msg.angular.z = 1.0 if pos[0] < width/2 else -1.0
-        elif self.get_clock().now() - self.last_seen_gate_time < self.gate_seen_timeout:
-            vel_msg.linear.x = 0.6
+    def verify_side(self, first):
+        # Test the gate to make sure its correct
+        candidate_point = self.potential_gates[self.current_gate][0 if first else 1]
+        if not self.position_command_sent:
+            # Determine yaw to current point
+            current_position = [self.current_odometry.pose.pose.position.x, self.current_odometry.pose.pose.position.y, self.current_odometry.pose.pose.position.z]
+            # Yaw to face the gate pole
+            new_yaw = np.arctan2(candidate_point[1] - current_position[1], candidate_point[0] - current_position[0])
+            new_quaternion = tf_transformations.quaternion_from_euler(0, 0, new_yaw)
+            self.desired_pose.orientation.x = new_quaternion[0]
+            self.desired_pose.orientation.y = new_quaternion[1]
+            self.desired_pose.orientation.z = new_quaternion[2]
+            self.desired_pose.orientation.w = new_quaternion[3]
+        arrived = self.go_to_pose(self.desired_pose, verify_only_yaw = True)
+        if not arrived:
+            return
+        # Verify that we see a cluster in front of us
+        potential_clusters = self.get_clusters(self.pointcloud)
+        self.get_logger().info(f"{potential_clusters}")
+        for potential_cluster in potential_clusters:
+            diff = np.sqrt((potential_cluster[0] - candidate_point[0]) ** 2 + (potential_cluster[1] - candidate_point[1]) ** 2)
+            if diff < self.verifying_threshold and first:
+                self.verifying_state = VerifyingState.VerifyingSecond
+                return
+            if diff < self.verifying_threshold and not first:
+                self.state = State.Aligning
+                self.selected_gate = self.potential_gates[self.current_gate]
+                return
+        # If no gates are verified, and this is the late potential gate, retry searching for a gate
+        # TODO: Fix this logic
+        if self.current_gate == len(self.potential_gates) - 1:
+            self.searching_state = SearchingState.Searching
         else:
+            self.current_gate +=1
+
+    # TODO: Improve this. Currently this assume that the gate will be right in front of us
+    def align(self):
+        # Determine the middle point of the gate
+        middle_point_y = (self.selected_gate[0][1] + self.selected_gate[1][1])/2
+        middle_point_y += 1/4 * self.gate_width
+        self.desired_pose.position.y = middle_point_y
+        self.desired_pose.orientation.x = 0.0
+        self.desired_pose.orientation.y = 0.0
+        self.desired_pose.orientation.z = 0.0
+        self.desired_pose.orientation.w = 1.0
+        arrived = self.go_to_pose(self.desired_pose)
+        if arrived:
             self.state = State.Passing_Through
 
-        return vel_msg
-
     def pass_through(self):
-        vel_msg = Twist()
-        vel_msg.linear.x = 0.5
-
-        # TODO: if DVL is good we can use odom travel distance instead of travel time
-        if self.get_clock().now() - self.last_seen_gate_time > self.drive_through_gate_time:
-            self.complete(True)
-
-        return vel_msg
-
-    def detect_gate(self, markers):
-        pos = [0.0, 0.0]
-
-        # TODO: Improve this
-        for marker in markers:
-            pos[0] += marker[0]
-            pos[1] += marker[1]
-
-        pos[0] = pos[0] / len(markers)
-        pos[1] = pos[1] / len(markers)
-
-        return pos
+        if not self.position_command_sent:
+            self.desired_pose.position.x += 5
+        arrived = self.go_to_pose(self.desired_pose)
+        if arrived:
+            self.state = State.PassedThrough
