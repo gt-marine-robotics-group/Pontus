@@ -34,4 +34,12 @@ After you ensure that you are in the correct directory run:
 git clone https://github.com/gt-marine-robotics-group/Pontus.git
 ```
 
+## Setup
+First ensure that you are on the correct branch of the Pontus repository. If your run `git branch`, in the `/mrg_ws/src/Pontus` directory, you should see something like the following:
+```
+  main
+* onboarding
+```
+The `*` should be next to onboarding. If it is not, run `git checkout onboarding`
+
 ## Topic 1: ROS2 Basics
