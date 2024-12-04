@@ -16,7 +16,7 @@ mrg_ws/
   |__ src/
        |__ Pontus/
 ```
-This tutorial will assume that you have the following file structure. To clone the repo, first ensure that you are in the correct directory. To verify this, you can run the command `pwd` in your terminal. 
+This tutorial will assume that you have the following file structure and **will refer to `mrg_ws` as the workspace directory**. To clone the repo, first ensure that you are in the correct directory. To verify this, you can run the command `pwd` in your terminal. 
 You should see something like: `/home/name/mrg_ws/src`. If you are in the incorrect directory, you can run the command `ls` in ther terminal to list the current directories in your folder. For example, after `ls` you might see something like the following:
 ```
 mrg_ws
@@ -43,15 +43,13 @@ First ensure that you are on the correct branch of the Pontus repository. If you
 The `*` should be next to onboarding. If it is not, run `git checkout onboarding`
 
 ## Topic 1: ROS2 Basics
-Useful commands for this section
+### 1.1 Coding Subscriber and Publishers
+The goal of this section is to understand what a publisher and subscriber is within ROS2 and how to create them. Please look at file `topic1.py` in `/mrg_ws/src/Pontus/onboarding/onboarding/questions`.
+
+After completing the questions, to run your code you will need to run these commands in your workspace directory:
 ```
-source /opt/ros/humble/setup.bash
 colcon build
 source install/setup.bash
-ros2 node list
-ros2 topic list
-ros2 topic echo TOPIC_NAME
+ros2 run onboarding onboarding_node_topic1
 ```
-### 1.1 ROS Basics
-The goal of this section is to understand what a publisher and subscriber is within ROS2 and how to create them. Please look at file `topic1.py` in `/mrg_ws/src/Pontus/onboarding/onboarding`
 
