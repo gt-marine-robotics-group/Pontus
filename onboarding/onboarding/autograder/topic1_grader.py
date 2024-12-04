@@ -3,7 +3,7 @@ from rclpy.node import Node
 from std_msgs.msg import String
 from rclpy.subscription import Subscription
 from rclpy.publisher import Publisher
-import time
+from ..questions import topic1
 
 GREEN = '\033[32m'
 RED = '\033[31m'
@@ -18,11 +18,11 @@ def verify_answer(expected_condition, received_value, question_name):
             condition_met = expected_condition == received_value
 
         if condition_met:
-            print(f"{question_name} {GREEN}PASSED{RESET}")
+            print(f"{GREEN}PASSED{RESET} {question_name}")
         else:
-            print(f"{question_name} {RED}FAILED{RESET}")
+            print(f"{RED}FAILED{RESET} {question_name}")
     except Exception as e:
-        print(f"{question_name} {RED}ERROR{RESET}")
+        print(f"{RED}ERROR{RESET} {question_name}")
         print(e)
 
 
@@ -72,3 +72,27 @@ class OnboardingTopic1MockNode(Node):
         msg = String()
         msg.data = 'Hello World!'
         self.basic_topic_pub.publish(msg)
+
+
+class OnboardingTopic1TestNode(Node):
+    def __init__(self):
+        super().__init__('topic1_test_node')
+        self.student_node = topic1.OnboardingTopic1()
+        verify_q1_1_a(self.student_node.basic_topic_subscription)
+        verify_q1_1_b(self.student_node.new_topic_publisher)
+        self.mock_node = OnboardingTopic1MockNode()
+        rclpy.spin_once(self.mock_node)
+        rclpy.spin_once(self.student_node)
+        rclpy.spin_once(self.mock_node)
+        verify_q1_1_c(self.student_node.topic_string_message)
+        verify_q1_1_d(self.mock_node.published_string)
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    OnboardingTopic1TestNode()
+    rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()

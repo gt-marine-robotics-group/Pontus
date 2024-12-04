@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'onboarding_node_topic1 = onboarding.questions.topic1:main',
+            'test_topic_1 = onboarding.autograder.topic1_grader:main',
         ],
     },
 )

@@ -1,7 +1,5 @@
-import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
-from ..autograder import topic1_grader
 
 
 class OnboardingTopic1(Node):
@@ -22,7 +20,7 @@ class OnboardingTopic1(Node):
 
             ### END STUDENT CODE
         )
-        topic1_grader.verify_q1_1_a(self.basic_topic_subscription)
+        
         # TODO: Q1.1.b Creating Publisher
         # Please create a publisher that has the following attributes:
         #  - Publishes a message type String
@@ -33,21 +31,18 @@ class OnboardingTopic1(Node):
 
             ### END STUDENT CODE
         )
-        topic1_grader.verify_q1_1_b(self.new_topic_publisher)
-        self.onboardiang_topic1_mock_node = topic1_grader.OnboardingTopic1MockNode()
-        rclpy.spin_once(self.onboardiang_topic1_mock_node)
+        self.topic_string_message = None
 
 
     def topic_callback(self, msg: String):
         ## TODO: Q1.1.c Message Data
         # Please see what the String message type consists of: https://docs.ros.org/en/melodic/api/std_msgs/html/msg/String.html
         # For this question, access the string in the variable msg and store it into the following variable
-        topic_string_message = None
+        self.topic_string_message = None
         ### STUDENT CODE HERE
 
         ### END STUDENT CODE
-        topic1_grader.verify_q1_1_c(topic_string_message)
-            
+
         # TODO: Q1.1.d Publishing Data
         # Take the value from topic_string_message and append the string " ROS" so the new string would
         # look something like "Hello World! ROS"
@@ -56,16 +51,3 @@ class OnboardingTopic1(Node):
         # STUDENT CODE HERE
 
         # END STUDENT CODE
-        rclpy.spin_once(self.onboardiang_topic1_mock_node)
-        topic1_grader.verify_q1_1_d(self.onboardiang_topic1_mock_node.published_string)
-
-
-def main(args=None):
-    rclpy.init(args=args)
-    onboarding_topic_1_node = OnboardingTopic1()
-    rclpy.spin_once(onboarding_topic_1_node)
-    rclpy.shutdown()
-
-
-if __name__ == '__main__':
-    main()
