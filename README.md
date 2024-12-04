@@ -43,7 +43,7 @@ First ensure that you are on the correct branch of the Pontus repository. If you
 The `*` should be next to onboarding. If it is not, run `git checkout onboarding`
 
 ## Topic 1: ROS2 Basics
-### 1.1 ROS Basics
+### 1.1 Coding Subscriber and Publishers
 The goal of this section is to understand what a publisher and subscriber is within ROS2 and how to create them. Please look at file `topic1.py` in `/mrg_ws/src/Pontus/onboarding/onboarding/questions`.
 
 After completing the questions, to run your code you will need to run these commands in your workspace directory:
