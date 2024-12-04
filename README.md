@@ -50,6 +50,6 @@ After completing the questions, to run your code you will need to run these comm
 ```
 colcon build
 source install/setup.bash
-ros2 run onboarding onboarding_node_topic1
+ros2 run onboarding test_topic_1
 ```
 
