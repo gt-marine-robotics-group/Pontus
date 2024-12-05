@@ -73,7 +73,7 @@ Stop the node. This can be done by going into the terminal where you ran the nod
 run `ros2 topic list`. You should see two topics, namely `/parameter_events` and `rosout`. These are system-generated topics and you do not have to worry about these topics for now. Again, run `ros2 run onboarding node_q_1_1`. Change the value of `num_topics` to the new number of topics. 
 
 #### 1.1.d Topic Info
-Sometimes you may want to find information about a topic. You can use `ros2 topic info TOPIC_NAME` to do so. First, run `ros2 topic info /onboarding/OdometryPub`. Note the fields `Type`, `Publisher count`, and `Subscription count`. One of the other topics is called `/onboarding/MysteryPub`. We want to find what type of message this topic publishes. Change the value of `topic_message_type` to the correct message type of the topic `/onboarding/MysterPub`. Write your answer as a string.
+Sometimes you may want to find information about a topic. You can use `ros2 topic info TOPIC_NAME` to do so. First, run `ros2 topic info /onboarding/OdometryPub`. Note the fields `Type`, `Publisher count`, and `Subscription count`. One of the other topics is called `/onboarding/MysteryPub`. We want to find what type of message this topic publishes. Change the value of `topic_message_type` to the correct message type of the topic `/onboarding/MysteryPub`. Write your answer as a string.
 
 #### 1.1.e Topic Echo
 When debugging, it sometimes important to checkout what messages are being published to a topic. A useful command for this is `ros2 topic echo TOPIC_NAME`. Change the value of `string_message` to the string that is being published to the topic `/onboarding/StringPub`. 
