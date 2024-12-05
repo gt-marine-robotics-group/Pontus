@@ -106,3 +106,6 @@ For this question, access the string field from the variable `msg` and store it 
 
 #### 1.2.d Publishing Data
 Publishing data is how we send information to a topic. For this question, take the value from `topic_string_message` and append the string ` ROS`. The new string should look like `Hello World! ROS`. Then use the variable `new_message` to publish this new string using the publisher from **Q1.1.b**.
+
+### 1.3 Counter Node
+This question is designed to test your knowledge on this topic. Take a look at `question1_3.py`. The goal of this node is to publish to a topic called `/onboarding/counter250` with numbers 0 to 250 inclusive of type `Int32`. A rough outline has been provided for you. Fill in the blanks to complete this question. 
