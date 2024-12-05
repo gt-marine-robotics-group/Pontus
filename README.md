@@ -42,8 +42,30 @@ First ensure that you are on the correct branch of the Pontus repository. If you
 ```
 The `*` should be next to onboarding. If it is not, run `git checkout onboarding`
 
+Then go to your workspace directory and run:
+```
+colcon build
+source install/setup.bash
+```
+
 ## Topic 1: ROS2 Basics
-### 1.1 Coding Subscriber and Publishers
+### 1.1 Understanding Nodes and Topics
+The goal of this section is to familiarize yourself with the concept of nodes and topics. We will be using ROS2 CLI throughout this section and you will be filling out answers in the file `/mrg_ws/src/Pontus/onboarding/onboarding/questions/topic_1/question1_1.py`. 
+
+#### 1.1.a Nodes
+First in your terminal, run `ros2 node list`. This will list all running nodes. You should currently have 0 running nodes. Now, in the terminal, run `ros2 run onboarding node_q_1_1`. Change the value of `num_nodes` to the new number of nodes. 
+
+#### 1.1.b Node Names
+Change the value of `first_node_name` to the name of the first node. 
+
+Note: When we ran the node, we used the command `ros2 run onboarding node_q_1_1`. As you can see the name `node_q_1_1` will not always 
+match the name of the node. Here, `node_q_1_1` refers to the executable name, which is defined in `setup.py`.
+
+#### 1.1.c Topics
+Stop the node. This can be done by going into the terminal where you ran the node and press `CTRL + c`. Once you have killed the node,
+run `ros2 topic list`. You should see two topics, namely `/parameter_events` and `rosout`. These are system-generated topics and you do not have to worry about these topics for now. Again, run `ros2 run onboarding node_q_1_1`. Change the value of `num_topics` to the new number of topics. 
+
+### 1.2 Coding Subscriber and Publishers
 The goal of this section is to understand what a publisher and subscriber is within ROS2 and how to create them. Please look at file `topic1.py` in `/mrg_ws/src/Pontus/onboarding/onboarding/questions`.
 After completing the questions, to run your code you will need to run these commands in your workspace directory:
 ```
