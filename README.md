@@ -49,7 +49,7 @@ source install/setup.bash
 ```
 
 ## Topic 1: ROS2 Basics
-At any point you want to test your code, you will need to run these commands in your workspace directory.
+Each section has an associated autograder. At any point you want to test your code, you will need to run these commands in your workspace directory.
 ```
 colcon build
 source install/setup.bash
