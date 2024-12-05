@@ -79,5 +79,30 @@ Sometimes you may want to find information about a topic. You can use `ros2 topi
 When debugging, it sometimes important to checkout what messages are being published to a topic. A useful command for this is `ros2 topic echo TOPIC_NAME`. Change the value of `string_message` to the string that is being published to the topic `/onboarding/StringPub`. 
 
 ### 1.2 Coding Subscriber and Publishers
-The goal of this section is to understand what a publisher and subscriber is within ROS2 and how to create them. Please look at file `topic1.py` in `/mrg_ws/src/Pontus/onboarding/onboarding/questions`.
-After completing the questions, to run your code you will need to run these commands in your workspace directory:
+The goal of this section is to understand what a publisher and subscriber is within ROS2 and how to create them. Please look at file `question1_2.py`
+
+#### 1.2.a Creating a subscriber to a topic
+Creating a subscriber is a way to access data that is sent over a topic. For this question, fill in the blanks to create a subscriber.
+This subscriber should
+- Subscribe to the topic `/onboarding/basic_topic`
+- Have its callback be `self.topic_callback`
+- Take in a message type `String`
+- Qos profile of 10
+
+HINT: There should be four parameters that you fill
+
+#### 1.2.b Creating a publisher
+Creating a publisher is a way to send data over a topic. For this question, fill in the blanks to create a publisher.
+This publisher should
+- Publish a message type `String`
+- Publish to a topic `/onboarding/new_topic`
+- Qos profile of 10
+
+HINT: There should be three parameters that you fill
+
+#### 1.2.c Message Data
+Please see what the String message type consists of: https://docs.ros.org/en/melodic/api/std_msgs/html/msg/String.html.
+For this question, access the string field from the variable `msg` and store it into the variable `self.topic_string_message`
+
+#### 1.2.d Publishing Data
+Publishing data is how we send information to a topic. For this question, take the value from `topic_string_message` and append the string ` ROS`. The new string should look like `Hello World! ROS`. Then use the variable `new_message` to publish this new string using the publisher from **Q1.1.b**.
