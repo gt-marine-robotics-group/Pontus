@@ -1,4 +1,4 @@
-class Question_1_1:
+class OnboardingTopic1_1:
     def __init__(self):
         ## TODO: Q1.1.a Nodes
         self.num_nodes = None

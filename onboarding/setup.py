@@ -23,6 +23,8 @@ setup(
             'test_topic_1_1 = onboarding.autograder.topic_1.question1_1_grader:main',
             'test_topic_1_2 = onboarding.autograder.topic_1.question1_2_grader:main',
             'test_topic_1_3 = onboarding.autograder.topic_1.question1_3_grader:main',
+            'test_topic_2_1 = onboarding.autograder.topic_2.question2_1_grader:main',
+            'test_topic_2_2 = onboarding.autograder.topic_2.question2_2_grader:main',
             'node_q_1_1 = onboarding.autograder.topic_1.mock_node:main',
         ],
     },
