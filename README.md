@@ -110,9 +110,9 @@ Publishing data is how we send information to a topic. For this question, take t
 ### 1.3 Counter Node
 This question is designed to test your knowledge on this topic. Take a look at `question1_3.py`. The goal of this node is to publish to a topic called `/onboarding/counter250` with numbers of type `Int32` starting from 0 incrementing to 250 inclusive. A rough outline has been provided for you. Fill in the blanks to complete this question. 
 
-## Topic 2: Coordinate Frames
+## Topic 2: Coordinate Conventions
 
-This section we will be going over coordinate frame standards in ros. For more information, see [REP - 103: Standard Units of Measure and Coordinate Conventions](https://www.ros.org/reps/rep-0103.html). Coordinate frames are a way of defining points in space. An example would be your standard xy-coordinate frame.  
+This section we will be going over coordinate conventions in ros. For more information, see [REP - 103: Standard Units of Measure and Coordinate Conventions](https://www.ros.org/reps/rep-0103.html). Coordinate frames are a way of defining points in space. An example would be your standard xy-coordinate frame.  
 ![image](https://github.com/user-attachments/assets/a1a3b214-a865-42ab-8f38-468dbd836b19)
 
 ### 2.1 ENU Convention
@@ -139,6 +139,20 @@ The NED convention is north(x) - east(y) - down(z), which looks something like:
 For this question, fill in the three variables with the correct values based on the following image and the NED convention. You can assume that the axes represent true north and true east. 
 
 <img src="https://github.com/user-attachments/assets/7c5b05f6-f29b-4ed8-9dec-b0be8514f349" alt="image" width="400">
+
+### 2.3 Relative to Body Convention
+
+Sometimes it is important to model the location of a point with relation to a body frame instead of a world frame. For example, say we want to model the location of a buoy with respect to the submarine. The relative body convention defines the following:
+
+- x (forward)
+- y (left)
+- z (up)
+
+Therefore, a value of (3,1,2) would indicate that the point is 3 units in front of the sub, 1 unit to the left of the sub, and 1 unit above the sub.
+
+<img src="https://github.com/user-attachments/assets/7c5b05f6-f29b-4ed8-9dec-b0be8514f349" alt="image" width="400">
+
+For this question, assume our robot is facing true north, which means "forward" aligns with the north axis. Fill in the three variables with the correct values based on the following image and the relative to body convention. 
 
 
 ## Topic 3: Understanding Odometry
