@@ -49,7 +49,7 @@ source install/setup.bash
 ```
 
 ## Topic 1: ROS2 Basics
-At any point you want to test your code, you will need to run these commands in your workspace directory.
+Each section has an associated autograder. At any point you want to test your code, you will need to run these commands in your workspace directory.
 ```
 colcon build
 source install/setup.bash
@@ -73,7 +73,7 @@ Stop the node. This can be done by going into the terminal where you ran the nod
 run `ros2 topic list`. You should see two topics, namely `/parameter_events` and `rosout`. These are system-generated topics and you do not have to worry about these topics for now. Again, run `ros2 run onboarding node_q_1_1`. Change the value of `num_topics` to the new number of topics. 
 
 #### 1.1.d Topic Info
-Sometimes you may want to find information about a topic. You can use `ros2 topic info TOPIC_NAME` to do so. First, run `ros2 topic info /onboarding/OdometryPub`. Note the fields `Type`, `Publisher count`, and `Subscription count`. One of the other topics is called `/onboarding/MysterPub`. We want to find what type of message this topic publishes. Change the value of `topic_message_type` to the correct message type of the topic `/onboarding/MysterPub`. Write your answer as a string.
+Sometimes you may want to find information about a topic. You can use `ros2 topic info TOPIC_NAME` to do so. First, run `ros2 topic info /onboarding/OdometryPub`. Note the fields `Type`, `Publisher count`, and `Subscription count`. One of the other topics is called `/onboarding/MysteryPub`. We want to find what type of message this topic publishes. Change the value of `topic_message_type` to the correct message type of the topic `/onboarding/MysteryPub`. Write your answer as a string.
 
 #### 1.1.e Topic Echo
 When debugging, it sometimes important to checkout what messages are being published to a topic. A useful command for this is `ros2 topic echo TOPIC_NAME`. Change the value of `string_message` to the string that is being published to the topic `/onboarding/StringPub`. 
@@ -108,4 +108,51 @@ For this question, access the string field from the variable `msg` and store it 
 Publishing data is how we send information to a topic. For this question, take the value from `topic_string_message` and append the string ` ROS`. The new string should look like `Hello World! ROS`. Then use the variable `new_message` to publish this new string using the publisher from **Q1.1.b**.
 
 ### 1.3 Counter Node
-This question is designed to test your knowledge on this topic. Take a look at `question1_3.py`. The goal of this node is to publish to a topic called `/onboarding/counter250` with numbers 0 to 250 inclusive of type `Int32`. A rough outline has been provided for you. Fill in the blanks to complete this question. 
+This question is designed to test your knowledge on this topic. Take a look at `question1_3.py`. The goal of this node is to publish to a topic called `/onboarding/counter250` with numbers of type `Int32` starting from 0 incrementing to 250 inclusive. A rough outline has been provided for you. Fill in the blanks to complete this question. 
+
+## Topic 2: Coordinate Frames
+
+This section we will be going over coordinate frame standards in ros. For more information, see [REP - 103: Standard Units of Measure and Coordinate Conventions](https://www.ros.org/reps/rep-0103.html). Coordinate frames are a way of defining points in space. An example would be your standard xy-coordinate frame.  
+![image](https://github.com/user-attachments/assets/a1a3b214-a865-42ab-8f38-468dbd836b19)
+
+### 2.1 ENU Convention
+
+In ROS, we have a set of standard coordinate frames defined by the right-hand rule. We will first consider the ENU convention (east(x) - north(y) - up(z)), which would look something like this:
+
+<img src="https://github.com/user-attachments/assets/b4d2da4b-1d2f-432f-98ae-e85586060eb4" alt="image" width="400">
+
+This means the following relationships:
+- The more east a point is, the more positive its x
+- The more north a point is, the more positive its y
+- The higher a point is, the more positive its z
+
+For this question, fill in the three variables with the correct values based on the following image and the ENU convention. You can assume that the axes represent true north and true east. 
+
+<img src="https://github.com/user-attachments/assets/7c5b05f6-f29b-4ed8-9dec-b0be8514f349" alt="image" width="400">
+
+### 2.2 NED Convention
+
+The NED convention is north(x) - east(y) - down(z), which looks something like:
+
+<img src="https://github.com/user-attachments/assets/bf7a847e-13ba-4aca-937c-46e30ed8462a" alt="image" width="300">
+
+For this question, fill in the three variables with the correct values based on the following image and the NED convention. You can assume that the axes represent true north and true east. 
+
+<img src="https://github.com/user-attachments/assets/7c5b05f6-f29b-4ed8-9dec-b0be8514f349" alt="image" width="400">
+
+
+## Topic 3: Understanding Odometry
+
+### 3.1 Understanding Pose
+Take a look at [Pose Message](https://docs.ros.org/en/lunar/api/geometry_msgs/html/msg/Pose.html). The pose message contains two fields, a **position** and an **orientation**. This message type is used to define the location and facing of some object in some world space. For example, where our sub is and what heading we are facing.
+
+Understanding Position
+Create a subscriber that subscribes to the topic `/onboarding/pose` with message type `Pose`. In the callback function, assign the values `self.position_x`, `self.position_y`, and `self.position_z` to the respective values in the `Pose` message.
+
+## Topic 4: Simulation + Useful Tools
+
+## Topic 5: Perception
+
+## Topic 6: Sonars and Point Clouds
+
+## Topic 7: Autonomy
