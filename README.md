@@ -35,6 +35,9 @@ git clone https://github.com/gt-marine-robotics-group/Pontus.git
 ```
 
 ## Setup
+
+### Git
+
 First ensure that you are on the correct branch of the Pontus repository. If your run `git branch`, in the `/mrg_ws/src/Pontus` directory, you should see something like the following:
 ```
   main
@@ -42,6 +45,13 @@ First ensure that you are on the correct branch of the Pontus repository. If you
 ```
 The `*` should be next to onboarding. If it is not, run `git checkout onboarding`
 
+### Tmuxp (Work In Progress)
+Tmuxp is tool that allows you to have multiple panes(terminals) in one screen. This is especially useful for ROS when we need multiple terminals to run nodes, look at output, etc. We highly recommend running the tmuxp script. To do so, run
+```
+tmuxp load /root/tmux_config.yml
+``` 
+
+### Build
 Then go to your workspace directory and run:
 ```
 colcon build
