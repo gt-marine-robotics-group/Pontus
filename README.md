@@ -1,7 +1,8 @@
 # Onboarding RoboSub
 This branch is in charge of onboarding new members with ROS knowledge and the basics of the software stack for Robosub. This tutorial can also be used as a general onboard for other teams such as RobotX, Microtransit, and RoboBoat. 
 It is **highly recommended** (if not required) for new members to complete this onboarding process before attempting any tasks. It is also highly recommended to truthfully go through this onboarding process without 
-directly going to the answers. This is for YOU, so if you want to skip around to the more advanced topics or topics you are not familar with, go for it as long as you end this onboarding process with the knowledge to complete tasks. 
+directly going to the answers. This is for YOU, so if you want to skip around to the more advanced topics or topics you are not familar with, go for it as long as you end this onboarding process with the knowledge to complete tasks.
+Each topic will have an associated expected time of completion. These times are based on how much time it is expected for a complete beginner to complete a section.
 
 ## Prerequisites 
 - **Some base knowledge of coding/python** If you are not yet familiar with python, you can still attempt to go through this onboarding process but it is highly recommended that you learn python first. Some great tutorials are:
@@ -58,7 +59,7 @@ colcon build
 source install/setup.bash
 ```
 
-## Topic 1: ROS2 Basics
+## Topic 1: ROS2 Basics (20 minutes)
 Each section has an associated autograder. At any point you want to test your code, you will need to run these commands in your workspace directory.
 ```
 colcon build
@@ -120,7 +121,7 @@ Publishing data is how we send information to a topic. For this question, take t
 ### 1.3 Counter Node
 This question is designed to test your knowledge on this topic. Take a look at `question1_3.py`. The goal of this node is to publish to a topic called `/onboarding/counter250` with numbers of type `Int32` starting from 0 incrementing to 250 inclusive. A rough outline has been provided for you. Fill in the blanks to complete this question. 
 
-## Topic 2: Coordinate Conventions
+## Topic 2: Coordinate Conventions (5 minutes)
 
 This section we will be going over coordinate conventions in ros. For more information, see [REP - 103: Standard Units of Measure and Coordinate Conventions](https://www.ros.org/reps/rep-0103.html). Coordinate frames are a way of defining points in space. An example would be your standard xy-coordinate frame.  
 ![image](https://github.com/user-attachments/assets/a1a3b214-a865-42ab-8f38-468dbd836b19)
