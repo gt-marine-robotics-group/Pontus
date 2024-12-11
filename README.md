@@ -176,6 +176,8 @@ Create a subscriber that subscribes to the topic `/onboarding/pose` with message
 
 ## Topic 4: Simulation + Useful Tools
 
+## Topic 5: Bagging Data
+
 ## Topic 5: Perception
 
 ## Topic 6: Sonars and Point Clouds
