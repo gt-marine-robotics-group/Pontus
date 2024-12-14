@@ -27,7 +27,7 @@ Desktop
 ```
 To change directories, you can run `cd DIRECTORY_NAME`. So in the above example, to get into the `mrg_ws` directory, one should run
 ```
-cd mrg_ws
+cd mrg_ws/src
 ```
 
 After you ensure that you are in the correct directory run:
