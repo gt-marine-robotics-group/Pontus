@@ -1,8 +1,8 @@
 # Onboarding RoboSub
-This branch is in charge of onboarding new members with ROS knowledge and the basics of the software stack for Robosub. This tutorial can also be used as a general onboard for other teams such as RobotX, Microtransit, and RoboBoat. 
+This branch is in charge of onboarding new members with ROS knowledge and the basics of the software stack for Robosub. This tutorial can also be used as a general onboarding guide for other teams such as RobotX, Microtransit, and RoboBoat. 
 It is **highly recommended** (if not required) for new members to complete this onboarding process before attempting any tasks. It is also highly recommended to truthfully go through this onboarding process without 
 directly going to the answers. This is for YOU, so if you want to skip around to the more advanced topics or topics you are not familar with, go for it as long as you end this onboarding process with the knowledge to complete tasks.
-Each topic will have an associated expected time of completion. These times are based on how much time it is expected for a complete beginner to complete a section.
+Each topic will have an associated expected time of completion. Some topics will overlap with the topics presented in training. If you are familiar with these topics already, you may skip them or use them as extra practice.
 
 ## Prerequisites 
 - **Some base knowledge of coding/python** If you are not yet familiar with python, you can still attempt to go through this onboarding process but it is highly recommended that you learn python first. Some great tutorials are:
