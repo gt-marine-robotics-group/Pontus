@@ -171,8 +171,10 @@ For this question, assume our robot is facing true north, which means "forward" 
 ### 3.1 Understanding Pose
 Take a look at [Pose Message](https://docs.ros.org/en/lunar/api/geometry_msgs/html/msg/Pose.html). The pose message contains two fields, a **position** and an **orientation**. This message type is used to define the location and facing of some object in some world space. For example, where our sub is and what heading we are facing.
 
-Understanding Position
+#### 3.1.a Understanding Position
 Create a subscriber that subscribes to the topic `/onboarding/pose` with message type `Pose`. In the callback function, assign the values `self.position_x`, `self.position_y`, and `self.position_z` to the respective values in the `Pose` message.
+
+#### 3.1.b Understanding Orientation
 
 ## Topic 4: Simulation + Useful Tools
 
