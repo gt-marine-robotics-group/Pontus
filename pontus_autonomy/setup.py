@@ -20,7 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'prequalification_run = pontus_autonomy.prequalification_run:main'
+            'prequalification_run = pontus_autonomy.prequalification_run:main',
+            'path_marker_test = pontus_autonomy.tasks.path_marker_task:main'
         ],
     },
 )
