@@ -29,20 +29,20 @@ def generate_launch_description():
 
     ld.append(auv_arg)
 
-    ld.append(
-        Node(
-            package='pontus_perception',
-            executable='image_preprocessing',
-            name=f'perception_preprocessing_{topic[topic.rfind("/") + 1:]}',
-            parameters=[
-                {'auv': auv_config_str}
-            ],
-            remappings=[
-                ('input', topic + '/image_raw'),
-                ('output', topic + '/image_preprocessed')
-            ]
-        )
-    )
+    # ld.append(
+    #     Node(
+    #         package='pontus_perception',
+    #         executable='image_preprocessing',
+    #         name=f'perception_preprocessing_{topic[topic.rfind("/") + 1:]}',
+    #         parameters=[
+    #             {'auv': auv_config_str}
+    #         ],
+    #         remappings=[
+    #             ('input', topic + '/image_raw'),
+    #             ('output', topic + '/image_preprocessed')
+    #         ]
+    #     )
+    # )
     ld.append(
         Node(
             package='pontus_perception',
@@ -52,7 +52,7 @@ def generate_launch_description():
                 {'auv': auv_config_str}
             ],
             remappings=[
-                ('input', topic + '/image_preprocessed'),
+                ('input', topic + '/image_raw'),
                 ('results', topic + '/yolo_results'),
                 ('yolo_debug', topic + '/yolo_debug')
             ]

@@ -25,7 +25,7 @@ class YOLONode(Node):
 
         self.model = YOLO(model_path)
 
-        # self.threshold = 0.5
+        self.threshold = 0.5
 
         self.image_sub = self.create_subscription(Image, 'input', 
             self.image_callback, 10)

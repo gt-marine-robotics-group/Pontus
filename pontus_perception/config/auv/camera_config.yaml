@@ -6,7 +6,8 @@ camera_config:
     # "usb"
   ]
   all_camera_base_topics: [
-    "oak/rgb"
+    "/pontus/camera_2"
+    # "oak/rgb"
     # "/cameras/front_left_camera", # /dev/video0
     # "/cameras/front_right_camera" # /dev/video1
   ]
