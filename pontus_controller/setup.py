@@ -38,6 +38,7 @@ setup(
             'stop = pontus_controller.stop:main',
             'command_pose = pontus_controller.command_pos:main',
             'position_controller = pontus_controller.position_controller:main',
+            'autonomy_manual_vel_control = pontus_controller.autonomy_manual_vel_control:main',
         ],
     },
 )

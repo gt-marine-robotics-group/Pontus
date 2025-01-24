@@ -1,0 +1,38 @@
+import os
+import launch
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch_ros.actions import Node
+from ament_index_python.packages import get_package_share_directory
+
+def generate_launch_description():
+    pontus_sensors_share = get_package_share_directory('pontus_sensors')
+    left_config_file = f'{pontus_sensors_share}/config/low_light_camera_left.yaml'
+    right_config_file = f'{pontus_sensors_share}/config/low_light_camera_right.yaml'
+    return LaunchDescription([
+        Node(
+            package='usb_cam',
+            executable='usb_cam_node_exe',
+            output='screen',
+            parameters=[left_config_file],
+            remappings=[
+                ('/image_raw', '/pontus/camera_2/image_raw'),
+                ('/image_raw/compressed', '/pontus/camera_2/image_raw/compressed'),
+                ('/image_raw/compressedDepth', '/pontus/camera_2/image_raw/compressedDepth'),
+                ('/image_raw/theora', '/pontus/camera_2/image_raw/theora')
+                ]
+        ),
+        Node(
+            package='usb_cam',
+            executable='usb_cam_node_exe',
+            output='screen',
+            parameters=[right_config_file],
+            remappings=[
+                ('/image_raw', '/pontus/camera_3/image_raw'),
+                ('/image_raw/compressed', '/pontus/camera_3/image_raw/compressed'),
+                ('/image_raw/compressedDepth', '/pontus/camera_3/image_raw/compressedDepth'),
+                ('/image_raw/theora', '/pontus/camera_3/image_raw/theora')
+                ]
+        ),
+
+    ])
