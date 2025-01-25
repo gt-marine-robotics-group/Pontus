@@ -1,0 +1,7 @@
+dvl_driver:
+  ros__parameters:
+    ip_address: "192.168.1.210"
+    speed_of_sound: 1475
+    range_mode: "=0"
+    periodic_cycling_enabled: false
+    odometry_frame_id: "dvl_a50_link"
