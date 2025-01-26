@@ -50,19 +50,17 @@ class HybridControllerNode(Node):
           self.odometry_callback,
           10)
 
-        '''
         # Full odometry
         self.odom_sub = self.create_subscription(
           Odometry,
           '/pontus/odometry',
           self.odometry_callback,
           10)
-	'''
 
         self.cmd_accel_pub = self.create_publisher(Twist, '/cmd_accel', 10)
 
         #self.cmd_depth = None
-        self.cmd_depth = -0.3
+        self.cmd_depth = -0.6
 
 
     def cmd_vel_callback(self, msg):
@@ -83,16 +81,14 @@ class HybridControllerNode(Node):
         # Enable active roll/pitch control to 0
         #accel_msg.angular.x = self.pid_angular[0](-roll, self.get_clock().now() - self.prev_time)
         accel_msg.angular.y = self.pid_angular[1](-pitch, self.get_clock().now() - self.prev_time)
-        self.get_logger().info(str(accel_msg.angular.y))
+        # self.get_logger().info(str(accel_msg.angular.y))
 
         # Direct command yaw
         accel_msg.angular.z = self.cmd_angular[2]
 
         # Direct command linear x, y
-        accel_msg.linear.x = 12 * self.cmd_linear[0]
-        accel_msg.linear.y = 3.0 * self.cmd_linear[1]
-
-
+        accel_msg.linear.x = 0.5 * self.cmd_linear[0]
+        accel_msg.linear.y = 0.5 * self.cmd_linear[1]
 
         #accel_msg.linear.z = self.pid_linear[2](self.cmd_depth - msg.pose.pose.position.z, self.get_clock().now() - self.prev_time)
 

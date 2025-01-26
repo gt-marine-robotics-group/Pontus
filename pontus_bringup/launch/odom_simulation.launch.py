@@ -53,12 +53,24 @@ def generate_launch_description():
         )
     )
 
+    # controls = launch.actions.IncludeLaunchDescription(
+    #     PythonLaunchDescriptionSource(
+    #         PathJoinSubstitution([
+    #             get_package_share_directory('pontus_controller'),
+    #             'launch',
+    #             'pos_control.launch.py'
+    #         ])
+    #     ),
+    #     launch_arguments={
+    #         'sim': 'true',
+    #     }.items()
+    # )
     controls = launch.actions.IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
                 get_package_share_directory('pontus_controller'),
                 'launch',
-                'pos_control.launch.py'
+                'hybrid_control.launch.py'
             ])
         ),
         launch_arguments={
