@@ -6,6 +6,7 @@ import cv2
 from cv_bridge import CvBridge
 from ultralytics import YOLO
 from ament_index_python.packages import get_package_share_directory
+import torch
 
 class YOLONode(Node):
 
@@ -23,7 +24,8 @@ class YOLONode(Node):
 
         self.cv_bridge = CvBridge()
 
-        self.model = YOLO(model_path)
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.model = YOLO(model_path).to(self.device)
 
         self.threshold = 0.5
 
