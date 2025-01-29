@@ -1,8 +1,15 @@
 # Sensors
 
-# Camera Forward
-- ros_topic_name: "/pontus/camera_0/image_raw"
-  gz_topic_name: "/pontus/camera_0/image_raw"
+# Camera Forward Left
+- ros_topic_name: "/pontus/camera_2/image_raw"
+  gz_topic_name: "/pontus/camera_2/image_raw"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+# Camera Forward Right
+- ros_topic_name: "/pontus/camera_3/image_raw"
+  gz_topic_name: "/pontus/camera_3/image_raw"
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS

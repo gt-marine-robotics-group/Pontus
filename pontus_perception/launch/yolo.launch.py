@@ -24,40 +24,24 @@ def generate_launch_description():
         camera_data = yaml.safe_load(stream)
 
     ld = []
-
-    topic = camera_data['camera_config']['all_camera_base_topics'][0]
-
     ld.append(auv_arg)
 
-    # ld.append(
-    #     Node(
-    #         package='pontus_perception',
-    #         executable='image_preprocessing',
-    #         name=f'perception_preprocessing_{topic[topic.rfind("/") + 1:]}',
-    #         parameters=[
-    #             {'auv': auv_config_str}
-    #         ],
-    #         remappings=[
-    #             ('input', topic + '/image_raw'),
-    #             ('output', topic + '/image_preprocessed')
-    #         ]
-    #     )
-    # )
-    ld.append(
-        Node(
-            package='pontus_perception',
-            executable='yolo',
-            name=f'perception_YOLO_{topic[topic.rfind("/") + 1:]}',
-            parameters=[
-                {'auv': auv_config_str}
-            ],
-            remappings=[
-                ('input', topic + '/image_raw'),
-                ('results', topic + '/yolo_results'),
-                ('yolo_debug', topic + '/yolo_debug')
-            ]
+    for topic in camera_data['camera_config']['all_camera_base_topics']:
+        ld.append(
+            Node(
+                package='pontus_perception',
+                executable='yolo',
+                name=f'perception_YOLO_{topic[topic.rfind("/") + 1:]}',
+                parameters=[
+                    {'auv': auv_config_str}
+                ],
+                remappings=[
+                    ('input', topic + '/image_raw'),
+                    ('results', topic + '/yolo_results'),
+                    ('yolo_debug', topic + '/yolo_debug')
+                ]
+            )
         )
-    )
    
 
     return LaunchDescription(ld)

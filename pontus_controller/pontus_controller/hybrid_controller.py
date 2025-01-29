@@ -60,7 +60,7 @@ class HybridControllerNode(Node):
         self.cmd_accel_pub = self.create_publisher(Twist, '/cmd_accel', 10)
 
         #self.cmd_depth = None
-        self.cmd_depth = -0.6
+        self.cmd_depth = -1.2
 
 
     def cmd_vel_callback(self, msg):

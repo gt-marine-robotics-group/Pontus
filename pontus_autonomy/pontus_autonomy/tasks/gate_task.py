@@ -41,13 +41,13 @@ class GateTask(BaseTask):
             10
         )
 
-        self.yolo_sub = self.create_subscription(
+        self.yolo_sub_left = self.create_subscription(
             YOLOResultArray,
-            '/pontus/camera_0/yolo_results',
-            self.yolo_results_callback,
+            '/pontus/camera_2/yolo_results',
+            self.yolo_results_left_callback,
             10,
         )
-        self.yolo_results = YOLOResultArray()
+        self.yolo_results_left = YOLOResultArray()
         
 
     def state_debugger(self):
@@ -56,8 +56,8 @@ class GateTask(BaseTask):
             self.previous_state = self.state
     
     #### Callbacks
-    def yolo_results_callback(self, msg):
-        self.yolo_results = msg
+    def yolo_results_left_callback(self, msg):
+        self.yolo_results_left = msg
 
     #### Autonomy
     def state_machine_callback(self):
@@ -88,7 +88,7 @@ class GateTask(BaseTask):
         left_gate_location = None
         right_gate_location = None
         # Find the middle point of the gate
-        for result in self.yolo_results.results:
+        for result in self.yolo_results_left.results:
             if result.class_id == 0:
                 left_gate_location = np.array([(result.x1 + result.x2) / 2 , (result.y1 + result.y2) / 2])
             if result.class_id == 1:

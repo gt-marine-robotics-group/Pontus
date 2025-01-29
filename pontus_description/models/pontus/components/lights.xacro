@@ -21,7 +21,7 @@
         <light name="light_${light_id}" type="point">
             <pose>0 0 0 0 1.57 3.14</pose> 
             <attenuation>
-                <range>4</range>
+                <range>10</range>
                 <constant>1</constant>
                 <linear>0.5</linear>
                 <quadratic>0.05</quadratic>
