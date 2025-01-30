@@ -1,5 +1,7 @@
 import rclpy
 from geometry_msgs.msg import Twist
+from sensor_msgs.msg import Imu
+import tf_transformations
 
 from enum import Enum
 import numpy as np
@@ -12,8 +14,9 @@ class State(Enum):
     Searching = 0
     Approaching = 1
     Love_Tap = 2
-    Passing_Through = 3
-    PassedThrough = 4
+    Orientation_Correction = 3
+    Passing_Through = 4
+    PassedThrough = 5
 
 
 class GateTask(BaseTask):
@@ -36,10 +39,18 @@ class GateTask(BaseTask):
         self.pre_love_tap_time = None
         self.timer = self.create_timer(0.1, self.state_machine_callback)
         self.gate_offset = 0.0
+        self.starting_quat = None
 
         self.cmd_vel_pub = self.create_publisher(
             Twist,
             '/cmd_vel',
+            10
+        )
+
+        self.imu_sub = self.create_subscription(
+            Imu,
+            '/pontus/imu_0',
+            self.imu_callback,
             10
         )
 
@@ -60,6 +71,7 @@ class GateTask(BaseTask):
 
         self.yolo_results_left = YOLOResultArray()
         self.yolo_results_right = YOLOResultArray()
+        self.imu_result = Imu()
         
 
     def state_debugger(self):
@@ -74,6 +86,10 @@ class GateTask(BaseTask):
 
     def yolo_results_right_callback(self, msg):
         self.yolo_results_right = msg
+
+
+    def imu_callback(self, msg):
+        self.imu_result = msg
 
 
     #### Helpers
@@ -145,63 +161,6 @@ class GateTask(BaseTask):
             distance = (right_gate[0] - left_gate[0]) / self.image_width
         return distance
 
-    # def calculate_stereo_location(self):
-    #     left_gate_location_left_camera = None
-    #     right_gate_location_left_camera = None
-
-    #     left_gate_location_right_camera = None
-    #     right_gate_location_right_camera = None
-    #     # Find the middle point of the gate
-    #     for result in self.yolo_results_left.results:
-    #         if result.class_id == 0:
-    #             left_gate_location_left_camera = np.array([(result.x1 + result.x2) / 2 , (result.y1 + result.y2) / 2])
-    #         if result.class_id == 1:
-    #             right_gate_location_left_camera = np.array([(result.x1 + result.x2) / 2 , (result.y1 + result.y2) / 2])
-        
-    #     for result in self.yolo_results_right.results:
-    #         if result.class_id == 0:
-    #             left_gate_location_right_camera = np.array([(result.x1 + result.x2) / 2 , (result.y1 + result.y2) / 2])
-    #         if result.class_id == 1:
-    #             right_gate_location_right_camera = np.array([(result.x1 + result.x2) / 2 , (result.y1 + result.y2) / 2])
-    #     distance_between_gates = 1
-    #     if left_gate_location_left_camera is not None and right_gate_location_left_camera is not None:
-    #         distance_between_gates = (right_gate_location_left_camera[0] - left_gate_location_left_camera[0]) / self.image_width
-
-    #     left_depth = None
-    #     right_depth = None
-    #     focal_length = 381.3
-    #     hfov = 1.39626
-    #     d = 0.075
-    #     # If all components are detected, run full stereo detection algorithm
-    #     # This is important to calculate the angle offset between us and the gate    
-    #     if left_gate_location_left_camera is not None and left_gate_location_right_camera is not None \
-    #         and right_gate_location_left_camera is not None and right_gate_location_right_camera is not None \
-    #             and distance_between_gates < 0.8:
-    #         # Calculate left gate disparity
-    #         disparity_left = left_gate_location_left_camera[0] - left_gate_location_right_camera[0] 
-    #         # Calculate left gate depth
-    #         left_depth = focal_length * d / disparity_left
-    #         # Calculate left gate and right gate x coordinate
-    #         left_gate_angle_wrt_left = left_gate_location_left_camera[0] / self.image_width * hfov - hfov / 2
-    #         right_gate_angle_wrt_left = right_gate_location_left_camera[0] / self.image_width * hfov  - hfov / 2
-    #         left_x = left_depth * np.tan(left_gate_angle_wrt_left) + d / 2
-    #         right_x = left_depth * np.tan(right_gate_angle_wrt_left) + d/2 
-            
-    #         # Calculate right gate disparity
-    #         disparity_right = right_gate_location_left_camera[0]  - right_gate_location_right_camera[0]
-    #         # Calculate right gate depth
-    #         right_depth = focal_length * d / disparity_right
-
-
-    #         offset_angle = np.arctan2((right_x - left_x), (right_depth - left_depth)) - np.pi / 2
-    #         self.get_logger().info(f"Left x {left_x} Right x {right_x} Left depth {left_depth} Right depth {right_depth}")
-    #         self.get_logger().info(f"Offset angle: {offset_angle}")
-
-    #     # self.get_logger().info(f"{left_depth} {right_depth}")
-    #     # self.get_logger().info(f"{left_gate_location_left_camera} {left_gate_location_right_camera}")
-    #     return left_gate_location_left_camera, right_gate_location_left_camera, distance_between_gates
-    #     # return None, None, distance_between_gates
-
 
     #### Autonomy
     def state_machine_callback(self):
@@ -214,15 +173,19 @@ class GateTask(BaseTask):
                 cmd_vel = self.approach()
             case State.Love_Tap:
                 cmd_vel = self.love_tap()
+            case State.Orientation_Correction:
+                cmd_vel = self.correct_orientation()
             case State.Passing_Through:
                 cmd_vel = self.pass_through()
             case State.PassedThrough:
-                self.destroy_node()
+                # self.complete(True)
+                pass
             case _:
                 pass
         
         self.cmd_vel_pub.publish(cmd_vel)
     
+    # TODO: Change midpoint calculation to 3D coordinates
     def search(self):
         cmd_vel = Twist()
         left_gate_location, right_gate_location = self.gate_detection_cv()
@@ -276,13 +239,37 @@ class GateTask(BaseTask):
         cmd_vel = Twist()
         cmd_vel.linear.x = 0.5
         if (self.get_clock().now() - self.pre_love_tap_time).nanoseconds // 1e9 > 2:
-            self.state = State.Passing_Through
+            self.state = State.Orientation_Correction
         self.get_logger().info(f"{(self.get_clock().now() - self.pre_love_tap_time).nanoseconds // 1e9}")
         return cmd_vel
 
 
-    def pass_through(self):
+    def correct_orientation(self):
         # First give a little push
         cmd_vel = Twist()
+        quat = self.imu_result.orientation
+        current_quat = [quat.x, quat.y, quat.z, quat.w]
+        if self.starting_quat is None:
+            self.starting_quat = current_quat
+        quat_error = tf_transformations.quaternion_multiply(
+            tf_transformations.quaternion_inverse(self.starting_quat),
+            current_quat
+        )
+        _, _, yaw_change = tf_transformations.euler_from_quaternion(quat_error)
+        desired_change = -self.gate_offset
+        self.get_logger().info(f"{yaw_change} {desired_change}")
+        cmd_vel.angular.z = (desired_change - yaw_change) * self.angular_correction_factor
+        if abs(yaw_change - desired_change) < 0.17:
+            self.state = State.Passing_Through
+            self.pre_love_tap_time = self.get_clock().now()
+        return cmd_vel
+    
+
+    def pass_through(self):
+        cmd_vel = Twist()
+        cmd_vel.linear.x = 0.5
+        if (self.get_clock().now() - self.pre_love_tap_time).nanoseconds // 1e9 > 2:
+            self.state = State.PassedThrough
+        self.get_logger().info(f"{(self.get_clock().now() - self.pre_love_tap_time).nanoseconds // 1e9}")
         return cmd_vel
 
