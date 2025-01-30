@@ -1391,7 +1391,8 @@
     <!-- GATE TASK -->
     <include>
       <uri>Gate</uri>
-      <pose>3.1 0.4 -1.8 1.57 0 1.57</pose>
+      <!-- <pose>3.1 0.5 -1.8 1.57 0 1.57</pose> -->
+      <pose>3.1 0.5 -1.8 1.57 0 2.0</pose>
     </include>
 
     <model name='prequal_marker'>
