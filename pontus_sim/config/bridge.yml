@@ -14,6 +14,20 @@
   gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS
 
+# Camera Side Left
+- ros_topic_name: "/pontus/camera_4/image_raw"
+  gz_topic_name: "/pontus/camera_4/image_raw"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+# Camera Side Right
+- ros_topic_name: "/pontus/camera_5/image_raw"
+  gz_topic_name: "/pontus/camera_5/image_raw"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
 # Camera Downward
 - ros_topic_name: "/pontus/camera_1/image_raw"
   gz_topic_name: "/pontus/camera_1/image_raw"
