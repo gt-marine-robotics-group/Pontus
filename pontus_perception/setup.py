@@ -39,6 +39,8 @@ setup(
             'image_preprocessing = pontus_perception.image_preprocessing.preprocessing_node:main',
             'sonoptix_cloud_transform = pontus_perception.sonoptix_pc_transform:main',
             'sonoptix = pontus_perception.sonoptix:main',
+            'point_cloud_camera = pontus_perception.point_cloud_camera:main',
+            'point_cloud_downsampling = pontus_perception.point_cloud_downsampling:main',
         ],
     },
 )
