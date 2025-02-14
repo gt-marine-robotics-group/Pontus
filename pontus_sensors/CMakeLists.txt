@@ -50,6 +50,7 @@ install(PROGRAMS
   pontus_sensors/oak_imu_republish.py
   pontus_sensors/sonoptix_driver.py
   pontus_sensors/sim_odom_tf_broadcaster.py
+  pontus_sensors/sim_camera_tf_broadcaster.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
