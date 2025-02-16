@@ -43,7 +43,6 @@ ament_python_install_package(${PROJECT_NAME})
 # Uncomment this to add new python nodes
 install(PROGRAMS
   # add python executable file paths here
-  pontus_sensors/imu_monitor.py
   pontus_sensors/camera_republish.py
   pontus_sensors/imu_republish.py
   pontus_sensors/depth_republish.py
@@ -51,6 +50,7 @@ install(PROGRAMS
   pontus_sensors/sonoptix_driver.py
   pontus_sensors/sim_odom_tf_broadcaster.py
   pontus_sensors/sim_camera_tf_broadcaster.py
+  pontus_sensors/dvl_republish.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
