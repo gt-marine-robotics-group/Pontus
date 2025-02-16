@@ -16,9 +16,10 @@ class PositionNode(Node):
     class State(Enum):
       Maintain_position = 1
       Z_correction = 2
-      Direction_correction = 3
-      Linear_correction = 4
-      Angular_correction = 5
+      Strafe = 3
+      Direction_correction = 4
+      Linear_correction = 5
+      Angular_correction = 6
 
     def __init__(self):
         super().__init__('position_controller')
@@ -26,7 +27,8 @@ class PositionNode(Node):
         self.transition_threshold = {}
         self.transition_threshold[self.State.Z_correction] = 0.07
         self.transition_threshold[self.State.Direction_correction] = 0.02
-        self.transition_threshold[self.State.Linear_correction] = 0.2
+        self.transition_threshold[self.State.Linear_correction] = 0.1
+        self.transition_threshold[self.State.Strafe] = 0.05
         self.transition_threshold[self.State.Angular_correction] = 0.05
 
         self.deadzone = 0.2
@@ -114,14 +116,14 @@ class PositionNode(Node):
         self.cmd_linear = cmd_pos_new
         self.cmd_angular = cmd_ang_new
         # self.state = self.State.Z_correction
-        self.state = self.State.Direction_correction
+        self.state = self.State.Strafe
 
 
     def angle_wrap(self, angle):
         return (angle + np.pi) % (2 * np.pi) - np.pi
 
 
-    def odometry_callback(self, msg):
+    def odometry_callback(self, msg: Odometry):
         self.state_debugger()
         # # Get the current positions from odometry
         quat = msg.pose.pose.orientation
@@ -143,6 +145,8 @@ class PositionNode(Node):
                 linear_err, angular_err = self.maintain_position(current_position, quat)                
             # case self.State.Z_correction:
             #     linear_err, angular_err = self.correct_z(current_position, quat)
+            case self.State.Strafe:
+                linear_err, angular_err = self.correct_strafe(current_position, quat)
             case self.State.Direction_correction:
                 linear_err, angular_err = self.turn_to_next_point(current_position, quat)
             case self.State.Linear_correction:
@@ -154,9 +158,9 @@ class PositionNode(Node):
                 angular_err = np.zeros(3)
 
         # Compute and publish the body vel commands, we cannot move in y direction
-        msg = Twist()
+        msg: Twist = Twist()
         msg.linear.x = self.pid_linear[0](linear_err[0], self.get_clock().now() - self.prev_time)
-        msg.linear.y = 0.0
+        msg.linear.y = self.pid_linear[1](linear_err[1], self.get_clock().now() - self.prev_time)
         msg.linear.z = self.pid_linear[2](linear_err[2], self.get_clock().now() - self.prev_time)
 
         msg.angular.x = self.pid_angular[0](angular_err[0], self.get_clock().now() - self.prev_time)
@@ -167,7 +171,7 @@ class PositionNode(Node):
         self.hold_point_pub.publish(Bool(data=self.hold_point))
 
         self.prev_time = self.get_clock().now()
-    
+
     
     def calculate_angular_error(self, desired_angle, current_angle):
         angular_diff = desired_angle - current_angle
@@ -198,17 +202,33 @@ class PositionNode(Node):
 
 
     def correct_z(self, current_position, quat):
-        new_z_pose = [self.goal_pose[0], self.goal_pose[1], self.cmd_linear[2]]
-        linear_err = self.calculate_linear_error(new_z_pose, current_position, quat)
+        self.goal_pose = [self.goal_pose[0], self.goal_pose[1], self.cmd_linear[2]]
+        linear_err = self.calculate_linear_error(self.goal_pose, current_position, quat)
         (r, p, y) = euler_from_quaternion(quat)
         current_orientation = np.array([r, p, y])
         angular_err = self.calculate_angular_error(self.goal_angle, current_orientation)
 
-        if abs(new_z_pose[2] - current_position[2]) < self.transition_threshold[self.State.Z_correction]:
+        if abs(self.goal_pose[2] - current_position[2]) < self.transition_threshold[self.State.Z_correction]:
             self.state = self.State.Direction_correction
-            self.goal_pose = new_z_pose
         return linear_err, angular_err
     
+
+    def correct_strafe(self, current_position, quat):
+        linear_err = self.calculate_linear_error(self.cmd_linear, current_position, quat)
+        # If distance super far, do not strafe, more efficient to turn and go forward
+        if np.linalg.norm(linear_err[:2]) > 1.0:
+            self.state = self.State.Direction_correction
+            return np.zeros(3), np.zeros(3)
+        
+        self.goal_pose = self.cmd_linear
+        # If distance is not super far, strafe
+        (r, p, y) = euler_from_quaternion(quat)
+        current_orientation = np.array([r, p, y])
+        angular_err = self.calculate_angular_error(self.goal_angle, current_orientation)
+
+        if np.linalg.norm(linear_err[:2]) < self.transition_threshold[self.State.Strafe]:
+            self.state = self.State.Direction_correction
+        return linear_err, angular_err
 
     def turn_to_next_point(self, current_position, quat):
         linear_err = self.calculate_linear_error(self.goal_pose, current_position, quat)

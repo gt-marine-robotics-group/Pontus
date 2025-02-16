@@ -88,7 +88,7 @@ class HybridControllerNode(Node):
 
         # Direct command linear x, y
         accel_msg.linear.x = 0.7 * self.cmd_linear[0]
-        # accel_msg.linear.y = 0.2 * self.cmd_linear[1]
+        accel_msg.linear.y = 1.5 * self.cmd_linear[1]
 
         #accel_msg.linear.z = self.pid_linear[2](self.cmd_depth - msg.pose.pose.position.z, self.get_clock().now() - self.prev_time)
 

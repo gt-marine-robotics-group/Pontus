@@ -54,7 +54,7 @@ class VelocityNode(Node):
           10)
 
         self.cmd_accel_pub = self.create_publisher(Twist, '/cmd_accel', 10)
-
+      
 
     def cmd_vel_callback(self, msg):
         # Store the commanded velocities to use in the odometry callback
@@ -62,7 +62,6 @@ class VelocityNode(Node):
         self.cmd_angular = np.array([msg.angular.x, msg.angular.y, msg.angular.z])
 
     def odometry_callback(self, msg):
-        msg.twist.twist.linear.z = -msg.twist.twist.linear.z
         # Get the current velocities from odometry
         v_linear = np.array([msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z])
         v_angular = np.array([msg.twist.twist.angular.x, msg.twist.twist.angular.y, msg.twist.twist.angular.z])

@@ -80,22 +80,22 @@
 
   <!-- Back Left Horizontal Thruster -->
   <xacro:T200_macro thruster_id="4">
-    <origin xyz="-0.2 ${radius + 0.15} 0" rpy="${180*pi/180}  -${90*pi/180} 0" />
+    <origin xyz="-0.25 ${radius + 0.15} 0" rpy="${180*pi/180}  -${90*pi/180} ${5/4 * pi}" />
   </xacro:T200_macro>
 
   <!-- Back Right Horizontal Thruster -->
   <xacro:T200_macro thruster_id="5">
-    <origin xyz="-0.2 -${radius + 0.15} 0" rpy="0 ${90*pi/180} 0" />
+    <origin xyz="-0.25 -${radius + 0.15} 0" rpy="0 ${90*pi/180} ${3/4 * pi}" />
   </xacro:T200_macro>
 
   <!-- Front Left Horizontal Thruster -->
   <xacro:T200_macro thruster_id="6">
-    <origin xyz="0.2 ${radius + 0.15} 0" rpy="${180*pi/180}  -${90*pi/180} 0" />
+    <origin xyz="0.25 ${radius + 0.15} 0" rpy="${180*pi/180}  -${90*pi/180} ${-1/4 * pi}" />
   </xacro:T200_macro>
 
   <!-- Front Right Horizontal Thruster -->
   <xacro:T200_macro thruster_id="7">
-    <origin xyz="0.2 -${radius + 0.15} 0" rpy="0 ${90*pi/180} 0" />
+    <origin xyz="0.25 -${radius + 0.15} 0" rpy="0 ${90*pi/180} ${1/4 * pi}" />
   </xacro:T200_macro>
 
   <xacro:light_macro light_id="0">
