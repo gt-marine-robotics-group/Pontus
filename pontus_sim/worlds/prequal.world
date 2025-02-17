@@ -299,7 +299,7 @@
     </model> -->
 
     <model name='long_wall_1'>
-      <pose>0 -13 -1.0668 0 0 0</pose>
+      <pose>0 -4 -1.0668 0 0 0</pose>
       <link name='box_link'>
         <inertial>
           <inertia>

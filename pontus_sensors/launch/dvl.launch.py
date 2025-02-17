@@ -26,4 +26,10 @@ def generate_launch_description():
             parameters=[_PONTUS_DVL_PARAMS_FILE],
             output='screen',
         ),
+        Node(
+            package='pontus_sensors',
+            executable='dvl_republish',
+            name='dvl_republish',
+            output='screen',
+        )
     ])

@@ -216,7 +216,7 @@ class PositionNode(Node):
     def correct_strafe(self, current_position, quat):
         linear_err = self.calculate_linear_error(self.cmd_linear, current_position, quat)
         # If distance super far, do not strafe, more efficient to turn and go forward
-        if np.linalg.norm(linear_err[:2]) > 1.0:
+        if np.linalg.norm(linear_err[:2]) > 1.2:
             self.state = self.State.Direction_correction
             return np.zeros(3), np.zeros(3)
         

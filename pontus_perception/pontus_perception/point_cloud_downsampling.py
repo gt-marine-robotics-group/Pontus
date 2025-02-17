@@ -33,10 +33,14 @@ class PointCloudDownsampling(Node):
         pcd.points = o3d.utility.Vector3dVector(converted)
         downsampled_pcd = pcd.voxel_down_sample(voxel_size=self.voxel_size)
         downsampled_points = np.asarray(downsampled_pcd.points)
-
+        # Rotation matrix from optical to body frame
+        R = np.array([[0, 0, 1],
+                    [-1, 0, 0],
+                    [0, -1, 0]])
+        points_body = np.dot(downsampled_points, R.T)
         # Convert back to PointCloud2 and publish
         msg.header.frame_id = 'camera_2'
-        downsampled_msg = pc2.create_cloud_xyz32(msg.header, downsampled_points)
+        downsampled_msg = pc2.create_cloud_xyz32(msg.header, points_body)
         self.point_cloud_pub.publish(downsampled_msg)
 
 def main(args=None):

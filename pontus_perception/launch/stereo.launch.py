@@ -21,6 +21,7 @@ def generate_launch_description():
         'use_color': 'false',
         'approximate_sync': 'true',
         'correlation_window_size': '9',
+        'texture_threshold': '30',
 
       }.items()
     ),

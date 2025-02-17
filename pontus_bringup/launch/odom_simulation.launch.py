@@ -70,7 +70,7 @@ def generate_launch_description():
             PathJoinSubstitution([
                 get_package_share_directory('pontus_controller'),
                 'launch',
-                'hybrid_control.launch.py'
+                'pos_control.launch.py'
             ])
         ),
         launch_arguments={
