@@ -73,8 +73,8 @@ class GateDetection(Node):
         response.right_location = Point()
         response.found = False
         # Iterate through a list of detection functions
-        for func in self.detect_functions:
-            left_gate_detection, right_gate_detection = func()
+        for detect_gate in self.detect_functions:
+            left_gate_detection, right_gate_detection = detect_gate()
             # If detection not found, move on to next detection function
             if left_gate_detection is None or right_gate_detection is None:
                 continue
