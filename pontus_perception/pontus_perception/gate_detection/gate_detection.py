@@ -4,8 +4,11 @@ from sensor_msgs.msg import PointCloud2
 import sensor_msgs_py.point_cloud2 as pc2
 import numpy as np
 from pontus_perception.gate_detection.stereo_gate_detection import StereoGateDetction
+from pontus_perception.gate_detection.yolo_gate_detection import YoloGateDetection
 from std_msgs.msg import Header
 from nav_msgs.msg import Odometry
+from pontus_msgs.srv import GetGateLocation
+from geometry_msgs.msg import Point
 
 class GateDetection(Node):
     def __init__(self):
@@ -31,15 +34,17 @@ class GateDetection(Node):
             10
         )
 
-        self.point_cloud = None
-        self.timer = self.create_timer(
-            0.2,
-            self.update_callback
+        self.service = self.create_service(
+            GetGateLocation,
+            '/pontus/get_gate_detection',
+            self.handle_get_gate_detection
         )
 
+        self.point_cloud = None
         self.current_depth = None
         self.pool_depth = -2.1336
-    
+        self.detect_functions = [self.get_gate_from_yolo, self.get_gate_from_stereo]
+
     def depth_callback(self, msg: Odometry):
         self.current_depth = msg.pose.pose.position.z
 
@@ -62,19 +67,30 @@ class GateDetection(Node):
         self.publish_debug_point_cloud(debug_pc)
         return left_gate, right_gate
 
-    def update_callback(self):
-        # Check YOLO model
-        left_gate, right_gate = self.get_gate_from_yolo()
-        if left_gate is not None and right_gate is not None:
+
+    def handle_get_gate_detection(self, request, response):
+        response.left_location = Point()
+        response.right_location = Point()
+        response.found = False
+        # Iterate through a list of detection functions
+        for func in self.detect_functions:
+            left_gate_detection, right_gate_detection = func()
+            # If detection not found, move on to next detection function
+            if left_gate_detection is None or right_gate_detection is None:
+                continue
+            self.get_logger().info(f"Left gate: {left_gate_detection}, Right gate: {right_gate_detection}")
             # Publish Gate detection
-            return
-        left_gate, right_gate = self.get_gate_from_stereo()
-        self.get_logger().info(f"Left gate: {left_gate}, Right gate: {right_gate}")
-        if left_gate is not None and right_gate is not None:
-            # Publish Stereo detection
-            return
-        
+            response.left_location.x = left_gate_detection[0]
+            response.left_location.y = left_gate_detection[1]
+            response.left_location.z = left_gate_detection[2]
+            response.right_location.x = right_gate_detection[0]
+            response.right_location.y = right_gate_detection[1]
+            response.right_location.z = right_gate_detection[2]
+            response.found = True
+            return response
         # If no gate found, say no gate found and return
+        return response
+        
 
     def publish_debug_point_cloud(self, point_cloud):
         header = Header()

@@ -1,0 +1,4 @@
+---
+geometry_msgs/Point left_location
+geometry_msgs/Point right_location
+bool found
