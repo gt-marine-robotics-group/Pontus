@@ -25,6 +25,7 @@ class YOLONode(Node):
         self.cv_bridge = CvBridge()
 
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.get_logger().info(f"Using {self.device}")
         self.model = YOLO(model_path).to(self.device)
 
         self.threshold = 0.5

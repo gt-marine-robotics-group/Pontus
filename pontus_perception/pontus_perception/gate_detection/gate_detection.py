@@ -9,6 +9,8 @@ from std_msgs.msg import Header
 from nav_msgs.msg import Odometry
 from pontus_msgs.srv import GetGateLocation
 from geometry_msgs.msg import Point
+from pontus_msgs.msg import YOLOResultArray
+from sensor_msgs.msg import CameraInfo
 
 class GateDetection(Node):
     def __init__(self):
@@ -34,6 +36,28 @@ class GateDetection(Node):
             10
         )
 
+        self.yolo_sub_left = self.create_subscription(
+            YOLOResultArray,
+            '/pontus/camera_2/yolo_results',
+            self.yolo_results_left_callback,
+            10,
+        )
+
+        self.yolo_sub_right = self.create_subscription(
+            YOLOResultArray,
+            '/pontus/camera_3/yolo_results',
+            self.yolo_results_right_callback,
+            10,
+        )
+
+        # The right camera should provide the necessary intrinsic and extrinsic parameters
+        self.right_camera_info = self.create_subscription(
+            CameraInfo,
+            '/pontus/camera_3/camera_info',
+            self.camera_info_callback,
+            10
+        )
+
         self.service = self.create_service(
             GetGateLocation,
             '/pontus/get_gate_detection',
@@ -42,6 +66,9 @@ class GateDetection(Node):
 
         self.point_cloud = None
         self.current_depth = None
+        self.left_yolo_result = None
+        self.right_yolo_result = None
+        self.camera_info = None
         self.pool_depth = -2.1336
         self.detect_functions = [self.get_gate_from_yolo, self.get_gate_from_stereo]
 
@@ -53,8 +80,22 @@ class GateDetection(Node):
         self.point_cloud = msg
 
 
+    def yolo_results_left_callback(self, msg):
+        self.left_yolo_result = msg
+
+    
+    def yolo_results_right_callback(self, msg):
+        self.right_yolo_result = msg
+
+
+    def camera_info_callback(self, msg: CameraInfo):
+        self.camera_info = msg
+
     def get_gate_from_yolo(self):
-        return None, None
+        if None in [self.left_yolo_result, self.right_yolo_result, self.camera_info]:
+            return None, None
+        left_gate, right_gate = YoloGateDetection.detect_gate(self.left_yolo_result, self.right_yolo_result, self.camera_info)
+        return left_gate, right_gate
 
 
     def get_gate_from_stereo(self):
@@ -68,7 +109,7 @@ class GateDetection(Node):
         return left_gate, right_gate
 
 
-    def handle_get_gate_detection(self, request, response):
+    def handle_get_gate_detection(self, request: GetGateLocation.Request, response: GetGateLocation.Response):
         response.left_location = Point()
         response.right_location = Point()
         response.found = False
@@ -98,6 +139,7 @@ class GateDetection(Node):
         header.stamp = self.get_clock().now().to_msg()
         downsampled_msg = pc2.create_cloud_xyz32(header, point_cloud)
         self.point_cloud_debug.publish(downsampled_msg)
+
 
 def main(args=None):
     rclpy.init(args=args)

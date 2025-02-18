@@ -59,8 +59,9 @@ class StereoGateDetction:
                 first_cluster_centroid = valid_clusters[first]
                 second_cluster_centroid = valid_clusters[second]
                 if StereoGateDetction.gate_like(first_cluster_centroid, second_cluster_centroid, gate_size, gate_size_tolerance, filtered_point_cloud_numpy):
-                    return first_cluster_centroid, second_cluster_centroid, filtered_point_cloud_numpy
-
+                    left_cluster_centroid = first_cluster_centroid if first_cluster_centroid[1] > second_cluster_centroid[1] else second_cluster_centroid
+                    right_cluster_centroid = first_cluster_centroid if first_cluster_centroid[1] < second_cluster_centroid[1] else second_cluster_centroid
+                    return left_cluster_centroid, right_cluster_centroid, filtered_point_cloud_numpy
 
         return None, None, filtered_point_cloud_numpy
 
