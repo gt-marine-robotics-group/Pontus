@@ -43,6 +43,12 @@ class PositionNode(Node):
 
         self.declare_parameter('sim_mode', False) 
         sim_mode = self.get_parameter('sim_mode').get_parameter_value().bool_value
+        # If this is true, stop the position controller from publishing command velocities
+        self.controller_mode = True
+
+        # If we are in sim, there are no RC so automatically turn position controller on
+        if sim_mode:
+            self.controller_mode = False
 
         # TODO: Tune these
         # Sim PID values
@@ -82,18 +88,37 @@ class PositionNode(Node):
           Pose,
           '/cmd_pos',
           self.cmd_pos_callback,
-          10)
+          10
+        )
 
         self.odom_sub = self.create_subscription(
           Odometry,
           '/pontus/odometry',
           self.odometry_callback,
-          10)
+          10
+        )
+
+        self.autonomy_sub = self.create_subscription(
+            Bool,
+            '/autonomy_mode',
+            self.autonomy_mode_callback,
+            10
+        )
+
+        # self.state_machine_debug 
 
         self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.hold_point_pub = self.create_publisher(Bool, '/hold_point', 10)
 
         self.previous_state = None
+
+
+    def autonomy_mode_callback(self, msg):
+        if msg.data:
+            self.controller_mode = False
+        else:
+            self.controller_mode = True
+
 
     def state_debugger(self):
         # self.get_logger().info(f"Goal pose: {self.goal_pose}")
@@ -167,8 +192,10 @@ class PositionNode(Node):
         msg.angular.y = self.pid_angular[1](angular_err[1], self.get_clock().now() - self.prev_time)
         msg.angular.z = self.pid_angular[2](angular_err[2], self.get_clock().now() - self.prev_time)
 
-        self.cmd_vel_pub.publish(msg)
-        self.hold_point_pub.publish(Bool(data=self.hold_point))
+
+        if not self.controller_mode:
+            self.cmd_vel_pub.publish(msg)
+            self.hold_point_pub.publish(Bool(data=self.hold_point))
 
         self.prev_time = self.get_clock().now()
 
