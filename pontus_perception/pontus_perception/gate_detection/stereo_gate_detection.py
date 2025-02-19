@@ -3,25 +3,53 @@ import numpy as np
 
 np.set_printoptions(suppress=True)
 
-class StereoGateDetction:
+class StereoGateDetectionParams:
+    def __init__(self, 
+                 pool_depth, 
+                 gate_size, 
+                 gate_size_tolerance, 
+                 remove_statistical_outlier_nb_neighbors,
+                 remove_statistical_outlier_std_ratio,
+                 dbscan_eps,
+                 dbscan_min_points,
+                 remove_floor_tolerance,
+                 side_pole_height_min,
+                 side_pole_height_max
+                 ):
+        self.pool_depth = pool_depth
+        self.gate_size = gate_size
+        self.gate_size_tolerance = gate_size_tolerance
+        self.remove_statistical_outlier_nb_neighbors = remove_statistical_outlier_nb_neighbors
+        self.remove_statistical_outlier_std_ratio = remove_statistical_outlier_std_ratio
+        self.dbscan_eps = dbscan_eps
+        self.dbscan_min_points = dbscan_min_points 
+        self.remove_floor_tolerance = remove_floor_tolerance
+        self.side_pole_height_min = side_pole_height_min
+        self.side_pole_height_max = side_pole_height_max
+
+class StereoGateDetection:
     def __init__(self):
         pass
     
     @staticmethod
-    def detect_gate(point_cloud, current_depth, pool_depth, gate_size = 3.0, gate_size_tolerance = 0.2):
+    def detect_gate(point_cloud, current_depth, params: StereoGateDetectionParams):
         # Ground filter
-        new_point_cloud = StereoGateDetction.remove_floor(point_cloud, current_depth, pool_depth)
+        new_point_cloud = StereoGateDetection.remove_floor(point_cloud, current_depth, params.pool_depth, params.remove_floor_tolerance)
         
         # Convert to open3d point cloud
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(new_point_cloud)
         
         # Remove outliers
-        filtered_pcd, _ = pcd.remove_statistical_outlier(nb_neighbors=30, std_ratio=3.0)
+        filtered_pcd, _ = pcd.remove_statistical_outlier(
+            nb_neighbors=params.remove_statistical_outlier_nb_neighbors,
+            std_ratio=params.remove_statistical_outlier_std_ratio
+        )
+
         filtered_point_cloud_numpy = np.asarray(filtered_pcd.points)
 
         # DBSCAN clustering
-        labels = np.array(filtered_pcd.cluster_dbscan(eps=0.3, min_points=40, print_progress=False))
+        labels = np.array(filtered_pcd.cluster_dbscan(eps=params.dbscan_eps, min_points=params.dbscan_min_points, print_progress=False))
         
         # Get clusters
         clusters = []
@@ -47,7 +75,7 @@ class StereoGateDetction:
         valid_clusters = []
         for cluster_indx in sorted_indices:
             cluster_array = np.array(clusters[cluster_indx])
-            pole_detection_array = StereoGateDetction.extract_side_poles(cluster_array)
+            pole_detection_array = StereoGateDetection.extract_side_poles(cluster_array, params.side_pole_height_min, params.side_pole_height_max)
             if len(pole_detection_array) == 0:
                 continue
 
@@ -58,7 +86,7 @@ class StereoGateDetction:
             for second in range(first + 1, len(valid_clusters)):
                 first_cluster_centroid = valid_clusters[first]
                 second_cluster_centroid = valid_clusters[second]
-                if StereoGateDetction.gate_like(first_cluster_centroid, second_cluster_centroid, gate_size, gate_size_tolerance, filtered_point_cloud_numpy):
+                if StereoGateDetection.gate_like(first_cluster_centroid, second_cluster_centroid, params.gate_size, params.gate_size_tolerance, filtered_point_cloud_numpy):
                     left_cluster_centroid = first_cluster_centroid if first_cluster_centroid[1] > second_cluster_centroid[1] else second_cluster_centroid
                     right_cluster_centroid = first_cluster_centroid if first_cluster_centroid[1] < second_cluster_centroid[1] else second_cluster_centroid
                     return left_cluster_centroid, right_cluster_centroid, filtered_point_cloud_numpy
@@ -100,7 +128,7 @@ class StereoGateDetction:
     
 
     @staticmethod
-    def extract_side_poles(cluster):
+    def extract_side_poles(cluster, side_pole_height_min, side_pole_height_max):
         ret_array = []
         if len(cluster) == 0:
             return ret_array
@@ -111,7 +139,7 @@ class StereoGateDetction:
         max_z = np.max(cluster[:, 2])
         height = max_z - min_z
         # If not pole shape, return
-        if height < 1.3 or height > 1.7:
+        if height < side_pole_height_min or height > side_pole_height_max:
             return ret_array
         
         # Remove top beam to isolate poles

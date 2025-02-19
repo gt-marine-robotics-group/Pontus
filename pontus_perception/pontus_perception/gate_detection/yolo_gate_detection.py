@@ -9,7 +9,7 @@ class YoloGateDetection:
         pass
 
     @staticmethod
-    def detect_gate(left_yolo_result: YOLOResultArray, right_yolo_result: YOLOResultArray, camera_info: CameraInfo, Tx_override = None):
+    def detect_gate(left_yolo_result: YOLOResultArray, right_yolo_result: YOLOResultArray, camera_info: CameraInfo, Tx_override = -1.0):
         left_camera_gates = [None, None]
         right_camera_gates = [None, None]
         for result in left_yolo_result.results:
@@ -33,7 +33,7 @@ class YoloGateDetection:
         c_x = camera_info.k[2]
         c_y = camera_info.k[5]
         Tx = -camera_info.p[3]
-        if Tx_override is not None:
+        if Tx_override != -1.0:
             Tx = Tx_override
         
         # Calculate locaitons
