@@ -6,7 +6,7 @@ import numpy as np
 from pontus_autonomy.base_run import BaseRun
 
 # Tasks
-from pontus_autonomy.tasks.gate_task import GateTask
+from pontus_autonomy.tasks.localization.gate_task import GateTask
 from pontus_autonomy.tasks.vertical_marker_task import VerticalMarkerTask
 from pontus_autonomy.tasks.surface_task import SurfaceTask
 

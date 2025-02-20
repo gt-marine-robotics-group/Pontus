@@ -3,7 +3,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs_py.point_cloud2 as pc2
 import numpy as np
-from pontus_perception.gate_detection.stereo_gate_detection import StereoGateDetction
+from pontus_perception.gate_detection.stereo_gate_detection import StereoGateDetection, StereoGateDetectionParams
 from pontus_perception.gate_detection.yolo_gate_detection import YoloGateDetection
 from std_msgs.msg import Header
 from nav_msgs.msg import Odometry
@@ -64,12 +64,37 @@ class GateDetection(Node):
             self.handle_get_gate_detection
         )
 
+        self.declare_parameter('pool_depth', -2.1336)
+        self.declare_parameter('gate_size', 3.0)
+        self.declare_parameter('gate_size_tolerance', 0.3)
+        self.declare_parameter('remove_statistical_outlier_nb_neighbors', 30)
+        self.declare_parameter('remove_statistical_outlier_std_ratio', 3.0)
+        self.declare_parameter('dbscan_eps', 0.3)
+        self.declare_parameter('dbscan_min_points', 40)
+        self.declare_parameter('remove_floor_tolerance', 0.4)
+        self.declare_parameter('side_pole_height_min', 1.3)
+        self.declare_parameter('side_pole_height_max', 1.7)
+        self.declare_parameter('tx_override', -1.0)
+
+        self.stereo_gate_detection_params = StereoGateDetectionParams(
+            self.get_parameter('pool_depth').value,
+            self.get_parameter('gate_size').value,
+            self.get_parameter('gate_size_tolerance').value,
+            self.get_parameter('remove_statistical_outlier_nb_neighbors').value,
+            self.get_parameter('remove_statistical_outlier_std_ratio').value,
+            self.get_parameter('dbscan_eps').value,
+            self.get_parameter('dbscan_min_points').value,
+            self.get_parameter('remove_floor_tolerance').value,
+            self.get_parameter('side_pole_height_min').value,
+            self.get_parameter('side_pole_height_max').value
+        )
+
+        self.tx_override = self.get_parameter('tx_override').value
         self.point_cloud = None
         self.current_depth = None
         self.left_yolo_result = None
         self.right_yolo_result = None
         self.camera_info = None
-        self.pool_depth = -2.1336
         self.detect_functions = [self.get_gate_from_yolo, self.get_gate_from_stereo]
 
     def depth_callback(self, msg: Odometry):
@@ -94,7 +119,7 @@ class GateDetection(Node):
     def get_gate_from_yolo(self):
         if None in [self.left_yolo_result, self.right_yolo_result, self.camera_info]:
             return None, None
-        left_gate, right_gate = YoloGateDetection.detect_gate(self.left_yolo_result, self.right_yolo_result, self.camera_info)
+        left_gate, right_gate = YoloGateDetection.detect_gate(self.left_yolo_result, self.right_yolo_result, self.camera_info, self.tx_override)
         return left_gate, right_gate
 
 
@@ -104,7 +129,7 @@ class GateDetection(Node):
         points = pc2.read_points(self.point_cloud, field_names=("x", "y", "z"), skip_nans=True)
         point_array = np.array(list(points))
         converted = point_array.view(np.float32).reshape(len(point_array), -1)
-        left_gate, right_gate, debug_pc = StereoGateDetction.detect_gate(converted, self.current_depth, self.pool_depth)
+        left_gate, right_gate, debug_pc = StereoGateDetection.detect_gate(converted, self.current_depth, self.stereo_gate_detection_params)
         self.publish_debug_point_cloud(debug_pc)
         return left_gate, right_gate
 
