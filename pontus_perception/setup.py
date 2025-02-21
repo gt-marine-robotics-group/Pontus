@@ -42,6 +42,7 @@ setup(
             'point_cloud_camera = pontus_perception.point_cloud_camera:main',
             'point_cloud_downsampling = pontus_perception.point_cloud_downsampling:main',
             'gate_detection = pontus_perception.gate_detection.gate_detection:main',
+            'vertical_marker_detection = pontus_perception.vertical_marker_detection.vertical_marker_detection:main',
         ],
     },
 )

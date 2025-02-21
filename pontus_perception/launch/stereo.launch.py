@@ -4,8 +4,8 @@ import ament_index_python
 
 from launch import LaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.actions import IncludeLaunchDescription, ExecuteProcess
-from launch_ros.actions import Node, SetRemap
+from launch.actions import IncludeLaunchDescription
+from launch_ros.actions import Node
 
 # Path to the launch files and directories that we will use
 _STEREO_IMAGE_PROC_LAUNCH_FILE = os.path.join(ament_index_python.packages.get_package_share_directory('stereo_image_proc'), 'launch', 'stereo_image_proc.launch.py')

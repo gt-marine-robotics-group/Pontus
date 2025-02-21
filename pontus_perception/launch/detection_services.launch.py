@@ -39,5 +39,12 @@ def generate_launch_description():
             output='screen',
             parameters=[gate_detection_config_file],
         ),
+        Node(
+            package='pontus_perception',
+            executable='vertical_marker_detection',
+            name='vertical_marker_detection',
+            output='screen',
+            # parameters=[gate_detection_config_file],
+        ),
         
     ])

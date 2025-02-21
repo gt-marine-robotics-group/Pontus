@@ -8,28 +8,29 @@ from nav_msgs.msg import Odometry
 from tf_transformations import euler_from_quaternion
 from std_msgs.msg import Bool
 from rclpy.duration import Duration
+from std_msgs.msg import Int32
 
 from .PID import PID
 
+class PositionControllerState(Enum):
+    Maintain_position = 1
+    Z_correction = 2
+    Strafe = 3
+    Direction_correction = 4
+    Linear_correction = 5
+    Angular_correction = 6
+
 class PositionNode(Node):
-    
-    class State(Enum):
-      Maintain_position = 1
-      Z_correction = 2
-      Strafe = 3
-      Direction_correction = 4
-      Linear_correction = 5
-      Angular_correction = 6
 
     def __init__(self):
         super().__init__('position_controller')
-        self.state = self.State.Maintain_position
+        self.state = PositionControllerState.Maintain_position
         self.transition_threshold = {}
-        self.transition_threshold[self.State.Z_correction] = 0.07
-        self.transition_threshold[self.State.Direction_correction] = 0.02
-        self.transition_threshold[self.State.Linear_correction] = 0.1
-        self.transition_threshold[self.State.Strafe] = 0.05
-        self.transition_threshold[self.State.Angular_correction] = 0.05
+        self.transition_threshold[PositionControllerState.Z_correction] = 0.07
+        self.transition_threshold[PositionControllerState.Direction_correction] = 0.02
+        self.transition_threshold[PositionControllerState.Linear_correction] = 0.1
+        self.transition_threshold[PositionControllerState.Strafe] = 0.05
+        self.transition_threshold[PositionControllerState.Angular_correction] = 0.05
 
         self.deadzone = 0.2
         self.stuck_error_threshold = 0.3
@@ -105,7 +106,12 @@ class PositionNode(Node):
             10
         )
 
-        # self.state_machine_debug 
+        #TODO: Find a better way to do this
+        self.state_machine_pub = self.create_publisher(
+            Int32,
+            '/pontus/position_controller_state_machine_status',
+            10
+        )
 
         self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.hold_point_pub = self.create_publisher(Bool, '/hold_point', 10)
@@ -140,8 +146,8 @@ class PositionNode(Node):
         # If we get a new cmd_pos or cmd_ang, transition to the Z_correction state
         self.cmd_linear = cmd_pos_new
         self.cmd_angular = cmd_ang_new
-        # self.state = self.State.Z_correction
-        self.state = self.State.Strafe
+        # self.state = PositionControllerState.Z_correction
+        self.state = PositionControllerState.Strafe
 
 
     def angle_wrap(self, angle):
@@ -165,18 +171,21 @@ class PositionNode(Node):
         quat = msg.pose.pose.orientation
         quat = [quat.x, quat.y, quat.z, quat.w]
         current_position = np.array([msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z])
+        state = Int32()
+        state.data = self.state.value
+        self.state_machine_pub.publish(state)
         match self.state:
-            case self.State.Maintain_position:
+            case PositionControllerState.Maintain_position:
                 linear_err, angular_err = self.maintain_position(current_position, quat)                
-            # case self.State.Z_correction:
+            # case PositionControllerState.Z_correction:
             #     linear_err, angular_err = self.correct_z(current_position, quat)
-            case self.State.Strafe:
+            case PositionControllerState.Strafe:
                 linear_err, angular_err = self.correct_strafe(current_position, quat)
-            case self.State.Direction_correction:
+            case PositionControllerState.Direction_correction:
                 linear_err, angular_err = self.turn_to_next_point(current_position, quat)
-            case self.State.Linear_correction:
+            case PositionControllerState.Linear_correction:
                 linear_err, angular_err = self.go_to_point(current_position, quat)
-            case self.State.Angular_correction:
+            case PositionControllerState.Angular_correction:
                 linear_err, angular_err = self.correct_orientation(current_position, quat)
             case _:
                 linear_err = np.zeros(3)
@@ -235,8 +244,8 @@ class PositionNode(Node):
         current_orientation = np.array([r, p, y])
         angular_err = self.calculate_angular_error(self.goal_angle, current_orientation)
 
-        if abs(self.goal_pose[2] - current_position[2]) < self.transition_threshold[self.State.Z_correction]:
-            self.state = self.State.Direction_correction
+        if abs(self.goal_pose[2] - current_position[2]) < self.transition_threshold[PositionControllerState.Z_correction]:
+            self.state = PositionControllerState.Direction_correction
         return linear_err, angular_err
     
 
@@ -244,7 +253,7 @@ class PositionNode(Node):
         linear_err = self.calculate_linear_error(self.cmd_linear, current_position, quat)
         # If distance super far, do not strafe, more efficient to turn and go forward
         if np.linalg.norm(linear_err[:2]) > 1.2:
-            self.state = self.State.Direction_correction
+            self.state = PositionControllerState.Direction_correction
             return np.zeros(3), np.zeros(3)
         
         self.goal_pose = self.cmd_linear
@@ -253,8 +262,8 @@ class PositionNode(Node):
         current_orientation = np.array([r, p, y])
         angular_err = self.calculate_angular_error(self.goal_angle, current_orientation)
 
-        if np.linalg.norm(linear_err[:2]) < self.transition_threshold[self.State.Strafe]:
-            self.state = self.State.Direction_correction
+        if np.linalg.norm(linear_err[:2]) < self.transition_threshold[PositionControllerState.Strafe]:
+            self.state = PositionControllerState.Direction_correction
         return linear_err, angular_err
 
     def turn_to_next_point(self, current_position, quat):
@@ -262,15 +271,15 @@ class PositionNode(Node):
 
         linear_difference = self.cmd_linear - current_position
         if np.linalg.norm(linear_difference[:2]) < self.deadzone:
-            self.state = self.State.Angular_correction
+            self.state = PositionControllerState.Angular_correction
         
         (r, p, y) = euler_from_quaternion(quat)
         current_orientation = np.array([r, p, y])
         goal_orientation = np.array([0, 0, np.arctan2(linear_difference[1], linear_difference[0])])
         angular_err = self.calculate_angular_error(goal_orientation, current_orientation)
         
-        if np.linalg.norm(angular_err) < self.transition_threshold[self.State.Direction_correction]:
-            self.state = self.State.Linear_correction
+        if np.linalg.norm(angular_err) < self.transition_threshold[PositionControllerState.Direction_correction]:
+            self.state = PositionControllerState.Linear_correction
             self.goal_angle = goal_orientation
             self.prev_linear_time_under_threshold = self.get_clock().now()
         return linear_err, angular_err
@@ -282,9 +291,9 @@ class PositionNode(Node):
         linear_err = self.calculate_linear_error(self.goal_pose, current_position, quat)
         angular_err = np.zeros(3)
 
-        if np.linalg.norm(linear_err) < self.transition_threshold[self.State.Linear_correction]:
-            # self.state = self.State.Angular_correction
-            self.state = self.State.Angular_correction
+        if np.linalg.norm(linear_err) < self.transition_threshold[PositionControllerState.Linear_correction]:
+            # self.state = PositionControllerState.Angular_correction
+            self.state = PositionControllerState.Angular_correction
 
             (r, p, y) = euler_from_quaternion(quat)
             current_orientation = np.array([r, p, y])
@@ -292,7 +301,7 @@ class PositionNode(Node):
 
         # If we ever get stuck here, transition back to turn_to_point
         if np.linalg.norm(linear_err) <= self.stuck_error_threshold and self.get_clock().now() - self.prev_linear_time_under_threshold > self.stuck_error_time:
-            self.state = self.State.Direction_correction
+            self.state = PositionControllerState.Direction_correction
             self.goal_pose = self.cmd_linear
         elif np.linalg.norm(linear_err) > self.stuck_error_threshold:
             self.prev_linear_time_under_threshold = self.get_clock().now()
@@ -306,9 +315,9 @@ class PositionNode(Node):
         current_orientation = np.array([r, p, y])
         angular_err = self.calculate_angular_error(self.cmd_angular, current_orientation)
 
-        if np.linalg.norm(angular_err) < self.transition_threshold[self.State.Angular_correction]:
+        if np.linalg.norm(angular_err) < self.transition_threshold[PositionControllerState.Angular_correction]:
           self.goal_angle = self.cmd_angular
-          self.state = self.State.Maintain_position
+          self.state = PositionControllerState.Maintain_position
         return linear_err, angular_err
 
 

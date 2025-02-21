@@ -17,6 +17,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/YOLOResult.msg"
   "msg/YOLOResultArray.msg"
   "srv/GetGateLocation.srv"
+  "srv/GetVerticalMarkerLocation.srv"
+  "srv/GateInformation.srv"
   DEPENDENCIES std_msgs geometry_msgs
 )
 

@@ -1,0 +1,6 @@
+std_msgs/Bool set
+std_msgs/Bool entered_left_side
+geometry_msgs/Point gate_location
+---
+std_msgs/Bool entered_left_side
+geometry_msgs/Point gate_location
