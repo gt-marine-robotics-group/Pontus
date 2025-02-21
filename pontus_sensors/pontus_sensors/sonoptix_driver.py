@@ -75,10 +75,11 @@ class SonoptixDriver(Node):
     def timer_callback(self):
         ret, frame = self.cap.read()
         if ret:
-            preprocessed_image = self.preprocess_frame(frame)
-            ros_image = self.cv_bridge.cv2_to_imgmsg(preprocessed_image, encoding="mono8")
-            laser_scan = self.convert_to_laserscan(preprocessed_image)
-            self.laser_scan_publish.publish(laser_scan)
+            # preprocessed_image = self.preprocess_frame(frame)
+            preprocessed_image = frame
+            ros_image = self.cv_bridge.cv2_to_imgmsg(preprocessed_image, encoding="bgr8")
+            # laser_scan = self.convert_to_laserscan(preprocessed_image)
+            # self.laser_scan_publish.publish(laser_scan)
             self.pub.publish(ros_image)
         else:
             self.get_logger().warn("Failed to read frame")

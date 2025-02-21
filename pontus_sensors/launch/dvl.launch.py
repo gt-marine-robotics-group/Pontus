@@ -18,11 +18,10 @@ _PONTUS_DVL_PARAMS_FILE = os.path.join(
 
 def generate_launch_description():
     return LaunchDescription([
-        # Launch the imu_monitor_node
         Node(
             package='dvl_a50',
             executable='dvl_a50_sensor',
-            name='sdvl_a50_sensor',
+            name='dvl_a50_sensor',
             parameters=[_PONTUS_DVL_PARAMS_FILE],
             output='screen',
         ),

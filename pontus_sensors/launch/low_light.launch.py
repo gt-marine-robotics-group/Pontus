@@ -19,7 +19,8 @@ def generate_launch_description():
                 ('/image_raw', '/pontus/camera_2/image_raw'),
                 ('/image_raw/compressed', '/pontus/camera_2/image_raw/compressed'),
                 ('/image_raw/compressedDepth', '/pontus/camera_2/image_raw/compressedDepth'),
-                ('/image_raw/theora', '/pontus/camera_2/image_raw/theora')
+                ('/image_raw/theora', '/pontus/camera_2/image_raw/theora'),
+                ('/camera_info', '/pontus/camera_2/camera_info')
                 ]
         ),
         Node(
@@ -31,7 +32,8 @@ def generate_launch_description():
                 ('/image_raw', '/pontus/camera_3/image_raw'),
                 ('/image_raw/compressed', '/pontus/camera_3/image_raw/compressed'),
                 ('/image_raw/compressedDepth', '/pontus/camera_3/image_raw/compressedDepth'),
-                ('/image_raw/theora', '/pontus/camera_3/image_raw/theora')
+                ('/image_raw/theora', '/pontus/camera_3/image_raw/theora'),
+                ('/camera_info', '/pontus/camera_3/camera_info')
                 ]
         ),
 

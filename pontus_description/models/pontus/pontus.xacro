@@ -138,12 +138,12 @@
 
   <!-- DVL -->
   <xacro:dvl_macro dvl_id="0">
-    <origin xyz="0 0 0" rpy="0 0 0" />
+    <origin xyz="0 0 0" rpy="3.141 0 0" />
   </xacro:dvl_macro>
 
   <!-- IMU -->
   <xacro:imu_macro imu_id="0">
-    <origin xyz="0 0 0" rpy="0 0 0" />
+    <origin xyz="0 0 0" rpy="1.571 0 -1.571" />
   </xacro:imu_macro>
 
   <!-- Pressure -->

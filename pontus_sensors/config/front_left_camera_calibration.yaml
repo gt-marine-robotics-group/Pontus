@@ -1,0 +1,26 @@
+image_width: 640
+image_height: 480
+camera_name: camera_low_light_left
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [446.43946,   0.     , 305.86916,
+           0.     , 444.23946, 246.28085,
+           0.     ,   0.     ,   1.     ]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [0.000039, 0.014178, -0.003271, -0.011708, 0.000000]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [ 0.99973133, -0.00392491, -0.0228441 ,
+          0.0038108 ,  0.99998006, -0.00503631,
+          0.02286341,  0.0049479 ,  0.99972635]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [480.00003,   0.     , 304.60038,   0.     ,
+           0.     , 480.00003, 255.6266 ,   0.     ,
+           0.     ,   0.     ,   1.     ,   0.     ]

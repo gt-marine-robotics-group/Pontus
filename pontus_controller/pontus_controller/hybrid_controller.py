@@ -27,9 +27,9 @@ class HybridControllerNode(Node):
         self.pid_linear = [
           PID(2, 0, 0, 2), # X
           PID(2, 0, 0, 2), # Y
-          PID(32, 0.0, 35.0, 0.0)  # Z
+          PID(20, 0.0, 0.0, 0.0)  # Z
         ]
-
+        # 32 0 35
         self.pid_angular = [
           PID(0.5, 0, 0, 2), # R
           PID(40, 0.0, 6, 1), # P
@@ -44,10 +44,10 @@ class HybridControllerNode(Node):
           10)
 
         # Nonfiltered depth only
-        self.odom_sub = self.create_subscription(
+        self.depth_sub = self.create_subscription(
           Odometry,
           '/pontus/depth_0',
-          self.odometry_callback,
+          self.depth_callback,
           10)
 
         # Full odometry
@@ -60,7 +60,12 @@ class HybridControllerNode(Node):
         self.cmd_accel_pub = self.create_publisher(Twist, '/cmd_accel', 10)
 
         #self.cmd_depth = None
-        self.cmd_depth = -1.2
+        self.cmd_depth = -0.5
+        self.depth_msg = Odometry()
+
+
+    def depth_callback(self, msg):
+      self.depth_msg = msg
 
 
     def cmd_vel_callback(self, msg):
@@ -90,15 +95,15 @@ class HybridControllerNode(Node):
         accel_msg.linear.x = 0.7 * self.cmd_linear[0]
         accel_msg.linear.y = 1.5 * self.cmd_linear[1]
 
-        #accel_msg.linear.z = self.pid_linear[2](self.cmd_depth - msg.pose.pose.position.z, self.get_clock().now() - self.prev_time)
+        accel_msg.linear.z = self.pid_linear[2](self.cmd_depth - msg.pose.pose.position.z, self.get_clock().now() - self.prev_time)
 
         # Maintain depth if no commanded velocity
         if abs(self.cmd_linear[2]) < 0.05:
-            accel_msg.linear.z = self.pid_linear[2](self.cmd_depth - msg.pose.pose.position.z, self.get_clock().now() - self.prev_time)
+            accel_msg.linear.z = self.pid_linear[2](self.cmd_depth - self.depth_msg.pose.pose.position.z, self.get_clock().now() - self.prev_time)
 
         # Follow commanded z velocity
         else:
-            self.cmd_depth = msg.pose.pose.position.z
+            self.cmd_depth = self.depth_msg.pose.pose.position.z
             accel_msg.linear.z = 16.0 * self.cmd_linear[2]
 
         self.cmd_accel_pub.publish(accel_msg)

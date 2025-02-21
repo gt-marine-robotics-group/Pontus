@@ -43,7 +43,7 @@ class GateTask(BaseTask):
 
         self.cmd_vel_pub = self.create_publisher(
             Twist,
-            '/cmd_vel',
+            '/cmd_vel_autonomy',
             10
         )
 
@@ -124,9 +124,10 @@ class GateTask(BaseTask):
             if result.class_id == 1:
                 right_gate_location_right_camera = np.array([(result.x1 + result.x2) / 2 , (result.y1 + result.y2) / 2])
 
-        focal_length = 381.3
+        # focal_length = 381.3
+        focal_length = 297
         hfov = 1.39626
-        d = 0.075
+        d = 0.09
         left_gate_location = None
         right_gate_location = None
         offset_angle = None
@@ -141,7 +142,7 @@ class GateTask(BaseTask):
             left_gate_angle_wrt_left = left_gate_location_left_camera[0] / self.image_width * hfov - hfov / 2
             right_gate_angle_wrt_left = right_gate_location_left_camera[0] / self.image_width * hfov  - hfov / 2
             left_x = left_depth * np.tan(left_gate_angle_wrt_left) + d / 2
-            right_x = left_depth * np.tan(right_gate_angle_wrt_left) + d/2 
+            right_x = left_depth * np.tan(right_gate_angle_wrt_left) + d / 2 
             
             # Calculate right gate disparity
             disparity_right = right_gate_location_left_camera[0]  - right_gate_location_right_camera[0]
@@ -151,7 +152,7 @@ class GateTask(BaseTask):
             right_gate_location = np.array([right_x, right_depth])
 
             offset_angle = np.arctan2((right_x - left_x), (right_depth - left_depth)) - np.pi / 2
-
+            self.get_logger().info(f"{left_depth} {right_depth}")
         return left_gate_location, right_gate_location, offset_angle
 
 
@@ -165,6 +166,8 @@ class GateTask(BaseTask):
     #### Autonomy
     def state_machine_callback(self):
         self.state_debugger()
+        _, _, offset = self.calculate_stereo_location()
+        return
         cmd_vel = Twist()
         match self.state:
             case State.Searching:
