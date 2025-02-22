@@ -33,16 +33,22 @@ class DvlRepub(Node):
         msg.child_frame_id = 'dvl_a50_link'
         msg.pose.pose.position.y = -msg.pose.pose.position.y
         msg.pose.pose.position.z = -msg.pose.pose.position.z
-        q_rotate = tf_transformations.quaternion_from_euler(math.pi, 0, 0)
-        q_new = tf_transformations.quaternion_multiply(q_rotate, [msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w])
+
+        r, p, y = tf_transformations.euler_from_quaternion([msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w])
+        roll_new = r
+        pitch_new = -p
+        yaw_new = -y
+        q_new = tf_transformations.quaternion_from_euler(roll_new, pitch_new, yaw_new)
+        # q_rotate = tf_transformations.quaternion_from_euler(math.pi, 0, 0)
+        # q_new = tf_transformations.quaternion_multiply(q_rotate, [msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w])
 
         msg.pose.pose.orientation.x = q_new[0]
         msg.pose.pose.orientation.y = q_new[1]
         msg.pose.pose.orientation.z = q_new[2]
         msg.pose.pose.orientation.w = q_new[3]
 
-        msg.twist.twist.linear.y = -msg.twist.twist.linear.y
-        msg.twist.twist.linear.z = -msg.twist.twist.linear.z
+        # msg.twist.twist.linear.y = -msg.twist.twist.linear.y
+        # msg.twist.twist.linear.z = -msg.twist.twist.linear.z
         self.pub.publish(msg)
 
 def main(args=None):

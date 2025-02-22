@@ -92,8 +92,14 @@ ekf_filter_node:
         odom0_config: [true,  true,  true,
                        true, true, true,
                        true, true, true,
-                       false, false, true,
+                       false, false, false,
                        false, false, false]
+
+        # #        [x_pos   , y_pos    , z_pos,
+        # #         roll    , pitch    , yaw,
+        # #         x_vel   , y_vel    , z_vel,
+        # #         roll_vel, pitch_vel, yaw_vel,
+        # #         x_accel , y_accel  , z_accel]
 
         # If you have high-frequency data or are running with a low frequency parameter value, then you may want to increase
         # the size of the subscription queue so that more measurements are fused.
@@ -140,24 +146,24 @@ ekf_filter_node:
 # sensor_msgs/Imu). To add an input, simply append the next number in the sequence to its "base" name, e.g., odom0,
 # odom1, twist0, twist1, imu0, imu1, imu2, etc. The value should be the topic name. These parameters obviously have no
 # default values, and must be specified.
-        imu0: /pontus/imu_0
+        # imu0: /pontus/imu_0
 
-        imu0_config: [false, false, false,
-                      true,  true,  true,
-                      false, false, false,
-                      true,  true,  true,
-                      true,  true,  true]
+        # imu0_config: [false, false, false,
+        #               true,  true,  true,
+        #               false, false, false,
+        #               true,  true,  true,
+        #               true,  true,  true]
 
-        #        [x_pos   , y_pos    , z_pos,
-        #         roll    , pitch    , yaw,
-        #         x_vel   , y_vel    , z_vel,
-        #         roll_vel, pitch_vel, yaw_vel,
-        #         x_accel , y_accel  , z_accel]
+        # #        [x_pos   , y_pos    , z_pos,
+        # #         roll    , pitch    , yaw,
+        # #         x_vel   , y_vel    , z_vel,
+        # #         roll_vel, pitch_vel, yaw_vel,
+        # #         x_accel , y_accel  , z_accel]
 
-        imu0_nodelay: false
-        imu0_differential: false
-        imu0_relative: true
-        imu0_queue_size: 7
+        # imu0_nodelay: false
+        # imu0_differential: false
+        # imu0_relative: true
+        # imu0_queue_size: 7
 
         #imu0_pose_rejection_threshold: 0.8                 # Note the difference in parameter names
         #imu0_twist_rejection_threshold: 0.8                #
