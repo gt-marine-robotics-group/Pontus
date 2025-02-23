@@ -30,7 +30,7 @@ class PositionNode(Node):
         self.transition_threshold[PositionControllerState.Direction_correction] = 0.02
         self.transition_threshold[PositionControllerState.Linear_correction] = 0.1
         self.transition_threshold[PositionControllerState.Strafe] = 0.05
-        self.transition_threshold[PositionControllerState.Angular_correction] = 0.05
+        self.transition_threshold[PositionControllerState.Angular_correction] = 0.1
 
         self.deadzone = 0.2
         self.stuck_error_threshold = 0.3
@@ -202,7 +202,6 @@ class PositionNode(Node):
         msg.angular.y = self.pid_angular[1](angular_err[1], self.get_clock().now() - self.prev_time)
         msg.angular.z = self.pid_angular[2](angular_err[2], self.get_clock().now() - self.prev_time)
 
-
         if not self.controller_mode:
             self.cmd_vel_pub.publish(msg)
             self.hold_point_pub.publish(Bool(data=self.hold_point))
@@ -273,6 +272,7 @@ class PositionNode(Node):
         linear_difference = self.cmd_linear - current_position
         if np.linalg.norm(linear_difference[:2]) < self.deadzone:
             self.state = PositionControllerState.Angular_correction
+            return np.array([0.0, 0.0, 0.0]), np.array([0.0, 0.0, 0.0])
         
         (r, p, y) = euler_from_quaternion(quat)
         current_orientation = np.array([r, p, y])

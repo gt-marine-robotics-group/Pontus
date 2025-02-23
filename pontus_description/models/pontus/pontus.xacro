@@ -183,27 +183,20 @@
         <nDotR>0</nDotR>
 
         <!-- Linear Drag -->
-        <xU>-9</xU>
-        <yV>-9</yV>
-        <zW>-9</zW>
-        <kP>-9</kP>
-        <mQ>-9</mQ>
-        <nR>-9</nR>
-        <!-- <xU>-10</xU>
-        <yV>-10</yV>
-        <zW>-10</zW>
-        <kP>-10</kP>
-        <mQ>-10</mQ>
-        <nR>-10</nR> -->
+        <xU>-5</xU>
+        <yV>-5</yV>
+        <zW>-5</zW>
+        <kP>-5</kP>
+        <mQ>-5</mQ>
+        <nR>-5</nR>
 
-        <!-- Quadratic Drag -->
-        <xUabsU>-6.2282</xUabsU>
-        <yVabsV>-601.27</yVabsV>
-        <zWabsW>-601.27</zWabsW>
-        <kPabsP>-0.1916</kPabsP>
-        <mQabsQ>-632.698957</mQabsQ>
-        <nRabsR>-632.698957</nRabsR>
-    </plugin>
+        <xUabsU>-2</xUabsU>
+        <yVabsV>-20</yVabsV>
+        <zWabsW>-20</zWabsW>
+        <kPabsP>-0.1</kPabsP>
+        <mQabsQ>-10</mQabsQ>
+        <nRabsR>-10</nRabsR>
+            </plugin>
 
     <!-- Publishes perfect odometry data for testing controllers -->
     <plugin

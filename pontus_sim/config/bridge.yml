@@ -48,18 +48,18 @@
   direction: GZ_TO_ROS
 
 # Sonar Forward
-- ros_topic_name: "/pontus/sonar_0"
-  gz_topic_name: "/pontus/sonar_0"
-  ros_type_name: "sensor_msgs/msg/LaserScan"
-  gz_type_name: "gz.msgs.LaserScan"
-  direction: GZ_TO_ROS
+# - ros_topic_name: "/pontus/sonar_0"
+#   gz_topic_name: "/pontus/sonar_0"
+#   ros_type_name: "sensor_msgs/msg/LaserScan"
+#   gz_type_name: "gz.msgs.LaserScan"
+#   direction: GZ_TO_ROS
 
 # Sonar Top 360
-- ros_topic_name: "/pontus/sonar_1"
-  gz_topic_name: "/pontus/sonar_1"
-  ros_type_name: "sensor_msgs/msg/LaserScan"
-  gz_type_name: "gz.msgs.LaserScan"
-  direction: GZ_TO_ROS
+# - ros_topic_name: "/pontus/sonar_1"
+#   gz_topic_name: "/pontus/sonar_1"
+#   ros_type_name: "sensor_msgs/msg/LaserScan"
+#   gz_type_name: "gz.msgs.LaserScan"
+#   direction: GZ_TO_ROS
 
 # IMU
 - ros_topic_name: "/pontus/imu_0"

@@ -6,6 +6,7 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from geometry_msgs.msg import Pose
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Int32
+import tf_transformations
 
 from pontus_autonomy.tasks.base_task import BaseTask
 from pontus_msgs.srv import GetVerticalMarkerLocation
@@ -144,8 +145,11 @@ class VerticalMarkerTask(BaseTask):
                 self.get_logger().info("Unable to find vertical marker")
                 return cmd_pose
             self.get_logger().info(f"{vertical_marker}")
-            cmd_pose.position.x = self.current_pose.position.x + (vertical_marker.x - 1.0)
-            cmd_pose.position.y = self.current_pose.position.y + vertical_marker.y
+            _, _, yaw = tf_transformations.euler_from_quaternion([self.current_pose.orientation.x, self.current_pose.orientation.y, self.current_pose.orientation.z, self.current_pose.orientation.w])
+            vertical_x = vertical_marker.x * np.cos(yaw) - vertical_marker.y * np.sin(yaw)
+            vertical_y = vertical_marker.x * np.sin(yaw) + vertical_marker.y * np.cos(yaw)
+            cmd_pose.position.x = self.current_pose.position.x + (vertical_x - 1.0)
+            cmd_pose.position.y = self.current_pose.position.y + vertical_y
             self.detected = True
         elif self.detected and self._done:
             self.state = State.Circumnavigate
