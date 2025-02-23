@@ -10,7 +10,7 @@
     </scene>
 
     <!-- Configure the world physics -->
-    <physics name="1ms" type="ode">
+    <physics name="1ms" type="dart">
       <max_step_size>0.001</max_step_size>
       <real_time_factor>1.0</real_time_factor>
     </physics>

@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 <sdf version="1.6">
-  <world name="underwater_world">
+  <world name="prequal_world">
 
     <!-- Configure the scene -->
     <scene>
@@ -11,7 +11,7 @@
 
 
     <!-- Configure the world physics -->
-    <physics name="1ms" type="ode">
+    <physics name="1ms" type="bullet">
       <max_step_size>0.001</max_step_size>
       <real_time_factor>1.0</real_time_factor>
     </physics>
@@ -321,7 +321,7 @@
           </geometry>
           <surface>
             <friction>
-              <ode/>
+              <bullet/>
             </friction>
             <bounce/>
             <contact/>
@@ -415,7 +415,7 @@
           </geometry>
           <surface>
             <friction>
-              <ode/>
+              <bullet/>
             </friction>
             <bounce/>
             <contact/>
@@ -462,7 +462,7 @@
           </geometry>
           <surface>
             <friction>
-              <ode/>
+              <bullet/>
             </friction>
             <bounce/>
             <contact/>
@@ -510,7 +510,7 @@
           </geometry>
           <surface>
             <friction>
-              <ode/>
+              <bullet/>
             </friction>
             <bounce/>
             <contact/>

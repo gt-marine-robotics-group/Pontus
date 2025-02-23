@@ -183,12 +183,18 @@
         <nDotR>0</nDotR>
 
         <!-- Linear Drag -->
-        <xU>-10</xU>
+        <xU>-9</xU>
+        <yV>-9</yV>
+        <zW>-9</zW>
+        <kP>-9</kP>
+        <mQ>-9</mQ>
+        <nR>-9</nR>
+        <!-- <xU>-10</xU>
         <yV>-10</yV>
         <zW>-10</zW>
         <kP>-10</kP>
         <mQ>-10</mQ>
-        <nR>-10</nR>
+        <nR>-10</nR> -->
 
         <!-- Quadratic Drag -->
         <xUabsU>-6.2282</xUabsU>
