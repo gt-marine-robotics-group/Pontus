@@ -139,6 +139,8 @@ class PositionNode(Node):
         (r, p, y) = euler_from_quaternion([quat.x, quat.y, quat.z, quat.w])
         cmd_pos_new = np.array([msg.position.x, msg.position.y, msg.position.z])
         cmd_ang_new = np.array([r, p, y])
+        if quat.x == -1.0:
+            cmd_ang_new[0] = -1.0
         self.goal_pose = [self.goal_pose[0], self.goal_pose[1], cmd_pos_new[2]]
         # If the cmd_pos and cmd_ang is the same as the previous, do nothing
         if np.array_equal(cmd_pos_new, self.cmd_linear) and np.array_equal(cmd_ang_new, self.cmd_angular):
@@ -159,7 +161,6 @@ class PositionNode(Node):
         # # Get the current positions from odometry
         quat = msg.pose.pose.orientation
         quat = [quat.x, quat.y, quat.z, quat.w]
-
         # transform world frame to body frame
         u = np.array(quat[:3])
         u[1] = -u[1]
@@ -313,6 +314,11 @@ class PositionNode(Node):
 
         (r, p, y) = euler_from_quaternion(quat)
         current_orientation = np.array([r, p, y])
+        if self.cmd_angular[0] == -1.0:
+            self.goal_angle = current_orientation
+            self.state = PositionControllerState.Maintain_position
+            self.get_logger().info("Skipping correct orientation")
+            return linear_err, np.array([0.0 ,0.0, 0.0])
         angular_err = self.calculate_angular_error(self.cmd_angular, current_orientation)
 
         if np.linalg.norm(angular_err) < self.transition_threshold[PositionControllerState.Angular_correction]:

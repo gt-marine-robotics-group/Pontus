@@ -9,6 +9,8 @@ from pontus_autonomy.base_run import BaseRun
 from pontus_autonomy.tasks.localization.gate_task import GateTask
 from pontus_autonomy.tasks.localization.gate_to_vertical import GateToVertical
 from pontus_autonomy.tasks.localization.vertical_marker_task import VerticalMarkerTask
+from pontus_autonomy.tasks.localization.vertical_to_gate import VerticalToGate
+from pontus_autonomy.tasks.localization.exit_gate import ExitGate
 from pontus_autonomy.tasks.surface_task import SurfaceTask
 
 class PrequalificationRun(BaseRun):
@@ -30,9 +32,17 @@ class PrequalificationRun(BaseRun):
         result = self.run_task(VerticalMarkerTask)
         self.get_logger().info(f"Vertical Marker Task {result}")
 
+        # Vertical to Gate
+        result = self.run_task(VerticalToGate)
+        self.get_logger().info(f"Vertical to gate: {result}")
+
         # Return Gate Task
         result = self.run_task(GateTask)
         self.get_logger().info(f"Return gate task: {result}")
+
+        # Exit Gate
+        result = self.run_task(ExitGate)
+        self.get_logger().info(f"Exit gate task: {result}")
 
         # Return to the surface
         result = self.run_task(SurfaceTask)

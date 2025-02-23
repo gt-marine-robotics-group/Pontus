@@ -7,6 +7,7 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from geometry_msgs.msg import Pose
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Int32
+import tf_transformations
 
 from pontus_autonomy.tasks.base_task import BaseTask
 from pontus_msgs.srv import GetGateLocation
@@ -147,12 +148,17 @@ class GateTask(BaseTask):
             if left_gate is None or right_gate is None:
                 self.get_logger().info("Unable to find gate")
                 return cmd_pose
-            cmd_pose.position.x = self.current_pose.position.x + (left_gate.x + right_gate.x)/2
-            cmd_pose.position.y = self.current_pose.position.y + (left_gate.y + right_gate.y)/2
+            _, _, yaw = tf_transformations.euler_from_quaternion([self.current_pose.orientation.x, self.current_pose.orientation.y, self.current_pose.orientation.z, self.current_pose.orientation.w])
+            left_gate_x = left_gate.x * np.cos(yaw) - left_gate.y * np.sin(yaw)
+            left_gate_y = left_gate.x * np.sin(yaw) + left_gate.y * np.cos(yaw)
+            right_gate_x = right_gate.x * np.cos(yaw) - right_gate.y * np.sin(yaw)
+            right_gate_y = right_gate.x * np.sin(yaw) + right_gate.y * np.cos(yaw)
+            cmd_pose.position.x = self.current_pose.position.x + (left_gate_x + right_gate_x)/2
+            cmd_pose.position.y = self.current_pose.position.y + (left_gate_y + right_gate_y)/2
             self.detected = True
         elif self.detected and self._done:
             self.state = State.Done
-        
+        cmd_pose.orientation.x = -1.0
         return cmd_pose
 
     def done(self):

@@ -118,8 +118,8 @@ class VerticalMarkerTask(BaseTask):
                 cmd_pose = self.search()
             case State.Circumnavigate:
                 cmd_pose = self.circumnavigate()
-            # case State.Done:
-            #     self.done()
+            case State.Done:
+                self.complete(True)
             case _:
                 self.get_logger().info("Unrecognized state")
         cmd_pose.position.z = -1.2
@@ -178,7 +178,7 @@ class VerticalMarkerTask(BaseTask):
         fourth_pose = self.copy_pose(self.starting_pose)
         fourth_pose.position.y += -0.9
 
-        desired_positions = [first_pose, second_pose, third_pose, fourth_pose]
+        desired_positions = [first_pose, second_pose, third_pose, fourth_pose, self.starting_pose]
         # self.get_logger().info(f"Desired positions: {desired_positions}")
         
         if not self._done and not self.command_send:
@@ -189,7 +189,7 @@ class VerticalMarkerTask(BaseTask):
             self.command_send = False
             self._done = False
         
-        if self.current_desired_position == 4:
+        if self.current_desired_position == len(desired_positions):
             self.state = State.Done
-        
+        cmd_pose.orientation.x = -1.0
         return cmd_pose
