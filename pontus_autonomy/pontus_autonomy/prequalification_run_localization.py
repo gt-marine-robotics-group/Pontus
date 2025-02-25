@@ -6,12 +6,12 @@ import numpy as np
 from pontus_autonomy.base_run import BaseRun
 
 # Tasks
+from pontus_autonomy.tasks.localization.submerge import Submerge
 from pontus_autonomy.tasks.localization.gate_task import GateTask
 from pontus_autonomy.tasks.localization.gate_to_vertical import GateToVertical
 from pontus_autonomy.tasks.localization.vertical_marker_task import VerticalMarkerTask
 from pontus_autonomy.tasks.localization.vertical_to_gate import VerticalToGate
 from pontus_autonomy.tasks.localization.exit_gate import ExitGate
-from pontus_autonomy.tasks.surface_task import SurfaceTask
 
 class PrequalificationRun(BaseRun):
 
@@ -19,6 +19,10 @@ class PrequalificationRun(BaseRun):
         super().__init__("prequalification_run")
 
         self.get_logger().info("Starting Prequalification Run")
+
+        # Submerge Task
+        result = self.run_task(Submerge)
+        self.get_logger().info(f"Submerge: {result}")
 
         # Gate Task
         result = self.run_task(GateTask)
@@ -43,10 +47,7 @@ class PrequalificationRun(BaseRun):
         # Exit Gate
         result = self.run_task(ExitGate)
         self.get_logger().info(f"Exit gate task: {result}")
-
-        # Return to the surface
-        result = self.run_task(SurfaceTask)
-        self.get_logger().info(f"Surfaced: {result}")
+        
 
 
 def main(args=None):

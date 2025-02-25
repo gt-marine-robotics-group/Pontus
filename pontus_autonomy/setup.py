@@ -24,7 +24,7 @@ setup(
     entry_points={
         'console_scripts': [
             'prequalification_run_localization = pontus_autonomy.prequalification_run_localization:main',
-            'gate_information_service = pontus_autonomy.gate_information_service:main'
+            'gate_information_service = pontus_autonomy.gate_information_service:main',
         ],
     },
 )

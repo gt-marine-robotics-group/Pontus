@@ -3,14 +3,16 @@ from rclpy.node import Node
 import numpy as np
 from enum import Enum
 
+from rclpy.action import ActionServer
 from geometry_msgs.msg import Pose, Twist
 from nav_msgs.msg import Odometry
 from tf_transformations import euler_from_quaternion
 from std_msgs.msg import Bool
 from rclpy.duration import Duration
-from std_msgs.msg import Int32
+import asyncio
 
 from .PID import PID
+from pontus_msgs.action import GoToPose
 
 class PositionControllerState(Enum):
     Maintain_position = 1
@@ -24,9 +26,10 @@ class PositionNode(Node):
 
     def __init__(self):
         super().__init__('position_controller')
+
         self.state = PositionControllerState.Maintain_position
         self.transition_threshold = {}
-        self.transition_threshold[PositionControllerState.Z_correction] = 0.07
+        self.transition_threshold[PositionControllerState.Z_correction] = 0.1
         self.transition_threshold[PositionControllerState.Direction_correction] = 0.02
         self.transition_threshold[PositionControllerState.Linear_correction] = 0.1
         self.transition_threshold[PositionControllerState.Strafe] = 0.05
@@ -106,18 +109,38 @@ class PositionNode(Node):
             10
         )
 
-        #TODO: Find a better way to do this
-        self.state_machine_pub = self.create_publisher(
-            Int32,
-            '/pontus/position_controller_state_machine_status',
-            10
+        self.action_server = ActionServer(
+            self,
+            GoToPose,
+            '/pontus/go_to_pose',
+            execute_callback=self.execute_callback,
         )
 
         self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.hold_point_pub = self.create_publisher(Bool, '/hold_point', 10)
 
         self.previous_state = None
+        self.desired_pose = None
 
+
+    async def execute_callback(self, goal_handle):
+        request = goal_handle.request
+        self.cmd_pos_callback(request.desired_pose)
+        feedback_msg = GoToPose.Feedback()
+        while True:
+            if self.state == PositionControllerState.Maintain_position:
+                break
+            current_state = self.state.value
+            feedback_msg.current_state = current_state
+            goal_handle.publish_feedback(feedback_msg)
+            # Yield control back to the executor loop
+            await asyncio.sleep(0)
+        
+        goal_handle.succeed()
+        result = GoToPose.Result()
+        result.completed = True
+        return result
+    
 
     def autonomy_mode_callback(self, msg):
         if msg.data:
@@ -148,8 +171,8 @@ class PositionNode(Node):
         # If we get a new cmd_pos or cmd_ang, transition to the Z_correction state
         self.cmd_linear = cmd_pos_new
         self.cmd_angular = cmd_ang_new
-        # self.state = PositionControllerState.Z_correction
-        self.state = PositionControllerState.Strafe
+        self.state = PositionControllerState.Z_correction
+        # self.state = PositionControllerState.Strafe
 
 
     def angle_wrap(self, angle):
@@ -172,14 +195,11 @@ class PositionNode(Node):
         quat = msg.pose.pose.orientation
         quat = [quat.x, quat.y, quat.z, quat.w]
         current_position = np.array([msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z])
-        state = Int32()
-        state.data = self.state.value
-        self.state_machine_pub.publish(state)
         match self.state:
             case PositionControllerState.Maintain_position:
                 linear_err, angular_err = self.maintain_position(current_position, quat)                
-            # case PositionControllerState.Z_correction:
-            #     linear_err, angular_err = self.correct_z(current_position, quat)
+            case PositionControllerState.Z_correction:
+                linear_err, angular_err = self.correct_z(current_position, quat)
             case PositionControllerState.Strafe:
                 linear_err, angular_err = self.correct_strafe(current_position, quat)
             case PositionControllerState.Direction_correction:
@@ -245,7 +265,7 @@ class PositionNode(Node):
         angular_err = self.calculate_angular_error(self.goal_angle, current_orientation)
 
         if abs(self.goal_pose[2] - current_position[2]) < self.transition_threshold[PositionControllerState.Z_correction]:
-            self.state = PositionControllerState.Direction_correction
+            self.state = PositionControllerState.Strafe
         return linear_err, angular_err
     
 
