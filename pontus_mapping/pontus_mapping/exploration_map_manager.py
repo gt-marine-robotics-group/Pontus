@@ -53,20 +53,23 @@ class ExplorationMapManager(Node):
 
         self.current_odometry = None
 
+        self.map_width_cells = int(self.map_width / self.map_resolution)
+        self.map_height_cells = int(self.map_height / self.map_resolution)
+
         # Set basic information
         self.exploration_map: OccupancyGrid = OccupancyGrid()
         self.exploration_map.header.frame_id = 'map'
         self.exploration_map.info.resolution = self.map_resolution
-        self.exploration_map.info.width = self.map_width
-        self.exploration_map.info.height = self.map_height
-        self.exploration_map.info.origin.position.x = -self.exploration_map.info.width/2
-        self.exploration_map.info.origin.position.y = -self.exploration_map.info.height/2
+        self.exploration_map.info.width = self.map_width_cells
+        self.exploration_map.info.height = self.map_height_cells
+        self.exploration_map.info.origin.position.x = -self.map_width / 2 
+        self.exploration_map.info.origin.position.y = -self.map_height / 2
         self.exploration_map.info.origin.position.z = 0.0
         self.exploration_map.info.origin.orientation.x = 0.0
         self.exploration_map.info.origin.orientation.y = 0.0
         self.exploration_map.info.origin.orientation.z = 0.0
         self.exploration_map.info.origin.orientation.w = 1.0
-        self.exploration_map.data = [0] * int(self.map_height * self.map_width)
+        self.exploration_map.data = [0] * int(self.map_height_cells * self.map_width_cells)
         self.previous_odometry = None
     
 
@@ -77,20 +80,21 @@ class ExplorationMapManager(Node):
         self.current_odometry = msg
     
 
-    def convert_odom_point_to_map(self, current_point: tuple, map_width: float, map_height: float) -> int:
+    def convert_odom_point_to_map(self, current_point: tuple, map_width: float, map_height: float, map_resolution: float) -> int:
         """
         Takes a point from odometry and converts it to map frame
 
         Parameters:
         current_point (tuple(float, float)) : point we want to convert
         map_width (float) : the width of the map in meters
-        map_height (float) :L the height of the map in meters
+        map_height (float) : the height of the map in meters
+        map_resolution (float) : the resolution of the map in meters
 
         Returns:
         int : the index in the map corresponding to the point
         """
-        map_x = current_point[1] - map_width / 2
-        map_y = current_point[0] - map_height / 2
+        map_x = self.my_floor(current_point[1], map_resolution) / map_resolution - map_width / 2
+        map_y = self.my_floor(current_point[0], map_resolution) / map_resolution - map_height / 2
         return int(map_x * map_width + map_y)
 
 
@@ -149,6 +153,19 @@ class ExplorationMapManager(Node):
             and (new_distance <= perception_distance) 
         
 
+    def my_floor(self, value: float, resolution: float) -> float:
+        """
+        Performs a custom floor to a specific resolution
+
+        Parameters:
+        value (float) : the value to be floored
+        resolution (float) : the resolution at which the value should be floored to
+
+        Returns:
+        (float) : floored value
+        """
+        return value - (value % resolution)
+
 
     def get_new_visited_squares(self,
                                 current_odom: Odometry,
@@ -170,8 +187,8 @@ class ExplorationMapManager(Node):
         visited
         """
         # Quantisize these values
-        current_x = float(int(current_odom.pose.pose.position.x))
-        current_y = float(int(current_odom.pose.pose.position.y))
+        current_x = self.my_floor(current_odom.pose.pose.position.x, map_resolution)
+        current_y = self.my_floor(current_odom.pose.pose.position.y, map_resolution)
 
         q = queue.Queue()
         visited_set = []
@@ -223,9 +240,27 @@ class ExplorationMapManager(Node):
         # Calculate which squares should be marked visited 
         new_visited = self.get_new_visited_squares(self.current_odometry, self.perception_fov, self.perception_distance, self.map_resolution)
         for point in new_visited:
-            self.exploration_map.data[self.convert_odom_point_to_map(point, self.map_width, self.map_height)] = 100
-        self.exploration_map.data[self.convert_odom_point_to_map((int(self.previous_odometry.pose.pose.position.x), int(self.previous_odometry.pose.pose.position.y)), self.map_width, self.map_height)] = 100
-        self.exploration_map.data[self.convert_odom_point_to_map((int(self.current_odometry.pose.pose.position.x), int(self.current_odometry.pose.pose.position.y)), self.map_width, self.map_height)] = -1
+            visited_square_location_index = self.convert_odom_point_to_map(point, self.map_width_cells, self.map_height_cells, self.map_resolution)
+            self.exploration_map.data[visited_square_location_index] = 100
+        
+        # Update on map where the robot is
+        prev_robot_map_index = self.convert_odom_point_to_map(
+            (self.previous_odometry.pose.pose.position.x, self.previous_odometry.pose.pose.position.y),
+            self.map_width_cells,
+            self.map_height_cells,
+            self.map_resolution
+        )
+        self.exploration_map.data[prev_robot_map_index] = 100
+
+        current_robot_map_index = self.convert_odom_point_to_map(
+            (self.current_odometry.pose.pose.position.x, self.current_odometry.pose.pose.position.y),
+            self.map_width_cells,
+            self.map_height_cells,
+            self.map_resolution
+        )
+        self.exploration_map.data[current_robot_map_index] = -1
+        
+        
         self.exploration_map.header.stamp = self.get_clock().now().to_msg()
         self.exploration_map_publisher.publish(self.exploration_map)
         self.previous_odometry = self.current_odometry
