@@ -51,6 +51,7 @@ install(PROGRAMS
   pontus_sensors/sim_odom_tf_broadcaster.py
   pontus_sensors/sim_camera_tf_broadcaster.py
   pontus_sensors/dvl_republish.py
+  pontus_sensors/dvl_republish_sim.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

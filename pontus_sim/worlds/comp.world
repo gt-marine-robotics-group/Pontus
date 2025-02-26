@@ -440,7 +440,7 @@
       <self_collide>false</self_collide>
     </model>
     <model name='wide_wall_2'>
-      <pose>-3 0 -1.0668 0 0 1.57</pose>
+      <pose>-1 0 -1.0668 0 0 1.57</pose>
       <link name='box_link'>
         <inertial>
           <inertia>
@@ -1391,8 +1391,8 @@
     <!-- GATE TASK -->
     <include>
       <uri>Gate</uri>
-      <!-- <pose>3.1 0.5 -1.8 1.57 0 1.57</pose> -->
-      <pose>3.1 0 -1.8 1.57 0 1.57</pose>
+      <!-- <pose>3.7 0.5 -1.8 1.8 0 1.57</pose> -->
+      <pose>4.3 1.4 -1.5 1.57 0 1.2</pose>
     </include>
 
     <model name='prequal_marker'>

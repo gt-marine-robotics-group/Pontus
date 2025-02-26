@@ -75,29 +75,95 @@ ekf_filter_node:
         base_link_frame: base_link  # Defaults to "base_link" if unspecified
         world_frame: odom                 # Defaults to the value of odom_frame if unspecified
 
+        # The filter accepts an arbitrary number of inputs from each input message type (nav_msgs/Odometry,
+        # geometry_msgs/PoseWithCovarianceStamped, geometry_msgs/TwistWithCovarianceStamped,
+        # sensor_msgs/Imu). To add an input, simply append the next number in the sequence to its "base" name, e.g., odom0,
+        # odom1, twist0, twist1, imu0, imu1, imu2, etc. The value should be the topic name. These parameters obviously have no
+        # default values, and must be specified.
+        odom0: /pontus/dvl
+
+        # Each sensor reading updates some or all of the filter's state. These options give you greater control over which
+        # values from each measurement are fed to the filter. For example, if you have an odometry message as input, but only
+        # want to use its Z position value, then set the entire vector to false, except for the third entry. The order of the
+        # values is x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az. Note that not some message types
+        # do not provide some of the state variables estimated by the filter. For example, a TwistWithCovarianceStamped message
+        # has no pose information, so the first six values would be meaningless in that case. Each vector defaults to all false
+        # if unspecified, effectively making this parameter required for each sensor.
+        odom0_config: [true,  true,  true,
+                       true, true, true,
+                       true, true, true,
+                       false, false, false,
+                       false, false, false]
+
+        # #        [x_pos   , y_pos    , z_pos,
+        # #         roll    , pitch    , yaw,
+        # #         x_vel   , y_vel    , z_vel,
+        # #         roll_vel, pitch_vel, yaw_vel,
+        # #         x_accel , y_accel  , z_accel]
+
+        # If you have high-frequency data or are running with a low frequency parameter value, then you may want to increase
+        # the size of the subscription queue so that more measurements are fused.
+        odom0_queue_size: 2
+
+        # [ADVANCED] When measuring one pose variable with two sensors, a situation can arise in which both sensors under-
+        # report their covariances. This can lead to the filter rapidly jumping back and forth between each measurement as they
+        # arrive. In these cases, it often makes sense to (a) correct the measurement covariances, or (b) if velocity is also
+        # measured by one of the sensors, let one sensor measure pose, and the other velocity. However, doing (a) or (b) isn't
+        # always feasible, and so we expose the differential parameter. When differential mode is enabled, all absolute pose
+        # data is converted to velocity data by differentiating the absolute pose measurements. These velocities are then
+        # integrated as usual. NOTE: this only applies to sensors that provide pose measurements; setting differential to true
+        # for twist measurements has no effect.
+        odom0_differential: false
+
+        # [ADVANCED] When the node starts, if this parameter is true, then the first measurement is treated as a "zero point"
+        # for all future measurements. While you can achieve the same effect with the differential paremeter, the key
+        # difference is that the relative parameter doesn't cause the measurement to be converted to a velocity before
+        # integrating it. If you simply want your measurements to start at 0 for a given sensor, set this to true.
+        odom0_relative: true
+
+        # [ADVANCED] Whether to use the starting pose of child_frame_id as the origin of odometry.
+        # Note: this is different from setting odom0_relative to true, as when child_frame is different from 
+        # base_link_frame, the rotation of base_link will be coupled into the translation of child_frame.
+        # Set to true for fusing secondary odometry sources that are rigidly connected to base_link but has a non-zero 
+        # offset from base_link.
+
+
+        # Do we set this to true???????????
+        odom0_pose_use_child_frame: false
+
+        # [ADVANCED] If your data is subject to outliers, use these threshold settings, expressed as Mahalanobis distances, to
+        # control how far away from the current vehicle state a sensor measurement is permitted to be. Each defaults to
+        # numeric_limits<double>::max() if unspecified. It is strongly recommended that these parameters be removed if not
+        # required. Data is specified at the level of pose and twist variables, rather than for each variable in isolation.
+        # For messages that have both pose and twist data, the parameter specifies to which part of the message we are applying
+        # the thresholds.
+        # odom0_pose_rejection_threshold: 5.0
+        # odom0_twist_rejection_threshold: 1.0
+
+
 # The filter accepts an arbitrary number of inputs from each input message type (nav_msgs/Odometry,
 # geometry_msgs/PoseWithCovarianceStamped, geometry_msgs/TwistWithCovarianceStamped,
 # sensor_msgs/Imu). To add an input, simply append the next number in the sequence to its "base" name, e.g., odom0,
 # odom1, twist0, twist1, imu0, imu1, imu2, etc. The value should be the topic name. These parameters obviously have no
 # default values, and must be specified.
-        imu0: /pontus/imu_0
+        # imu0: /pontus/imu_0
 
-        imu0_config: [false, false, false,
-                      true,  true,  true,
-                      false, false, false,
-                      true,  true,  true,
-                      true,  true,  true]
+        # imu0_config: [false, false, false,
+        #               true,  true,  true,
+        #               false, false, false,
+        #               true,  true,  true,
+        #               true,  true,  true]
 
-        #        [x_pos   , y_pos    , z_pos,
-        #         roll    , pitch    , yaw,
-        #         x_vel   , y_vel    , z_vel,
-        #         roll_vel, pitch_vel, yaw_vel,
-        #         x_accel , y_accel  , z_accel]
+        # #        [x_pos   , y_pos    , z_pos,
+        # #         roll    , pitch    , yaw,
+        # #         x_vel   , y_vel    , z_vel,
+        # #         roll_vel, pitch_vel, yaw_vel,
+        # #         x_accel , y_accel  , z_accel]
 
-        imu0_nodelay: false
-        imu0_differential: false
-        imu0_relative: false
-        imu0_queue_size: 7
+        # imu0_nodelay: false
+        # imu0_differential: false
+        # imu0_relative: false
+        # imu0_queue_size: 7
 
         #imu0_pose_rejection_threshold: 0.8                 # Note the difference in parameter names
         #imu0_twist_rejection_threshold: 0.8                #
@@ -106,7 +172,7 @@ ekf_filter_node:
 
 # [ADVANCED] Some IMUs automatically remove acceleration due to gravity, and others don't. If yours doesn't, please set
 # this to true, and *make sure* your data conforms to REP-103, specifically, that the data is in ENU frame.
-        imu0_remove_gravitational_acceleration: true
+        # imu0_remove_gravitational_acceleration: true
 
 # [ADVANCED]  The EKF and UKF models follow a standard predict/correct cycle. During prediction, if there is no
 # acceleration reference, the velocity at time t+1 is simply predicted to be the same as the velocity at time t. During
