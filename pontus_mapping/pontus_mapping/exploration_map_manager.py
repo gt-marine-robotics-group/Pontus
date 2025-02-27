@@ -3,9 +3,14 @@ import queue
 
 import rclpy
 from rclpy.node import Node
+from rclpy.action import ActionServer
 import tf_transformations
 from nav_msgs.msg import OccupancyGrid
 from nav_msgs.msg import Odometry
+from geometry_msgs.msg import Polygon
+from geometry_msgs.msg import Point32
+
+from pontus_msgs.action import SearchRegion
 
 '''
 This is intended to mark areas that are considered explored. 
@@ -15,6 +20,10 @@ Give next interested region if not found.
 Be able to update the bounds of the map based on our sonar
 
 The exploration map is represneted through an occupancy grid
+
+Set desired region
+TODO:
+Create Action Server
 '''
 
 class ExplorationMapManager(Node):
@@ -32,6 +41,13 @@ class ExplorationMapManager(Node):
             '/pontus/odometry',
             self.odometry_callback,
             10,
+        )
+
+        self.search_action_server = ActionServer(
+            self,
+            SearchRegion,
+            '/pontus/search_region',
+            execute_callback=self.search_execute_callback
         )
 
         self.timer = self.create_timer(
@@ -75,10 +91,32 @@ class ExplorationMapManager(Node):
 
     # Callbacks
     def odometry_callback(self, msg: Odometry):
+        """
+        Odometry callback function
+
+        Parameters:
+        msg (Odometry) : current odometry
+        """
         if not self.current_odometry:
             self.previous_odometry = msg
         self.current_odometry = msg
     
+
+    async def search_execute_callback(self, goal_handle):
+        """
+        Execute callback for /pontus/search_region action. This is intended to receive a polygon,
+        then search that polygon and conclude when that polygon is fully searched.
+
+        Parameters:
+        goal_handle : goal_handle from callback
+        """
+        request = goal_handle.request
+        # self.calculate_polygon_region_points()
+        goal_handle.succeed()
+        result = SearchRegion.Result()
+        result.completed = True
+        return result
+
 
     def convert_odom_point_to_map(self, current_point: tuple, map_width: float, map_height: float, map_resolution: float) -> int:
         """
@@ -96,61 +134,6 @@ class ExplorationMapManager(Node):
         map_x = self.my_floor(current_point[1], map_resolution) / map_resolution - map_width / 2
         map_y = self.my_floor(current_point[0], map_resolution) / map_resolution - map_height / 2
         return int(map_x * map_width + map_y)
-
-
-    def calculate_angle_difference(self, angle1: float, angle2: float) -> float:
-        """
-        Returns the absolute difference in radians between the two angles
-
-        Parameters:
-        angle1 (float) : first angle in radians
-        angle2 (float) : second angle in radians
-
-        Returns:
-        float : the difference in radians between angle1 and angle2
-        """
-        q1 = tf_transformations.quaternion_from_euler(0.0, 0.0, angle1)
-        q2 = tf_transformations.quaternion_from_euler(0.0, 0.0, angle2)
-
-        q1_inv = tf_transformations.quaternion_inverse(q1)
-        q_diff = tf_transformations.quaternion_multiply(q2, q1_inv)
-
-        angle = 2 * np.arccos(np.clip(q_diff[3], -1.0, 1.0))
-
-        return angle
-        
-
-    def within_bounds(self,
-                      current_x: float,
-                      current_y: float,
-                      current_yaw: float,
-                      new_x: float,
-                      new_y: float,
-                      perception_fov: float,
-                      perception_distance: float) -> bool:
-        """
-        Checks whether a given point is within our expected FOV
-
-        Parameters:
-        current_x (float) : current_x position
-        current_y (float) : current_y position
-        current_yaw (float) : Our current yaw
-        new_x (float) : new_x position we want to check if is perception bounds
-        new_y (float) : new_y position we want to check if is perception bounds
-        perception_fov (float) : The field of view of our perception in radians
-        perception_distance (float) : The max distance of our perception in meters
-
-        Returns:
-        bool : whether or not this point falls in this bound
-        """
-        # Calculate distance
-        new_distance = ((new_x - current_x) ** 2 + (new_y - current_y) ** 2) ** 0.5
-        # Calculate angle
-        new_yaw = np.arctan2(new_y - current_y, new_x - current_x)
-        angle_diff = self.calculate_angle_difference(new_yaw, current_yaw)
-        # self.get_logger().info(f"{new_x, new_y, new_yaw, current_yaw}")
-        return (- perception_fov / 2 <= angle_diff <= perception_fov / 2) \
-            and (new_distance <= perception_distance) 
         
 
     def my_floor(self, value: float, resolution: float) -> float:
@@ -165,34 +148,54 @@ class ExplorationMapManager(Node):
         (float) : floored value
         """
         return value - (value % resolution)
+    
 
-
-    def get_new_visited_squares(self,
-                                current_odom: Odometry,
-                                perception_fov: float,
-                                perception_distance: float,
-                                map_resolution: float) -> list:
+    def polygon_contained(self, polygon: Polygon, point: tuple[int, int]) -> bool:
         """
-        Performs breadth first search to generates points within the perception FOV 
-        and distance from the current pose
+        Function to determine whether or not a given point is within a polygon. This uses the ray-casting
+        algorithm
 
         Parameters:
-        current_odom (nav_msgs/Odometry) : The current pose of the sub
-        perception_fov (float) : The field of view of our perception in radians
-        perception_distance (float) : The max distance of our perception in meters
-        map_resolution (float) : The resolution of our map in meters
+        polygon (Polygon) : the bounding polygon
+        point (tuple[int, int]) : the point to be checked if inside the polygon
 
         Returns:
-        list: A list of (x,y) coordinates at the map_resolution that should be set as
-        visited
+        bool : whether or not the point is contained within the polygon
         """
-        # Quantisize these values
-        current_x = self.my_floor(current_odom.pose.pose.position.x, map_resolution)
-        current_y = self.my_floor(current_odom.pose.pose.position.y, map_resolution)
+        x, y = point[0], point[1]
+        vertices = polygon.points
+        n = len(vertices)
+        inside = False
+        j = n - 1
+        # If a ray casted by the point has an even number of intersections with the polygon, 
+        # then it is outside of the polygon
+        for i in range(n):
+            xi, yi = vertices[i].x, vertices[i].y
+            xj, yj = vertices[j].x, vertices[j].y
+            if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / (yj - yi) + xi):
+                inside = not inside
+            j = i
+        return inside
+    
 
-        q = queue.Queue()
-        visited_set = []
-        starting_points = [(-map_resolution, map_resolution),
+    def calculate_polygon_region_points(self, polygon: Polygon, map_resolution: float) -> list[tuple[int, int]]:
+        """
+        Given a geometry_msg/Polygon, return a list of points that are contained within that polygon.
+        This is done using a simple Breadth-First Search. 
+
+        Parameters:
+        polygon (geometry_msgs/Polygon) : Polygon in map coordinates of requested region
+        map_resolution (float) : The resolution of the map in meters
+
+        Returns:
+        list[tuple[int, int]] : a list of points that are within this region
+        """
+        bfs_queue = queue.Queue()
+        visited_set = set()
+        starting_point = (self.my_floor(polygon.points[0].x, map_resolution),
+                          self.my_floor(polygon.points[0].y, map_resolution))
+
+        neighbor_list = [(-map_resolution, map_resolution),
                            (map_resolution, -map_resolution),
                            (map_resolution, map_resolution),
                            (-map_resolution, -map_resolution),
@@ -200,34 +203,57 @@ class ExplorationMapManager(Node):
                            (0.0, -map_resolution),
                            (map_resolution, 0.0),
                            (-map_resolution, 0.0)]
-
-        _, _, current_yaw = tf_transformations.euler_from_quaternion([current_odom.pose.pose.orientation.x,
-                                                                      current_odom.pose.pose.orientation.y,
-                                                                      current_odom.pose.pose.orientation.z,
-                                                                      current_odom.pose.pose.orientation.w])
-
-        # Get starting points for breadth first search
-        for starting_point in starting_points:
-            new_x = current_x + starting_point[0]
-            new_y = current_y + starting_point[1]
-            if self.within_bounds(current_x, current_y, current_yaw, new_x, new_y, perception_fov, perception_distance):
-                q.put((new_x, new_y))
         
-        # Run breadth first search
-        neighbors = [(0.0, map_resolution), (map_resolution, 0.0), (-map_resolution, 0.0), (0.0, -map_resolution)]
-        while not q.empty():
-            current_node = q.get()
-            visited_set.append(current_node)
-            for neighbor in neighbors:
-                # If already visited or invalid point, skip
+        # Initial check to see which points to queue
+        for neighbor in neighbor_list:
+            new_starting_point = (starting_point[0] + neighbor[0], starting_point[1] + neighbor[1])
+            if self.polygon_contained(polygon, new_starting_point):
+                bfs_queue.put(new_starting_point)
+        
+        # Run BFS
+        while not bfs_queue.empty():
+            current_node = bfs_queue.get()
+            if current_node in visited_set:
+                continue
+            visited_set.add(current_node)
+            for neighbor in neighbor_list:
                 new_point = (current_node[0] + neighbor[0], current_node[1] + neighbor[1])
-                if new_point in visited_set or \
-                    not self.within_bounds(current_x, current_y, current_yaw, new_point[0], new_point[1], perception_fov, perception_distance):
+                if new_point in visited_set or not self.polygon_contained(polygon, new_point):
                     continue
-                visited_set.append(new_point)
-                q.put(new_point)
+                bfs_queue.put(new_point)
         
-        return visited_set
+        return list(visited_set)
+
+
+    def get_fov_polygon(self, current_odometry: Odometry, perception_fov: float, perception_distance: float) -> Polygon:
+        """
+        Returns a polygon in the map frame that defines our fov.
+
+        Parameters:
+        current_odometry (nav_msgs/Odometry) : our current odometry
+        perception_fov (float) : the angle of our perception fov in radians
+        perception_distance (float) : the max distance we can reliablely see in meters
+
+        Returns:
+        (geometry_msgs/Polygon) : the polygon representing our FOV
+        """
+        fov_polygon = Polygon()
+        current_x = current_odometry.pose.pose.position.x
+        current_y = current_odometry.pose.pose.position.y
+
+        fov_polygon.points.append(Point32(x=np.float32(current_x), y=np.float32(current_y)))
+        _, _, current_yaw = tf_transformations.euler_from_quaternion([current_odometry.pose.pose.orientation.x,
+                                                                      current_odometry.pose.pose.orientation.y,
+                                                                      current_odometry.pose.pose.orientation.z,
+                                                                      current_odometry.pose.pose.orientation.w])
+        r0, theta0 = perception_distance, current_yaw - perception_fov / 2
+        r1, theta1 = perception_distance, current_yaw + perception_fov / 2
+        
+        x0, y0 = np.float32(current_x + r0 * np.cos(theta0)), np.float32(current_y + r0 * np.sin(theta0))
+        x1, y1 = np.float32(current_x + r1 * np.cos(theta1)), np.float32(current_y + r1 * np.sin(theta1))
+        fov_polygon.points.append(Point32(x=x0, y=y0))
+        fov_polygon.points.append(Point32(x=x1, y=y1))
+        return fov_polygon
 
 
     def exploration_map_update(self):
@@ -238,9 +264,13 @@ class ExplorationMapManager(Node):
             self.get_logger().info("Waiting on odometry callback, skipping")
             return
         # Calculate which squares should be marked visited 
-        new_visited = self.get_new_visited_squares(self.current_odometry, self.perception_fov, self.perception_distance, self.map_resolution)
+        fov_polygon = self.get_fov_polygon(self.current_odometry, self.perception_fov, self.perception_distance)
+        new_visited = self.calculate_polygon_region_points(fov_polygon, self.map_resolution)
         for point in new_visited:
-            visited_square_location_index = self.convert_odom_point_to_map(point, self.map_width_cells, self.map_height_cells, self.map_resolution)
+            visited_square_location_index = self.convert_odom_point_to_map(point,
+                                                                           self.map_width_cells,
+                                                                           self.map_height_cells,
+                                                                           self.map_resolution)
             self.exploration_map.data[visited_square_location_index] = 100
         
         # Update on map where the robot is
@@ -260,7 +290,7 @@ class ExplorationMapManager(Node):
         )
         self.exploration_map.data[current_robot_map_index] = -1
         
-        
+        # Publish map
         self.exploration_map.header.stamp = self.get_clock().now().to_msg()
         self.exploration_map_publisher.publish(self.exploration_map)
         self.previous_odometry = self.current_odometry

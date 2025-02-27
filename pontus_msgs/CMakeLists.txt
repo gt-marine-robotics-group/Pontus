@@ -20,6 +20,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/GetVerticalMarkerLocation.srv"
   "srv/GateInformation.srv"
   "action/GoToPose.action"
+  "action/SearchRegion.action"
   DEPENDENCIES std_msgs geometry_msgs
 )
 

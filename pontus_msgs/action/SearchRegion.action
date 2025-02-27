@@ -1,0 +1,8 @@
+# Request
+geometry_msgs/Polygon search_zone
+---
+# Result
+bool completed
+---
+# Feedback
+geometry_msgs/Pose next_pose
