@@ -186,17 +186,17 @@
         <xU>-5</xU>
         <yV>-5</yV>
         <zW>-5</zW>
-        <kP>-5</kP>
+        <kP>-10</kP>
         <mQ>-5</mQ>
         <nR>-5</nR>
 
         <xUabsU>-2</xUabsU>
         <yVabsV>-20</yVabsV>
         <zWabsW>-20</zWabsW>
-        <kPabsP>-0.1</kPabsP>
+        <kPabsP>-10</kPabsP>
         <mQabsQ>-10</mQabsQ>
         <nRabsR>-10</nRabsR>
-            </plugin>
+      </plugin>
 
     <!-- Publishes perfect odometry data for testing controllers -->
     <plugin

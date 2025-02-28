@@ -124,7 +124,8 @@ class GateTask(BaseTask):
             left_gate_y = left_gate.x * np.sin(yaw) + left_gate.y * np.cos(yaw)
             right_gate_x = right_gate.x * np.cos(yaw) - right_gate.y * np.sin(yaw)
             right_gate_y = right_gate.x * np.sin(yaw) + right_gate.y * np.cos(yaw)
-            cmd_pose.position.x = self.current_pose.position.x + (left_gate_x + right_gate_x)/2
+            # TODO: Remove the 0.5
+            cmd_pose.position.x = self.current_pose.position.x + (left_gate_x + right_gate_x)/2 + 1.0 * np.cos(yaw)
             cmd_pose.position.y = self.current_pose.position.y + (left_gate_y + right_gate_y)/2
             cmd_pose.position.z = self.desired_depth
             # Denotes that we should just keep our orientation

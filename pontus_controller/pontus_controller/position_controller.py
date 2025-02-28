@@ -317,7 +317,7 @@ class PositionNode(Node):
             self.state = PositionControllerState.Angular_correction
 
             (r, p, y) = euler_from_quaternion(quat)
-            current_orientation = np.array([r, p, y])
+            current_orientation = np.array([0.0, 0.0, y])
             self.goal_angle = current_orientation
 
         # If we ever get stuck here, transition back to turn_to_point
@@ -335,6 +335,8 @@ class PositionNode(Node):
         (r, p, y) = euler_from_quaternion(quat)
         current_orientation = np.array([r, p, y])
         if self.cmd_angular[0] == -1.0:
+            current_orientation[0] = 0.0
+            current_orientation[1] = 0.0
             self.goal_angle = current_orientation
             self.state = PositionControllerState.Maintain_position
             self.get_logger().info("Skipping correct orientation")

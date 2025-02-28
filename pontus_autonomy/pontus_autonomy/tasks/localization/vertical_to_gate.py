@@ -57,12 +57,12 @@ class VerticalToGate(BaseTask):
                 gate_location = response.gate_location 
             else:
                 new_point = Point()
-                new_point.x = self.current_pose.position.x - 7.0
+                new_point.x = self.current_pose.position.x - 8.0
                 new_point.y = self.current_pose.position.y
                 new_point.z = self.current_pose.position.z
                 gate_location = new_point
                 self.get_logger().info("Failed to get location from service, using current position instead")
-            cmd_pose.position.x = gate_location.x + 3.0
+            cmd_pose.position.x = gate_location.x + 2.0
             cmd_pose.position.y = gate_location.y
             cmd_pose.position.z = gate_location.z
             cmd_pose.orientation.x = -1.0

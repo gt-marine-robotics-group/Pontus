@@ -95,7 +95,9 @@ class GateDetection(Node):
         self.left_yolo_result = None
         self.right_yolo_result = None
         self.camera_info = None
-        self.detect_functions = [self.get_gate_from_yolo, self.get_gate_from_stereo]
+        self.gate_width = self.get_parameter('gate_size').value
+        # self.detect_functions = [self.get_gate_from_yolo, self.get_gate_from_stereo]
+        self.detect_functions = [self.get_gate_from_yolo]
 
     def depth_callback(self, msg: Odometry):
         self.current_depth = msg.pose.pose.position.z
@@ -119,8 +121,8 @@ class GateDetection(Node):
     def get_gate_from_yolo(self):
         if None in [self.left_yolo_result, self.right_yolo_result, self.camera_info]:
             return None, None
-        left_gate, right_gate = YoloGateDetection.detect_gate(self.left_yolo_result, self.right_yolo_result, self.camera_info, self.tx_override)
-        return left_gate, right_gate
+        left_gate, right_gate, scaling_factor = YoloGateDetection.detect_gate(self.left_yolo_result, self.right_yolo_result, self.camera_info, self.gate_width, self.tx_override)
+        return left_gate, right_gate, scaling_factor
 
 
     def get_gate_from_stereo(self):
@@ -140,11 +142,12 @@ class GateDetection(Node):
         response.found = False
         # Iterate through a list of detection functions
         for detect_gate in self.detect_functions:
-            left_gate_detection, right_gate_detection = detect_gate()
+            left_gate_detection, right_gate_detection, scaling_factor = detect_gate()
             # If detection not found, move on to next detection function
             if left_gate_detection is None or right_gate_detection is None:
                 continue
             self.get_logger().info(f"Left gate: {left_gate_detection}, Right gate: {right_gate_detection}")
+            self.get_logger().info(f"Scaling factor: {scaling_factor}")
             # Publish Gate detection
             response.left_location.x = left_gate_detection[0]
             response.left_location.y = left_gate_detection[1]

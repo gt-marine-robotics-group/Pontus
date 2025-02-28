@@ -45,6 +45,12 @@ class YoloVerticalMarkerDetection:
             [0, -1, 0]])
 
         vm_body_frame =  np.dot(vm_optical_frame, R.T)
+        
+        scaling_factor = None
+        scaling_factor = 0.896
+        if scaling_factor:
+            vm_body_frame[0] = vm_body_frame[0] / scaling_factor
+            vm_body_frame[1] = vm_body_frame[1] / scaling_factor
         return vm_body_frame
 
 

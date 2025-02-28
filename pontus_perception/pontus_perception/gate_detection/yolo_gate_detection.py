@@ -9,7 +9,7 @@ class YoloGateDetection:
         pass
 
     @staticmethod
-    def detect_gate(left_yolo_result: YOLOResultArray, right_yolo_result: YOLOResultArray, camera_info: CameraInfo, Tx_override = -1.0):
+    def detect_gate(left_yolo_result: YOLOResultArray, right_yolo_result: YOLOResultArray, camera_info: CameraInfo, gate_width: float, Tx_override = -1.0):
         left_camera_gates = [None, None]
         right_camera_gates = [None, None]
         for result in left_yolo_result.results:
@@ -61,7 +61,17 @@ class YoloGateDetection:
         left_gate = first_gate_body_frame if first_gate_body_frame[1] > second_gate_body_frame[1] else second_gate_body_frame
         right_gate = first_gate_body_frame if first_gate_body_frame[1] < second_gate_body_frame[1] else second_gate_body_frame
 
-        return left_gate, right_gate
+
+        # Post process, if we know the gate is this many meters wide, then we can 
+        
+        current_width = left_gate[1] - right_gate[1]
+        scaling_factor = current_width / gate_width
+        left_gate[1] = left_gate[1] / scaling_factor
+        right_gate[1] = right_gate[1] / scaling_factor
+        left_gate[0] = left_gate[0] / scaling_factor
+        right_gate[0] = right_gate[0] / scaling_factor
+
+        return left_gate, right_gate, scaling_factor
 
 
         
