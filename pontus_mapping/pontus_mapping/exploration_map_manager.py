@@ -111,29 +111,36 @@ class ExplorationMapManager(Node):
         goal_handle : goal_handle from callback
         """
         request = goal_handle.request
-        # self.calculate_polygon_region_points()
+        interested_points = self.calculate_polygon_region_points(request.search_zone, self.map_resolution)
+        unvisited_points = set()
+        for interested_point in interested_points:
+            interested_points_indx = self.convert_odom_point_to_map(interested_point, self.map_width_cells, self.map_height_cells, self.map_resolution)
+            if self.exploration_map.data[interested_points_indx] == 100:
+                continue
+            self.exploration_map.data[interested_points_indx] = 50
+            unvisited_points.add(interested_point)
         goal_handle.succeed()
         result = SearchRegion.Result()
         result.completed = True
         return result
 
 
-    def convert_odom_point_to_map(self, current_point: tuple, map_width: float, map_height: float, map_resolution: float) -> int:
+    def convert_odom_point_to_map(self, current_point: tuple, map_width_cells: float, map_height_cells: float, map_resolution: float) -> int:
         """
         Takes a point from odometry and converts it to map frame
 
         Parameters:
         current_point (tuple(float, float)) : point we want to convert
-        map_width (float) : the width of the map in meters
-        map_height (float) : the height of the map in meters
+        map_width (float) : the width of the map in cells
+        map_height (float) : the height of the map in cells
         map_resolution (float) : the resolution of the map in meters
 
         Returns:
         int : the index in the map corresponding to the point
         """
-        map_x = self.my_floor(current_point[1], map_resolution) / map_resolution - map_width / 2
-        map_y = self.my_floor(current_point[0], map_resolution) / map_resolution - map_height / 2
-        return int(map_x * map_width + map_y)
+        map_x = self.my_floor(current_point[1], map_resolution) / map_resolution - map_width_cells / 2
+        map_y = self.my_floor(current_point[0], map_resolution) / map_resolution - map_height_cells / 2
+        return int(map_x * map_width_cells + map_y)
         
 
     def my_floor(self, value: float, resolution: float) -> float:
