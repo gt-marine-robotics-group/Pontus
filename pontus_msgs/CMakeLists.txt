@@ -19,6 +19,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/GetGateLocation.srv"
   "srv/GetVerticalMarkerLocation.srv"
   "srv/GateInformation.srv"
+  "srv/AddSemanticObject.srv"
   "action/GoToPose.action"
   "action/SearchRegion.action"
   DEPENDENCIES std_msgs geometry_msgs

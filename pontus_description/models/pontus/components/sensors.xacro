@@ -21,7 +21,7 @@
           <horizontal_fov>0.959931</horizontal_fov>
           <image>
             <width>1280</width>
-            <height>960</height>
+            <height>720</height>
           </image>
           <clip>
             <near>0.1</near>

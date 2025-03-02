@@ -16,6 +16,8 @@ setup(
         
         (os.path.join('share', package_name, 'config'), 
             glob(os.path.join('config', '*.yaml'))),
+        (os.path.join('share', package_name, 'visual_meshes'), 
+            glob(os.path.join('visual_meshes', '*'))),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -27,6 +29,7 @@ setup(
     entry_points={
         'console_scripts': [
             'exploration_map_manager = pontus_mapping.exploration_map_manager:main',
+            'semantic_map_manager = pontus_mapping.semantic_map_manager:main',
         ],
     },
 )
