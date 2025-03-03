@@ -92,10 +92,17 @@ def generate_launch_description():
         output='screen',
         condition=IfCondition(gazebo_config)
     )
-
+    
+    odom_to_map_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='static_transform_publisher',
+        arguments = ["--x", "0", "--y", "0", "--z", "0", "--roll", "0", "--pitch", "0", "--yaw", "0.0", "--frame-id", "odom", "--child-frame-id", "map"]
+    )
     return LaunchDescription([
         gazebo_arg,
         static_arg,
         robot_state_publisher,
+        odom_to_map_tf,
         spawn
     ])

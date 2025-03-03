@@ -1,14 +1,17 @@
 import pandas as pd
 from pandas import Series
 from enum import Enum
+import numpy as np
 
+import tf2_ros
+from tf2_geometry_msgs import do_transform_pose
 import rclpy
 from rclpy.node import Node
 from pontus_msgs.srv import AddSemanticObject
 from visualization_msgs.msg import MarkerArray
 from visualization_msgs.msg import Marker
+from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Pose
-
 
 class SemanticObject(Enum):
     LeftGate = 0
@@ -31,17 +34,76 @@ class SemanticMapManager(Node):
             10
         )
 
-        self.semantic_map = pd.DataFrame(columns=['type', 'unique_id', 'pose', 'num_detected', 'num_expected'])
+        self.semantic_map = pd.DataFrame(columns=['type', 'unique_id', 'x_loc', 'y_loc', 'z_loc', 'num_detected', 'num_expected', 'confidence'])
         self.object_seen_order = 0
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+
+
+    def convert_to_map_frame(self, position: PoseStamped, tf_buffer: tf2_ros.buffer) -> Pose:
+        """
+        Converts a point in relation to the body frame to the map frame
+
+        Parameters:
+        position (PoseStamped) : the point to transform
+        tf_buffer (tf2_ros.buffer) : tf buffer to get transform
+
+        Returns:
+        Pose : the pose in the map frame
+        """
+        transform = tf_buffer.lookup_transform(
+            "map",
+            position.header.frame_id,
+            rclpy.time.Time()
+        )
+        pose_map_frame = do_transform_pose(position.pose, transform)
+        return pose_map_frame
+
+
+    def remove_duplicates(self, current_object: SemanticObject, current_object_pose: Pose, min_distance: float) -> None:
+        """
+        Removes all duplicate detections within a min distance
+
+        Parameters:
+        current_object (SemanticObject) : the object we want to check duplicates for
+        current_object_pose (Pose) : 
+        min_distance (float) : the minimum distance to another marker
+
+        Returns:
+        None
+        """
+        distances = ((np.array(self.semantic_map['x_loc']) - current_object_pose.position.x)**2 \
+            + (np.array(self.semantic_map['y_loc']) - current_object_pose.position.y)**2 \
+            + (np.array(self.semantic_map['z_loc']) - current_object_pose.position.z)**2)**0.5
+        matches = self.semantic_map[(distances < min_distance) & (self.semantic_map['type'] == current_object)]
+        if len(matches) <= 1:
+            return
+        
+        total_weight = matches['confidence'].sum()
+        weighted_x = (matches['x_loc'] * matches['confidence']).sum() / total_weight
+        weighted_y = (matches['y_loc'] * matches['confidence']).sum() / total_weight
+        weighted_z = (matches['z_loc'] * matches['confidence']).sum() / total_weight
+
+        # new_entry = [current_object, self.object_seen_order, weighted_x, weighted_y, weighted_z, matches['num_detected'].sum(), matches['num_expected'].sum(), matches['num_detected'].sum() / matches['num_expected'].sum()]
+        new_entry = [current_object, self.object_seen_order, current_object_pose.position.x, current_object_pose.position.y, current_object_pose.position.z, matches['num_detected'].sum(), matches['num_expected'].sum(), matches['num_detected'].sum() / matches['num_expected'].sum()]
+        self.object_seen_order += 1
+        self.semantic_map = self.semantic_map.drop(matches.index)
+        self.semantic_map = self.semantic_map.reset_index(drop=True)
+        self.semantic_map.loc[len(self.semantic_map)] = new_entry
 
     
     def handle_add_semantic_object(self, request: AddSemanticObject.Request, response: AddSemanticObject.Response):
         """
         Add semantic object to the map.
         """
+        map_position = self.convert_to_map_frame(request.position, self.tf_buffer)
+        current_object = SemanticObject(request.id)
+        new_entry = [current_object, self.object_seen_order, map_position.position.x, map_position.position.y, map_position.position.z, 1, 1, 1.0]
+        self.semantic_map.loc[len(self.semantic_map)] = new_entry
         self.object_seen_order += 1
-        self.semantic_map.loc[len(self.semantic_map)] = [SemanticObject(request.id), self.object_seen_order, request.position, 1.0, 1.0]
+        self.remove_duplicates(current_object, map_position, 0.5)
         self.publish_semantic_map()
+        response.added = True
         return response
 
 
@@ -79,7 +141,9 @@ class SemanticMapManager(Node):
                 marker.scale.y = 1.0
                 marker.scale.z = 1.0
                 marker.pose = Pose()
-                marker.pose = row['pose']
+                marker.pose.position.x = row['x_loc']
+                marker.pose.position.y = row['y_loc']
+                marker.pose.position.z = row['z_loc']
                 marker.mesh_use_embedded_materials = True
 
             case SemanticObject.RightGate:
@@ -90,7 +154,9 @@ class SemanticMapManager(Node):
                 marker.scale.y = 1.0
                 marker.scale.z = 1.0
                 marker.pose = Pose()
-                marker.pose = row['pose']
+                marker.pose.position.x = row['x_loc']
+                marker.pose.position.y = row['y_loc']
+                marker.pose.position.z = row['z_loc']
                 marker.mesh_use_embedded_materials = True
             case _:
                 self.get_logger().info("Found marker with unknown object type, skipping")
@@ -110,6 +176,9 @@ class SemanticMapManager(Node):
         None
         """
         marker_array = MarkerArray()
+        marker = Marker()
+        marker.action = marker.DELETEALL
+        marker_array.markers.append(marker)
         # Iterate through semantic map dataframe and convert to display
         for _, row in self.semantic_map.iterrows():
             marker = Marker()
@@ -120,7 +189,7 @@ class SemanticMapManager(Node):
             self.set_marker_shape(row, marker)
             marker.action = Marker.ADD
             marker_array.markers.append(marker)
-        
+        self.get_logger().info(f"\n {self.semantic_map}")
         self.semantic_map_manager_pub.publish(marker_array)
 
 

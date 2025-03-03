@@ -35,7 +35,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'yolo = pontus_perception.yolo.yolo_node:main',
+            'yolo = pontus_perception.yolo_node:main',
             'image_preprocessing = pontus_perception.image_preprocessing.preprocessing_node:main',
             'sonoptix_cloud_transform = pontus_perception.sonoptix_pc_transform:main',
             'sonoptix = pontus_perception.sonoptix:main',
@@ -43,6 +43,8 @@ setup(
             'point_cloud_downsampling = pontus_perception.point_cloud_downsampling:main',
             'gate_detection = pontus_perception.gate_detection.gate_detection:main',
             'vertical_marker_detection = pontus_perception.vertical_marker_detection.vertical_marker_detection:main',
+            'bag2mp4 = pontus_perception.bag2mp4:main',
+            'yolo_pose_detection = pontus_perception.yolo_pose_detection:main',
         ],
     },
 )

@@ -78,7 +78,7 @@ class PositionNode(Node):
             self.pid_angular = [
                 PID(0.5, 0, 0), # R
                 PID(0.5, 0, 0), # P
-                PID(0.5, 0, 0)  # Y
+                PID(0.2, 0, 0.0001)  # Y
             ]
 
         self.thresh = 0.2
