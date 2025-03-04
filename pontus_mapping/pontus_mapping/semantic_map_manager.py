@@ -101,7 +101,7 @@ class SemanticMapManager(Node):
         new_entry = [current_object, self.object_seen_order, map_position.position.x, map_position.position.y, map_position.position.z, 1, 1, 1.0]
         self.semantic_map.loc[len(self.semantic_map)] = new_entry
         self.object_seen_order += 1
-        self.remove_duplicates(current_object, map_position, 0.5)
+        self.remove_duplicates(current_object, map_position, 1)
         self.publish_semantic_map()
         response.added = True
         return response

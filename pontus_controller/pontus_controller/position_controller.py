@@ -65,7 +65,7 @@ class PositionNode(Node):
             self.pid_angular = [
                 PID(0.5, 0, 0), # R
                 PID(0.5, 0, 0), # P
-                PID(1, 0, 0)  # Y
+                PID(0.4, 0, 0.0001)  # Y
             ]
         # Real values for sub
         else:

@@ -3,11 +3,20 @@ from rclpy.node import Node
 from message_filters import Subscriber, ApproximateTimeSynchronizer
 import numpy as np
 from sensor_msgs.msg import CameraInfo
+from stereo_msgs.msg import DisparityImage
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from cv_bridge import CvBridge
 
 from pontus_msgs.msg import YOLOResultArray
 from pontus_msgs.msg import YOLOResult
 from pontus_msgs.srv import AddSemanticObject
+
+from enum import Enum
+
+class SamplingMethod(Enum):
+    AVERAGE = 0
+    MEDIAN = 0
+
 
 class YoloPoseDetection(Node):
     def __init__(self):
@@ -35,6 +44,13 @@ class YoloPoseDetection(Node):
             10,
         )
 
+        self.disparity_sub = self.create_subscription(
+            DisparityImage,
+            '/disparity',
+            self.disparity_callback,
+            10
+        )
+
         self.camera_info_left_subscriber = self.create_subscription(
             CameraInfo,
             '/pontus/camera_2/camera_info',
@@ -56,6 +72,12 @@ class YoloPoseDetection(Node):
         self.cx = None
         self.cy = None
         self.f = None
+        self.disparity_msg = None
+        self.bridge = CvBridge()
+
+
+    def disparity_callback(self, msg):
+        self.disparity_msg = msg
 
 
     def camera_info_callback_right(self, msg: CameraInfo):
@@ -115,7 +137,7 @@ class YoloPoseDetection(Node):
         return valid_pairs
 
 
-    def calculate_3d_pose(self, 
+    def calculate_3d_pose_stereo(self, 
                           pair: tuple[YOLOResult, YOLOResult],
                           Tx: float, cx: float, cy: float, f: float) -> np.ndarray:
         """
@@ -146,6 +168,78 @@ class YoloPoseDetection(Node):
         return detection_body_frame
 
 
+    def calculate_3d_pose_disparity_map(self, left_result: YOLOResult, disparity_msg: DisparityImage, 
+                                        Tx: float, cx: float, cy: float, f: float,
+                                        sampling_method: SamplingMethod = SamplingMethod.MEDIAN) -> np.ndarray:
+        """
+        Given yolo detection and a disparity map, return the 3d pose
+
+        Parameters:
+        left_result (YOLOResult) : The yolo detection
+        disparity_image (np.ndarray) : The disparity image created by the left and right camera
+        Tx (float) : the translation in pixels between the left and right camera frame center
+        cx (float) : the x coordiante of the frame center of the left image
+        cy (float) : the y coordiante of the frame center of the left image
+        f (float) : the focal length in pixels of the left camera
+        sampling_method (SamplingMethod) : the sampling method to sample the bounding box of disparity values
+
+        Returns:
+        np.ndarray : the 3d pose of the detection in body coordinates
+        """
+        disparity_image = self.bridge.imgmsg_to_cv2(disparity_msg.image)
+        x_min, y_min, x_max, y_max = int(left_result.x1), int(left_result.y1), int(left_result.x2), int(left_result.y2)
+        disparity_cropped = disparity_image[y_min:y_max, x_min:x_max]
+        
+        # Filter out invalid distances
+        valid_disparities = disparity_cropped[disparity_cropped > 0]
+        
+        if len(valid_disparities) == 0:
+            return np.nan
+
+        match sampling_method:
+            case SamplingMethod.MEDIAN:
+                disparity = np.median(valid_disparities)
+            case SamplingMethod.AVERAGE:
+                disparity = np.mean(valid_disparities)
+        
+        left_cam_center_x = (left_result.x1 + left_result.x2) / 2
+        left_cam_center_y = (left_result.y1 + left_result.y2) / 2
+        z = Tx / disparity
+        x = (left_cam_center_x - cx) * z / f
+        y = (left_cam_center_y - cy) * z / f
+
+        detection_optical_frame = np.array([x, y, z])
+        R = np.array([[0, 0, 1],
+                        [-1, 0, 0],
+                        [0, -1, 0]])
+        detection_body_frame = np.dot(detection_optical_frame, R.T)
+        return detection_body_frame
+
+
+    def add_to_semantic_map(self, class_id: int, detection_body_frame: np.ndarray) -> None:
+        """
+        Adds a detection to the semantic map
+
+        Parameters:
+        class_id (int) : the class id of the object
+        detection_body_frame (np.ndarray) : the detection pose in body_frame coordaintes
+
+        Returns:
+        None
+        """
+        request = AddSemanticObject.Request()
+        request.id = class_id
+        request.position.header.frame_id = "camera_2"
+        request.position.pose.position.x = detection_body_frame[0]
+        request.position.pose.position.y = detection_body_frame[1]
+        request.position.pose.position.z = detection_body_frame[2]
+        future = self.add_semantic_object_client.call_async(request)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=2.0)
+        if future.result() is None:
+            self.get_logger().info("Failed to call add semantic object service")
+        self.get_logger().info(f'{class_id} {detection_body_frame}')
+
+
     def yolo_callback(self, left_result: YOLOResultArray, right_result: YOLOResultArray) -> None:
         """
         Approximate synchronized callback for left and right yolo results. This will do the following:
@@ -160,24 +254,30 @@ class YoloPoseDetection(Node):
         Returns:
         None
         """
-        if not self.Tx or not self.f:
+        if not self.Tx or not self.f or not self.disparity_msg:
             self.get_logger().info("Waiting to receive camera info topic")
             return
-        paired_detections = self.pair_detections(left_result, right_result, 0.5, 6, self.Tx)
-        for pair in paired_detections:
-            detection_body_frame = self.calculate_3d_pose(pair, self.Tx, self.cx, self.cy, self.f)
-            request = AddSemanticObject.Request()
-            request.id = pair[0].class_id
-            request.position.header.frame_id = "camera_2"
-            # request.position.header.stamp = self.get_clock().now()
-            request.position.pose.position.x = detection_body_frame[0]
-            request.position.pose.position.y = detection_body_frame[1]
-            request.position.pose.position.z = detection_body_frame[2]
-            future = self.add_semantic_object_client.call_async(request)
-            rclpy.spin_until_future_complete(self, future, timeout_sec=2.0)
-            if future.result() is None:
-                self.get_logger().info("Failed to call add semantic object service")
-            self.get_logger().info(f'{pair[0].class_id} {detection_body_frame}')
+        # This calculates the disparity by calculating the disparity between the center of the detection in the left camera
+        # and the center of the detection in the right camera
+        # Not robust, but doesn't heavily depend on stereo/calibration
+        # START
+        # paired_detections = self.pair_detections(left_result, right_result, 0.5, 6, self.Tx)
+        # for pair in paired_detections:
+        #     detection_body_frame = self.calculate_3d_pose_stereo(pair, self.Tx, self.cx, self.cy, self.f)
+        #     self.add_to_semantic_map(pair[0].class_id, detection_body_frame)
+        # END
+        
+        # This calculates the disparity by referencing the disparity map
+        # More robust, but need to have a good disparity map creating
+        # These also need to be aligned
+        # START
+        for detection in left_result.results:
+            detection_body_frame = self.calculate_3d_pose_disparity_map(detection, self.disparity_msg, self.Tx, self.cx, self.cy, self.f, SamplingMethod.MEDIAN)
+            # Will be nan if the object is out of the field of view of the camera
+            if np.isnan(detection_body_frame).any() or detection_body_frame[0] > 5:
+                continue
+            self.add_to_semantic_map(detection.class_id, detection_body_frame)
+        # END
 
 
 def main(args=None):

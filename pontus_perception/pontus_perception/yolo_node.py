@@ -28,7 +28,7 @@ class YOLONode(Node):
         self.get_logger().info(f"Using {self.device}")
         self.model = YOLO(model_path).to(self.device)
 
-        self.threshold = 0.4
+        self.threshold = 0.6
 
         self.image_sub = self.create_subscription(
             Image,
