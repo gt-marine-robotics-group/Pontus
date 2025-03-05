@@ -87,8 +87,8 @@ class SemanticMapManager(Node):
         # new_entry = [current_object, self.object_seen_order, weighted_x, weighted_y, weighted_z, matches['num_detected'].sum(), matches['num_expected'].sum(), matches['num_detected'].sum() / matches['num_expected'].sum()]
         new_entry = [current_object, self.object_seen_order, current_object_pose.position.x, current_object_pose.position.y, current_object_pose.position.z, matches['num_detected'].sum(), matches['num_expected'].sum(), matches['num_detected'].sum() / matches['num_expected'].sum()]
         self.object_seen_order += 1
-        self.semantic_map = self.semantic_map.drop(matches.index)
-        self.semantic_map = self.semantic_map.reset_index(drop=True)
+        self.semantic_map.drop(matches.index, inplace=True)
+        self.semantic_map.reset_index(drop=True, inplace=True)
         self.semantic_map.loc[len(self.semantic_map)] = new_entry
 
     
@@ -177,7 +177,7 @@ class SemanticMapManager(Node):
         """
         marker_array = MarkerArray()
         marker = Marker()
-        marker.action = marker.DELETEALL
+        marker.action = Marker.DELETEALL
         marker_array.markers.append(marker)
         # Iterate through semantic map dataframe and convert to display
         for _, row in self.semantic_map.iterrows():

@@ -1,17 +1,21 @@
+from enum import Enum
+import numpy as np
+import cv2
+
 import rclpy
 from rclpy.node import Node
+
+from cv_bridge import CvBridge
 from message_filters import Subscriber, ApproximateTimeSynchronizer
-import numpy as np
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from sensor_msgs.msg import CameraInfo
 from stereo_msgs.msg import DisparityImage
-from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
-from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
 
-from pontus_msgs.msg import YOLOResultArray
-from pontus_msgs.msg import YOLOResult
 from pontus_msgs.srv import AddSemanticObject
+from pontus_msgs.msg import YOLOResult
+from pontus_msgs.msg import YOLOResultArray
 
-from enum import Enum
 
 class SamplingMethod(Enum):
     AVERAGE = 0
@@ -58,6 +62,13 @@ class YoloPoseDetection(Node):
             10,
         )
 
+        self.left_camera_sub = self.create_subscription(
+            Image,
+            '/pontus/camera_2/image_raw',
+            self.left_camera_callback,
+            10
+        )
+
         self.service_callback_group = MutuallyExclusiveCallbackGroup()
         self.add_semantic_object_client = self.create_client(
             AddSemanticObject,
@@ -74,6 +85,11 @@ class YoloPoseDetection(Node):
         self.f = None
         self.disparity_msg = None
         self.bridge = CvBridge()
+        self.left_camera = None
+
+
+    def left_camera_callback(self, msg):
+        self.left_camera = self.bridge.imgmsg_to_cv2(msg)
 
 
     def disparity_callback(self, msg):
@@ -240,6 +256,41 @@ class YoloPoseDetection(Node):
         self.get_logger().info(f'{class_id} {detection_body_frame}')
 
 
+    def determine_if_left_gate(self, yolo_result: YOLOResult, image: np.ndarray) -> None:
+        """
+        Given a yolo result that is a gate_side return whether or not the gate detection represents
+        the left gate or the right gate.
+
+        Parameters:
+        yolo_result (YOLOResult) : the yolo result of the gate_side
+        image (np.ndarray) : the left camera feed that correlates to the yolo_result
+
+        Returns:
+        bool : if the gate_side detection is the left side or right side
+        """
+        x_min, x_max, y_min, y_max = int(yolo_result.x1), int(yolo_result.x2), int(yolo_result.y1), int(yolo_result.y2)
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        gate_image_slice = hsv[y_min : y_max, x_min: x_max]
+        mid_point = int(gate_image_slice.shape[0] / 2)
+        upper_half = gate_image_slice[:mid_point]
+        lower_half = gate_image_slice[mid_point:]
+
+        upper_half_hue_mean = np.mean(upper_half, axis=(0,1))[0]
+        lower_half_hue_mean = np.mean(lower_half, axis=(0,1))[0]
+
+        smaller_half_hue_mean = lower_half_hue_mean if lower_half_hue_mean < upper_half_hue_mean else upper_half_hue_mean
+        larger_half_hue_mean = upper_half_hue_mean if lower_half_hue_mean < upper_half_hue_mean else lower_half_hue_mean
+
+        # If the color is not drastically different, probably not the gate and a fake detection
+        if smaller_half_hue_mean / larger_half_hue_mean > 0.2:
+            return None
+        return smaller_half_hue_mean == upper_half_hue_mean
+        # self.get_logger().info(f"Upper: {x_min} {np.mean(upper_half, axis=(0,1))}")
+        # self.get_logger().info(f"Lower: {x_min} {np.mean(lower_half, axis=(0,1))}")
+        key = cv2.waitKey(1)
+        return True
+
+
     def yolo_callback(self, left_result: YOLOResultArray, right_result: YOLOResultArray) -> None:
         """
         Approximate synchronized callback for left and right yolo results. This will do the following:
@@ -276,6 +327,13 @@ class YoloPoseDetection(Node):
             # Will be nan if the object is out of the field of view of the camera
             if np.isnan(detection_body_frame).any() or detection_body_frame[0] > 5:
                 continue
+
+            # If detected gate size
+            if detection.class_id == 0:
+                left_side = self.determine_if_left_gate(detection, self.left_camera)
+                if left_side is None:
+                    continue
+                detection.class_id = 0 if left_side else 1
             self.add_to_semantic_map(detection.class_id, detection_body_frame)
         # END
 
