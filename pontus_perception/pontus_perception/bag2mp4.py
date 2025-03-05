@@ -16,8 +16,8 @@ class Bag2Mp4(Node):
             10
         )
         self.output = "output.mp4"
-        self.frame_width = 1920
-        self.frame_height = 1080
+        self.frame_width = 640
+        self.frame_height = 480
         fps = 30
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         self.out = cv2.VideoWriter(self.output, fourcc, fps, (self.frame_width, self.frame_height))

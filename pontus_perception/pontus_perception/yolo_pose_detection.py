@@ -38,7 +38,7 @@ class YoloPoseDetection(Node):
             '/pontus/camera_3/yolo_results'
         )
         self.ts = ApproximateTimeSynchronizer(
-            [self.left_yolo_sub, self.right_yolo_sub], 5, 0.1
+            [self.left_yolo_sub, self.right_yolo_sub], 3, 0.1
         )
 
         self.camera_info_right_subscriber = self.create_subscription(
@@ -83,6 +83,7 @@ class YoloPoseDetection(Node):
         self.cx = None
         self.cy = None
         self.f = None
+        self.image_width = None
         self.disparity_msg = None
         self.bridge = CvBridge()
         self.left_camera = None
@@ -104,11 +105,29 @@ class YoloPoseDetection(Node):
         self.f = msg.k[0]
         self.cx = msg.k[2]
         self.cy = msg.k[5]
+        self.image_width = msg.width
+
+
+    def at_bounds(self, detection_pair: tuple[YOLOResult, YOLOResult], image_width: int) -> bool:
+        """
+        Given a detection pair, see if any of the bounding boxes are at the edges of the frame.
+        If so, this will give us a inaccuracte depth estimation so we need to reject this pair.
+
+        Parameters:
+        detection_pair (tuple[YOLOResult, YOLOResult]) : the left and right camera detection pair
+        image_width (int) : the width of the image
+
+        Returns:
+        bool : whether any of the bounding boxes are near the frame of FOV
+        """
+        return (detection_pair[0].x1 <= 5 or detection_pair[0].x2 >= (image_width - 5) 
+                or detection_pair[1].x1 <= 5 or detection_pair[1].x2 >= (image_width - 5) )
 
 
     def pair_detections(self,
                         left_result: YOLOResultArray, right_result: YOLOResultArray,
-                        min_distance: float, max_distance: float, Tx: float) -> list[tuple[YOLOResult, YOLOResult]]:
+                        min_distance: float, max_distance: float, 
+                        Tx: float, image_width: int) -> list[tuple[YOLOResult, YOLOResult]]:
         """
         Use nearest neighbors algorithm to pair detections together to calculate disparity.
 
@@ -117,7 +136,8 @@ class YoloPoseDetection(Node):
         right_result (YOLOResultArray) : the detections from the right camera
         min_distance (float) : the minimum distance to be considered a detection
         max_distance (float) : the maximum distance to be considered a detection
-        Tx (float) : the translation of the left and right frame center in pixels 
+        Tx (float) : the translation of the left and right frame center in pixels
+        image_width (int) : the width of the iamge 
 
         Returns:
         list[tuple[YOLOResult, YOLOResult]] : pairs of YOLOResults representing the same object
@@ -147,7 +167,7 @@ class YoloPoseDetection(Node):
                     abs_disparity = left_yolo_result_center[0] - right_yolo_result_center[0]
             # Only add to list if found a pair and within dispairty
 
-            if current_pair and min_distance <= Tx / abs_disparity <= max_distance:
+            if current_pair and min_distance <= Tx / abs_disparity <= max_distance and not self.at_bounds(current_pair, image_width):
                 valid_pairs.append(current_pair)
             
         return valid_pairs
@@ -155,9 +175,12 @@ class YoloPoseDetection(Node):
 
     def calculate_3d_pose_stereo(self, 
                           pair: tuple[YOLOResult, YOLOResult],
-                          Tx: float, cx: float, cy: float, f: float) -> np.ndarray:
+                          Tx: float, cx: float, cy: float, f: float,
+                          sampling_method: SamplingMethod = SamplingMethod.AVERAGE) -> np.ndarray:
         """
-        Given two detections, calculate its 3D pose using camera intrsics and stereo
+        Given two detections, calculate its 3D pose using camera intrsics and stereo. This will use a series
+        of points to get a collection of disparities. Then using the sampling method it will use that disparity
+        to calculate its distance.
 
         Parameters:
         pair (tuple[YOLOResult, YOLOResult]) : pair of detections of the same object we want to calculate pose for
@@ -169,10 +192,29 @@ class YoloPoseDetection(Node):
         Returns:
         np.ndarray : a numpy array of size 3 containing the pose of the object in the relative body frame
         """
+        valid_disparities = []
+        
+        # Centers
         left_cam_center_x = (pair[0].x1 + pair[0].x2) / 2
         left_cam_center_y = (pair[0].y1 + pair[0].y2) / 2
         right_cam_center_x = (pair[1].x1 + pair[1].x2) / 2
-        z = Tx / (left_cam_center_x - right_cam_center_x)
+        # valid_disparities.append(left_cam_center_x - right_cam_center_x)
+
+        # Left Bound
+        valid_disparities.append(pair[0].x1 - pair[1].x1)
+
+        # Right Bound
+        # valid_disparities.append(pair[0].x2 - pair[1].x2)
+
+        valid_disparities = np.array(valid_disparities)
+
+        match sampling_method:
+            case SamplingMethod.MEDIAN:
+                disparity = np.median(valid_disparities)
+            case SamplingMethod.AVERAGE:
+                disparity = np.mean(valid_disparities)
+
+        z = Tx / disparity
         x = (left_cam_center_x - cx) * z / f
         y = (left_cam_center_y - cy) * z / f
 
@@ -282,13 +324,10 @@ class YoloPoseDetection(Node):
         larger_half_hue_mean = upper_half_hue_mean if lower_half_hue_mean < upper_half_hue_mean else lower_half_hue_mean
 
         # If the color is not drastically different, probably not the gate and a fake detection
+        self.get_logger().info(f"{smaller_half_hue_mean / larger_half_hue_mean}")
         if smaller_half_hue_mean / larger_half_hue_mean > 0.2:
             return None
         return smaller_half_hue_mean == upper_half_hue_mean
-        # self.get_logger().info(f"Upper: {x_min} {np.mean(upper_half, axis=(0,1))}")
-        # self.get_logger().info(f"Lower: {x_min} {np.mean(lower_half, axis=(0,1))}")
-        key = cv2.waitKey(1)
-        return True
 
 
     def yolo_callback(self, left_result: YOLOResultArray, right_result: YOLOResultArray) -> None:
@@ -308,33 +347,42 @@ class YoloPoseDetection(Node):
         if not self.Tx or not self.f or not self.disparity_msg:
             self.get_logger().info("Waiting to receive camera info topic")
             return
+        # The following two for loops are different ways to calculate the stereo depth of a detection. you should be using the disparity map,
+        # but currently our jetson can't handle calculating it on the GPU
+
         # This calculates the disparity by calculating the disparity between the center of the detection in the left camera
         # and the center of the detection in the right camera
         # Not robust, but doesn't heavily depend on stereo/calibration
         # START
-        # paired_detections = self.pair_detections(left_result, right_result, 0.5, 6, self.Tx)
-        # for pair in paired_detections:
-        #     detection_body_frame = self.calculate_3d_pose_stereo(pair, self.Tx, self.cx, self.cy, self.f)
-        #     self.add_to_semantic_map(pair[0].class_id, detection_body_frame)
+        paired_detections = self.pair_detections(left_result, right_result, 1, 6, self.Tx, self.image_width)
+        for pair in paired_detections:
+            detection_body_frame = self.calculate_3d_pose_stereo(pair, self.Tx, self.cx, self.cy, self.f)
+            if pair[0].class_id == 0:
+                left_side = self.determine_if_left_gate(pair[0], self.left_camera)
+                if left_side is None:
+                    continue
+                pair[0].class_id = 0 if left_side else 10
+            self.get_logger().info(f"{detection_body_frame}")
+            self.add_to_semantic_map(pair[0].class_id, detection_body_frame)
         # END
         
         # This calculates the disparity by referencing the disparity map
         # More robust, but need to have a good disparity map creating
         # These also need to be aligned
         # START
-        for detection in left_result.results:
-            detection_body_frame = self.calculate_3d_pose_disparity_map(detection, self.disparity_msg, self.Tx, self.cx, self.cy, self.f, SamplingMethod.MEDIAN)
-            # Will be nan if the object is out of the field of view of the camera
-            if np.isnan(detection_body_frame).any() or detection_body_frame[0] > 5:
-                continue
+        # for detection in left_result.results:
+        #     detection_body_frame = self.calculate_3d_pose_disparity_map(detection, self.disparity_msg, self.Tx, self.cx, self.cy, self.f, SamplingMethod.MEDIAN)
+        #     # Will be nan if the object is out of the field of view of the camera
+        #     if np.isnan(detection_body_frame).any() or detection_body_frame[0] > 10:
+        #         continue
 
-            # If detected gate size
-            if detection.class_id == 0:
-                left_side = self.determine_if_left_gate(detection, self.left_camera)
-                if left_side is None:
-                    continue
-                detection.class_id = 0 if left_side else 1
-            self.add_to_semantic_map(detection.class_id, detection_body_frame)
+        #     # If detected gate size
+        #     if detection.class_id == 0:
+        #         left_side = self.determine_if_left_gate(detection, self.left_camera)
+        #         if left_side is None:
+        #             continue
+        #         detection.class_id = 0 if left_side else 1
+        #     self.add_to_semantic_map(detection.class_id, detection_body_frame)
         # END
 
 

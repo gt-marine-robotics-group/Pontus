@@ -190,12 +190,12 @@
         <mQ>-5</mQ>
         <nR>-5</nR>
 
-        <xUabsU>-2</xUabsU>
-        <yVabsV>-20</yVabsV>
-        <zWabsW>-20</zWabsW>
-        <kPabsP>-0.1</kPabsP>
-        <mQabsQ>-10</mQabsQ>
-        <nRabsR>-10</nRabsR>
+        <xUabsU>-6.2282</xUabsU>
+        <yVabsV>-60</yVabsV>
+        <zWabsW>-60</zWabsW>
+        <kPabsP>-0.1916</kPabsP>
+        <mQabsQ>-63</mQabsQ>
+        <nRabsR>-63</nRabsR>
             </plugin>
 
     <!-- Publishes perfect odometry data for testing controllers -->

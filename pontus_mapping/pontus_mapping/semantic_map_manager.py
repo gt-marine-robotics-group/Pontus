@@ -15,7 +15,8 @@ from geometry_msgs.msg import Pose
 
 class SemanticObject(Enum):
     LeftGate = 0
-    RightGate = 1
+    RightGate = 10
+    VerticalMarker = 1
 
 
 class SemanticMapManager(Node):
@@ -34,7 +35,7 @@ class SemanticMapManager(Node):
             10
         )
 
-        self.semantic_map = pd.DataFrame(columns=['type', 'unique_id', 'x_loc', 'y_loc', 'z_loc', 'num_detected', 'num_expected', 'confidence'])
+        self.semantic_map = pd.DataFrame(columns=['type', 'x_loc', 'y_loc', 'z_loc', 'num_detected', 'num_expected', 'confidence'])
         self.object_seen_order = 0
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
@@ -51,11 +52,16 @@ class SemanticMapManager(Node):
         Returns:
         Pose : the pose in the map frame
         """
-        transform = tf_buffer.lookup_transform(
-            "map",
-            position.header.frame_id,
-            rclpy.time.Time()
-        )
+        for i in range(0,5):
+            try:
+                transform = tf_buffer.lookup_transform(
+                    "map",
+                    position.header.frame_id,
+                    rclpy.time.Time()
+                )
+            except Exception as e:
+                self.get_logger().info(f"Attempt: {i} Failed to get map transfrom")
+
         pose_map_frame = do_transform_pose(position.pose, transform)
         return pose_map_frame
 
@@ -84,9 +90,8 @@ class SemanticMapManager(Node):
         weighted_y = (matches['y_loc'] * matches['confidence']).sum() / total_weight
         weighted_z = (matches['z_loc'] * matches['confidence']).sum() / total_weight
 
-        # new_entry = [current_object, self.object_seen_order, weighted_x, weighted_y, weighted_z, matches['num_detected'].sum(), matches['num_expected'].sum(), matches['num_detected'].sum() / matches['num_expected'].sum()]
-        new_entry = [current_object, self.object_seen_order, current_object_pose.position.x, current_object_pose.position.y, current_object_pose.position.z, matches['num_detected'].sum(), matches['num_expected'].sum(), matches['num_detected'].sum() / matches['num_expected'].sum()]
-        self.object_seen_order += 1
+        # new_entry = [current_object, weighted_x, weighted_y, weighted_z, matches['num_detected'].sum(), matches['num_expected'].sum(), matches['num_detected'].sum() / matches['num_expected'].sum()]
+        new_entry = [current_object, current_object_pose.position.x, current_object_pose.position.y, current_object_pose.position.z, matches['num_detected'].sum(), matches['num_expected'].sum(), matches['num_detected'].sum() / matches['num_expected'].sum()]
         self.semantic_map.drop(matches.index, inplace=True)
         self.semantic_map.reset_index(drop=True, inplace=True)
         self.semantic_map.loc[len(self.semantic_map)] = new_entry
@@ -98,10 +103,9 @@ class SemanticMapManager(Node):
         """
         map_position = self.convert_to_map_frame(request.position, self.tf_buffer)
         current_object = SemanticObject(request.id)
-        new_entry = [current_object, self.object_seen_order, map_position.position.x, map_position.position.y, map_position.position.z, 1, 1, 1.0]
+        new_entry = [current_object, map_position.position.x, map_position.position.y, map_position.position.z, 1, 1, 1]
         self.semantic_map.loc[len(self.semantic_map)] = new_entry
-        self.object_seen_order += 1
-        self.remove_duplicates(current_object, map_position, 1)
+        self.remove_duplicates(current_object, map_position, 1.5)
         self.publish_semantic_map()
         response.added = True
         return response
@@ -117,7 +121,7 @@ class SemanticMapManager(Node):
         Returns:
         int : the hash valued
         """
-        return row['type'].value * 10000 + row['unique_id']
+        return row.name
 
 
     def set_marker_shape(self, row: Series, marker: Marker) -> None:
@@ -158,6 +162,17 @@ class SemanticMapManager(Node):
                 marker.pose.position.y = row['y_loc']
                 marker.pose.position.z = row['z_loc']
                 marker.mesh_use_embedded_materials = True
+            case SemanticObject.VerticalMarker:
+                marker.type=Marker.MESH_RESOURCE
+                marker.mesh_resource = "package://pontus_mapping/visual_meshes/VerticalMarker.obj"
+                marker.scale.x = 1.0
+                marker.scale.y = 1.0
+                marker.scale.z = 1.0
+                marker.pose = Pose()
+                marker.pose.position.x = row['x_loc']
+                marker.pose.position.y = row['y_loc']
+                marker.pose.position.z = row['z_loc']
+                marker.mesh_use_embedded_materials = True
             case _:
                 self.get_logger().info("Found marker with unknown object type, skipping")
         
@@ -181,6 +196,8 @@ class SemanticMapManager(Node):
         marker_array.markers.append(marker)
         # Iterate through semantic map dataframe and convert to display
         for _, row in self.semantic_map.iterrows():
+            if row['num_detected'] < 15:
+                continue
             marker = Marker()
             marker.header.frame_id = "map"
             marker.header.stamp = self.get_clock().now().to_msg()
