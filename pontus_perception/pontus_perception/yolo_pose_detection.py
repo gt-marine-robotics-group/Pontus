@@ -344,7 +344,8 @@ class YoloPoseDetection(Node):
         Returns:
         None
         """
-        if not self.Tx or not self.f or not self.disparity_msg:
+        if not self.Tx or not self.f:
+        # if not self.Tx or not self.f or not self.disparity_msg:
             self.get_logger().info("Waiting to receive camera info topic")
             return
         # The following two for loops are different ways to calculate the stereo depth of a detection. you should be using the disparity map,
