@@ -23,7 +23,7 @@ class VelocityNode(Node):
         # TODO: Tune these
         self.pid_linear = [
           PID(20, 0, 0, 2), # X
-          PID(10, 0, 0, 2), # Y
+          PID(20, 0, 0, 2), # Y
           PID(10, 0, 0, 2)  # Z
         ]
 
@@ -35,9 +35,9 @@ class VelocityNode(Node):
         # ]
 
         self.pid_angular = [
-          PID(2, 0, 0, 2), # R
-          PID(2, 0, 0, 2), # P
-          PID(2, 0, 0, 2)  # Y
+          PID(1, 0, 0, 0), # R
+          PID(1, 0, 0, 0), # P
+          PID(1.15, 0, 0, 0)  # Y
         ]
 
         # ROS infrastructure
@@ -75,19 +75,15 @@ class VelocityNode(Node):
         msg.linear.x = self.pid_linear[0](linear_err[0], self.get_clock().now() - self.prev_time)
         msg.linear.y = self.pid_linear[1](linear_err[1], self.get_clock().now() - self.prev_time)
         msg.linear.z = self.pid_linear[2](linear_err[2], self.get_clock().now() - self.prev_time)
-
         msg.angular.z = self.pid_angular[2](angular_err[2], self.get_clock().now() - self.prev_time)
-
-        '''
-        msg.angular.x = self.pid_angular[0](angular_err[0], self.get_clock().now() - self.prev_time)
+        # msg.angular.x = self.pid_angular[0](angular_err[0], self.get_clock().now() - self.prev_time)
         msg.angular.y = self.pid_angular[1](angular_err[1], self.get_clock().now() - self.prev_time)
-        '''
-        msg.angular.x = self.cmd_angular[0]
-        msg.angular.y = self.cmd_angular[1]
+        self.prev_time = self.get_clock().now()        
+        # msg.angular.x = self.cmd_angular[0]
+        # msg.angular.y = self.cmd_angular[1]
 
         self.cmd_accel_pub.publish(msg)
 
-        self.prev_time = self.get_clock().now()
 
 def main(args=None):
     rclpy.init(args=args)

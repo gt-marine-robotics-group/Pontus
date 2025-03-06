@@ -3,7 +3,7 @@ gate_detection:
     # Pool depht used for removing floor points
     pool_depth: -2.1336
     # Gate size used to verify clusters
-    gate_size: 3.0
+    gate_size: 2.0
     gate_size_tolerance: 0.3
     remove_statistical_outlier_nb_neighbors: 30
     remove_statistical_outlier_std_ratio: 3.0

@@ -27,7 +27,7 @@ def generate_launch_description():
         ),
         Node(
             package='pontus_sensors',
-            executable='dvl_republish',
+            executable='dvl_republish.py',
             name='dvl_republish',
             output='screen',
         )

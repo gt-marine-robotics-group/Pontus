@@ -9,24 +9,25 @@ class YoloGateDetection:
         pass
 
     @staticmethod
-    def detect_gate(left_yolo_result: YOLOResultArray, right_yolo_result: YOLOResultArray, camera_info: CameraInfo, Tx_override = -1.0):
+    def detect_gate(left_yolo_result: YOLOResultArray, right_yolo_result: YOLOResultArray, camera_info: CameraInfo, gate_width: float, Tx_override = -1.0):
         left_camera_gates = [None, None]
         right_camera_gates = [None, None]
         for result in left_yolo_result.results:
-            if result.class_id == 0:
+            # if result.class_id == 0:
+            if result.x1 < 320:
                 left_camera_gates[0] = np.array([(result.x1 + result.x2) / 2 , (result.y1 + result.y2) / 2])
-            if result.class_id == 1:
+            if result.x2 > 320:
                 left_camera_gates[1] = np.array([(result.x1 + result.x2) / 2 , (result.y1 + result.y2) / 2])
 
         for result in right_yolo_result.results:
-            if result.class_id == 0:
+            if result.x1 < 300:
                 right_camera_gates[0] = np.array([(result.x1 + result.x2) / 2 , (result.y1 + result.y2) / 2])
-            if result.class_id == 1:
+            if result.x2 > 350:
                 right_camera_gates[1] = np.array([(result.x1 + result.x2) / 2 , (result.y1 + result.y2) / 2])
         
         # If gate is not seen by both cameras, return none
         if any(gate is None for gate in left_camera_gates) or any(gate is None for gate in right_camera_gates):
-            return None, None
+            return None, None, None
         
         # Tx = -fx * B
         f = camera_info.k[0]
@@ -61,7 +62,17 @@ class YoloGateDetection:
         left_gate = first_gate_body_frame if first_gate_body_frame[1] > second_gate_body_frame[1] else second_gate_body_frame
         right_gate = first_gate_body_frame if first_gate_body_frame[1] < second_gate_body_frame[1] else second_gate_body_frame
 
-        return left_gate, right_gate
+
+        # Post process, if we know the gate is this many meters wide, then we can 
+        
+        current_width = left_gate[1] - right_gate[1]
+        scaling_factor = current_width / gate_width
+        left_gate[1] = left_gate[1] / scaling_factor
+        right_gate[1] = right_gate[1] / scaling_factor
+        left_gate[0] = left_gate[0] / scaling_factor
+        right_gate[0] = right_gate[0] / scaling_factor
+
+        return left_gate, right_gate, scaling_factor
 
 
         

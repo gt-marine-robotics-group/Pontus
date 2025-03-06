@@ -74,7 +74,7 @@ class HybridControllerNode(Node):
         self.cmd_angular = np.array([msg.angular.x, msg.angular.y, msg.angular.z])
 
     def odometry_callback(self, msg):
-
+        self.depth_msg = msg
 
         # Compute and publish the body accelerations
         accel_msg = Twist()
@@ -92,8 +92,8 @@ class HybridControllerNode(Node):
         accel_msg.angular.z = self.cmd_angular[2]
 
         # Direct command linear x, y
-        accel_msg.linear.x = 0.7 * self.cmd_linear[0]
-        accel_msg.linear.y = 1.5 * self.cmd_linear[1]
+        accel_msg.linear.x = 5 * self.cmd_linear[0]
+        accel_msg.linear.y = 5 * self.cmd_linear[1]
 
         accel_msg.linear.z = self.pid_linear[2](self.cmd_depth - msg.pose.pose.position.z, self.get_clock().now() - self.prev_time)
 

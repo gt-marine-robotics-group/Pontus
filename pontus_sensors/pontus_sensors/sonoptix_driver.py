@@ -33,6 +33,7 @@ class SonoptixDriver(Node):
             history=QoSHistoryPolicy.RMW_QOS_POLICY_HISTORY_KEEP_LAST,
             depth=1
         )
+
         self.pub = self.create_publisher(
             Image,
             '/pontus/sonar_0/image_debug',
@@ -46,7 +47,7 @@ class SonoptixDriver(Node):
         )
 
         self.cv_bridge = CvBridge()
-        self.timer = self.create_timer(0.1, self.timer_callback)
+        # self.timer = self.create_timer(0.1, self.timer_callback)
         
         rtsp_url = f'rtsp://{self.ip_address}:8554/raw'
         api_url = f'http://{self.ip_address}:8000/api/v1'
@@ -55,7 +56,7 @@ class SonoptixDriver(Node):
             "enable": True,
             "sonar_range": self.range,
         })
-
+        
         # TODO: Make sure that these are correct
         requests.patch(api_url + '/config', json={
             "contrast": 0,
@@ -63,26 +64,33 @@ class SonoptixDriver(Node):
             "mirror_image": True,
             "autodetect_orientation": 0
         })
-        
+
         # Puts the stream into RTSP
         requests.put(api_url + '/streamtype', json={
             "value": 2,
         })
 
         self.cap = cv2.VideoCapture(rtsp_url)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        self.get_sonoptix()
 
 
-    def timer_callback(self):
-        ret, frame = self.cap.read()
-        if ret:
-            # preprocessed_image = self.preprocess_frame(frame)
-            preprocessed_image = frame
-            ros_image = self.cv_bridge.cv2_to_imgmsg(preprocessed_image, encoding="bgr8")
-            # laser_scan = self.convert_to_laserscan(preprocessed_image)
-            # self.laser_scan_publish.publish(laser_scan)
-            self.pub.publish(ros_image)
-        else:
-            self.get_logger().warn("Failed to read frame")
+    def get_sonoptix(self):
+        while self.cap.isOpened():
+            ret, frame = self.cap.read()
+            if ret:
+                cv2.imshow("Frame", frame)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q'):
+                    break
+                preprocessed_image = self.preprocess_frame(frame)
+                # preprocessed_image = frame
+                ros_image = self.cv_bridge.cv2_to_imgmsg(preprocessed_image, encoding="bgr8")
+                # laser_scan = self.convert_to_laserscan(preprocessed_image)
+                # self.laser_scan_publish.publish(laser_scan)
+                self.pub.publish(ros_image)
+            else:
+                self.get_logger().warn("Failed to read frame")
 
 
     def convert_to_laserscan(self, image):
@@ -111,14 +119,16 @@ class SonoptixDriver(Node):
 
     def preprocess_frame(self, frame):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        masked = cv2.inRange(gray, self.intensity_threshold, 255)
-        return masked
+        masked = cv2.inRange(gray, 3, 255)
+        # masked = cv2.inRange(gray, self.intensity_threshold, 255)
+        color = cv2.cvtColor(masked, cv2.COLOR_GRAY2BGR)
+        return color
 
 
 def main(args=None):
     rclpy.init(args=args)
     sonoptix_node = SonoptixDriver()
-    rclpy.spin(sonoptix_node)
+    rclpy.spin_once(sonoptix_node)
     rclpy.shutdown()
 
 
