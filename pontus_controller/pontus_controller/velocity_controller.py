@@ -70,7 +70,6 @@ class VelocityNode(Node):
         linear_err = self.cmd_linear - v_linear
         angular_err = self.cmd_angular - v_angular
 
-
         # Compute and publish the body accelerations
         msg = Twist()
         msg.linear.x = self.pid_linear[0](linear_err[0], self.get_clock().now() - self.prev_time)
