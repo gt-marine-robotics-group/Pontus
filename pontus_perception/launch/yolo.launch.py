@@ -42,6 +42,12 @@ def generate_launch_description():
                 ]
             )
         )
-   
+    yolo_pose_detection = Node(
+        package='pontus_perception',
+        executable='yolo_pose_detection',
+        name='yolo_pose_detection',
+        output='screen',
+    )
+    ld.append(yolo_pose_detection)
 
     return LaunchDescription(ld)

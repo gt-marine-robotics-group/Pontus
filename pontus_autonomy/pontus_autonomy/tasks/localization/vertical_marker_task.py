@@ -111,17 +111,18 @@ class VerticalMarkerTask(BaseTask):
         cmd_pose = Pose()
         if not self.detected and self.current_pose is not None:
             vertical_marker = self.get_vertical_marker_location()
+            GREEN = "\033[92m"
+            RESET = "\033[0m"
+            YELLOW = "\033[93m"
             if vertical_marker is None:
                 self.get_logger().info("Unable to find vertical marker")
                 return None
-            self.get_logger().info(f"{vertical_marker}")
+            self.get_logger().info(f"{GREEN} Found Vertical Marker! {RESET} {vertical_marker}")
+            vertical_surprise = """⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⠤⠤⡀⠀⠀⠀⠀⠀⠀⠀⢠⢤⡀⠀⠀⠀⠀⠠⣄⣀⣀⡤⠤⠤⠤⠤⠤⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡤⠎⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⠇⠀⠙⡄⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣜⣀⣀⣀⣀⢇⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢣⠀⠀⠀⠀⠀⠀⠀⢠⠀⠀⠀⢸⠀⠀⠀⠀⠀⠸⡀⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢧⡀⠀⠀⠀⠀⢠⠃⠀⠀⢰⠃⠀⠀⠀⠀⠀⠘⡆⠀⠀⠀⠀⠀⠀⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⠋⠓⢤⠈⠦⢄⡠⠴⠃⠀⠀⠀⠘⠂⠀⠀⠀⠀⠀⠀⠁⠀⠀⠀⠀⠀⠀⣠⠤⠤⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠈⢧⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡴⠋⠀⠀⠀⠘⡆⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠙⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠏⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⢇⠀⠀⠀⠀⠀⠀⠈⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡴⠁⠀⠀⠀⠀⠀⠀⢠⠇⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⡀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⠀⠀⠀⠈⢇⡤⠤⠖⠒⠒⠋⠉⠉⠓⠲⢤⠜⠁⠀⠀⠀⠀⠀⠀⠀⠀⡞⠀⠀⣠⠔⠀⠀⠀⠀⠀\n⠀⠀⠀⠉⠓⠤⢄⣀⢀⡤⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣀⡤⡄⠀⠀⠀⠀⠀⣀⡠⠤⠤⡄⠀⠀⠀⠀⠀⠀⣰⠯⢷⠋⠁⠀⠀⠀⠀⠀\n⠀⠉⠓⠦⣄⡀⠀⢠⠏⠉⠉⠑⠒⠒⠀⠀⠀⠴⠋⠀⠀⠀⠀⠁⠀⠀⠀⡉⠁⠀⠀⠀⠀⠉⠀⠠⠴⠒⠉⠀⠀⠀⡠⠇⠀⢀⣀⡤⠄⠀\n⠀⠀⠀⠀⠀⠈⠑⠺⡤⢄⣀⣀⣀⣀⣀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣉⡷⠾⠥⢴⠤⠤⠄⠀⠀⠀⠀⣠⠤⠤⢤⠞⠛⠉⠈⠁⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠄⠐⠦⣄⠘⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⠁⠀⣇⠀⠀⠀⡸⠀⠀⠀⠀⠀⠀⠀⠀⠀⢯⠀⠀⢀⡴⠊⠃⠁⢻⠀⠀\n⠀⠀⠀⠀⠲⡀⠀⠀⢑⣏⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠒⠒⠋⠀⠀⠀⠀⠀⠀⠀⠀⣀⡼⠦⠊⠁⠀⠀⠀⠀⡴⠁⠀\n⠀⠀⠀⠀⠀⠙⡆⠀⠘⠊⠳⠤⠤⠤⠤⠒⠒⠋⠉⠑⢤⣀⠀⣀⡠⠤⠒⠉⠳⠤⠤⠴⠊⠉⠁⠀⠀⠀⠀⠀⠀⠀⠀⣀⡇⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠈⠧⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡀⠀⠀⠀⠀⠀⣀⡠⠤⠚⠁⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠈⠓⠒⠒⠒⠲⠤⣄⣤⠴⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⢷⠒⠒⠒⠒⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡖⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢣⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡼⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣏⡠⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢧⠀⠀⠀⠀⠀⠀⠀⠀⠀"""
             # Convert detection to odom frame
-            _, _, yaw = tf_transformations.euler_from_quaternion([self.current_pose.orientation.x, self.current_pose.orientation.y, self.current_pose.orientation.z, self.current_pose.orientation.w])
-            vertical_x = vertical_marker.x * np.cos(yaw) - vertical_marker.y * np.sin(yaw)
-            vertical_y = vertical_marker.x * np.sin(yaw) + vertical_marker.y * np.cos(yaw)
-
-            cmd_pose.position.x = self.current_pose.position.x + (vertical_x - 1.0)
-            cmd_pose.position.y = self.current_pose.position.y + vertical_y
+            self.get_logger().info(f"\n{vertical_surprise}")
+            cmd_pose.position.x = vertical_marker.x - 1.5
+            cmd_pose.position.y = vertical_marker.y
             cmd_pose.position.z = self.desired_depth
             self.detected = True
             return cmd_pose

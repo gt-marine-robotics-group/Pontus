@@ -15,12 +15,12 @@ from pontus_msgs.srv import GetGateLocation
 from geometry_msgs.msg import Pose
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Point
+from pontus_msgs.srv import GetVerticalMarkerLocation
 
 class SemanticObject(Enum):
     LeftGate = 0
     RightGate = 10
     VerticalMarker = 1
-
 
 class SemanticMapManager(Node):
     def __init__(self):
@@ -39,12 +39,16 @@ class SemanticMapManager(Node):
         )
 
         # Detection services:
-        self.service = self.create_service(
+        self.gate_service = self.create_service(
             GetGateLocation,
             '/pontus/get_gate_detection',
             self.handle_get_gate_detection
         )
-
+        self.vertical_marker_service = self.create_service(
+            GetVerticalMarkerLocation,
+            '/pontus/get_vertical_marker_detection',
+            self.handle_get_vertical_marker_location
+        )
 
         # TODO: Remove this
         # For now since we're having issues with detections while moving, we turn off the semantic map
@@ -104,6 +108,22 @@ class SemanticMapManager(Node):
         # If no gate found, say no gate found and return
         return response
     
+    def handle_get_vertical_marker_location(self, request: GetVerticalMarkerLocation.Request, response: GetVerticalMarkerLocation.Response):
+        response.location = Point()
+        response.found = False
+        vertical_marker_confidence = 30
+        vertical_marker = None
+        for _, row in self.semantic_map.iterrows():
+            if row['type'] == SemanticObject.VerticalMarker and row['num_detected'] > vertical_marker_confidence:
+                vertical_marker = row
+                vertical_marker_confidence = row['num_detected']
+        if vertical_marker is not None:
+            response.location.x = vertical_marker['x_loc']
+            response.location.y = vertical_marker['y_loc']
+            response.location.z = vertical_marker['z_loc']
+            response.found = True
+        return response
+
 
     def velocity_callback(self, msg: Odometry):
         self.current_velocity[0] = np.array([msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z])
