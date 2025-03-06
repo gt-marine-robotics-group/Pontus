@@ -30,10 +30,10 @@ class PositionNode(Node):
         self.state = PositionControllerState.Maintain_position
         self.transition_threshold = {}
         self.transition_threshold[PositionControllerState.Z_correction] = 0.1
-        self.transition_threshold[PositionControllerState.Direction_correction] = 0.02
+        self.transition_threshold[PositionControllerState.Direction_correction] = 0.2
         self.transition_threshold[PositionControllerState.Linear_correction] = 0.1
         self.transition_threshold[PositionControllerState.Strafe] = 0.05
-        self.transition_threshold[PositionControllerState.Angular_correction] = 0.1
+        self.transition_threshold[PositionControllerState.Angular_correction] = 0.12
 
         self.deadzone = 0.2
         self.stuck_error_threshold = 0.3
@@ -72,17 +72,17 @@ class PositionNode(Node):
             self.pid_linear = [
                 PID(1.0, 0, 0), # X
                 PID(0.5, 0, 0), # Y
-                PID(5, 0, 0)  # Z
+                PID(2.5, 0.1, 0, 0.12)  # Z
             ]
             
             self.pid_angular = [
                 PID(0.5, 0, 0), # R
                 PID(0.5, 0, 0), # P
-                PID(0.5, 0, 0)  # Y
+                PID(0.12, 0.000001, 0.00001, 0.3)  # Y
             ]
 
         self.thresh = 0.2
-        self.angular_thresh = 0.05
+        self.angular_thresh = 0.1
         self.hold_point = False
         
         self.goal_pose = np.zeros(3)
@@ -212,21 +212,22 @@ class PositionNode(Node):
                 linear_err = np.zeros(3)
                 angular_err = np.zeros(3)
 
+
         # Compute and publish the body vel commands, we cannot move in y direction
         msg: Twist = Twist()
         msg.linear.x = self.pid_linear[0](linear_err[0], self.get_clock().now() - self.prev_time)
-        msg.linear.y = self.pid_linear[1](linear_err[1], self.get_clock().now() - self.prev_time)
+        msg.linear.y = self.pid_linear[1](linear_err[1], self.get_clock().now() - self.prev_time)   
         msg.linear.z = self.pid_linear[2](linear_err[2], self.get_clock().now() - self.prev_time)
 
-        msg.angular.x = self.pid_angular[0](angular_err[0], self.get_clock().now() - self.prev_time)
+        # msg.angular.x = self.pid_angular[0](angular_err[0], self.get_clock().now() - self.prev_time)
         msg.angular.y = self.pid_angular[1](angular_err[1], self.get_clock().now() - self.prev_time)
         msg.angular.z = self.pid_angular[2](angular_err[2], self.get_clock().now() - self.prev_time)
-
+        self.prev_time = self.get_clock().now()
+        # self.get_logger().info(f"Twist: {msg.angular.z}")
+        # self.get_logger().info(f"Error: {angular_err[2]}")
         if not self.controller_mode:
             self.cmd_vel_pub.publish(msg)
             self.hold_point_pub.publish(Bool(data=self.hold_point))
-
-        self.prev_time = self.get_clock().now()
 
     
     def calculate_angular_error(self, desired_angle, current_angle):
@@ -299,7 +300,7 @@ class PositionNode(Node):
         goal_orientation = np.array([0, 0, np.arctan2(linear_difference[1], linear_difference[0])])
         angular_err = self.calculate_angular_error(goal_orientation, current_orientation)
         
-        if np.linalg.norm(angular_err) < self.transition_threshold[PositionControllerState.Direction_correction]:
+        if angular_err[2] < self.transition_threshold[PositionControllerState.Direction_correction]:
             self.state = PositionControllerState.Linear_correction
             self.goal_angle = goal_orientation
             self.prev_linear_time_under_threshold = self.get_clock().now()

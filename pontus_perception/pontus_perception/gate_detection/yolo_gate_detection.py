@@ -13,20 +13,21 @@ class YoloGateDetection:
         left_camera_gates = [None, None]
         right_camera_gates = [None, None]
         for result in left_yolo_result.results:
-            if result.class_id == 0:
+            # if result.class_id == 0:
+            if result.x1 < 320:
                 left_camera_gates[0] = np.array([(result.x1 + result.x2) / 2 , (result.y1 + result.y2) / 2])
-            if result.class_id == 1:
+            if result.x2 > 320:
                 left_camera_gates[1] = np.array([(result.x1 + result.x2) / 2 , (result.y1 + result.y2) / 2])
 
         for result in right_yolo_result.results:
-            if result.class_id == 0:
+            if result.x1 < 300:
                 right_camera_gates[0] = np.array([(result.x1 + result.x2) / 2 , (result.y1 + result.y2) / 2])
-            if result.class_id == 1:
+            if result.x2 > 350:
                 right_camera_gates[1] = np.array([(result.x1 + result.x2) / 2 , (result.y1 + result.y2) / 2])
         
         # If gate is not seen by both cameras, return none
         if any(gate is None for gate in left_camera_gates) or any(gate is None for gate in right_camera_gates):
-            return None, None
+            return None, None, None
         
         # Tx = -fx * B
         f = camera_info.k[0]

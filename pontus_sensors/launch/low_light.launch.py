@@ -9,6 +9,7 @@ def generate_launch_description():
     pontus_sensors_share = get_package_share_directory('pontus_sensors')
     left_config_file = f'{pontus_sensors_share}/config/low_light_camera_left.yaml'
     right_config_file = f'{pontus_sensors_share}/config/low_light_camera_right.yaml'
+    left_middle_config_file = f'{pontus_sensors_share}/config/low_light_camera_middle_left.yaml'
     return LaunchDescription([
         Node(
             package='usb_cam',
@@ -36,5 +37,17 @@ def generate_launch_description():
                 ('/camera_info', '/pontus/camera_3/camera_info')
                 ]
         ),
-
+        Node(
+            package='usb_cam',
+            executable='usb_cam_node_exe',
+            output='screen',
+            parameters=[left_middle_config_file],
+            remappings=[
+                ('/image_raw', '/pontus/camera_4/image_raw'),
+                ('/image_raw/compressed', '/pontus/camera_4/image_raw/compressed'),
+                ('/image_raw/compressedDepth', '/pontus/camera_4/image_raw/compressedDepth'),
+                ('/image_raw/theora', '/pontus/camera_4/image_raw/theora'),
+                ('/camera_info', '/pontus/camera_4/camera_info')
+                ]
+        ),
     ])

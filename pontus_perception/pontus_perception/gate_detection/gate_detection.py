@@ -120,7 +120,7 @@ class GateDetection(Node):
 
     def get_gate_from_yolo(self):
         if None in [self.left_yolo_result, self.right_yolo_result, self.camera_info]:
-            return None, None
+            return None, None, None
         left_gate, right_gate, scaling_factor = YoloGateDetection.detect_gate(self.left_yolo_result, self.right_yolo_result, self.camera_info, self.gate_width, self.tx_override)
         return left_gate, right_gate, scaling_factor
 

@@ -69,7 +69,7 @@ class ThrusterController(Node):
 
         #TODO: make these parameters or something
         self.vehicle_name = 'pontus'
-        self.max_thrust = 15.0
+        self.max_thrust = 30.0
 
         #TODO: These could be pulled from the robot description topic
 

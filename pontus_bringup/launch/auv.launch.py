@@ -30,9 +30,15 @@ def generate_launch_description():
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 #os.path.join(controller_share, 'launch', 'direct_control.launch.py')
-                #os.path.join(controller_share, 'launch', 'vel_control.launch.py')
+                # os.path.join(controller_share, 'launch', 'vel_control.launch.py')
                 os.path.join(controller_share, 'launch', 'pos_control.launch.py')
             ),
             launch_arguments={'auv': auv_config}.items()
-        )
+        ),
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(localization_share, 'launch', 'localization.launch.py')
+            ),
+            launch_arguments={'auv': auv_config}.items()
+        ),
     ])
