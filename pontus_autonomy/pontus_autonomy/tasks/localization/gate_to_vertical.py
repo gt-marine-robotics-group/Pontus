@@ -7,7 +7,11 @@ from pontus_autonomy.tasks.base_task import BaseTask
 class GateToVertical(BaseTask):
     def __init__(self):
         super().__init__("gate_to_vertical")
-
+        ### Hyperparameters
+        
+        # Denotes how much forward the sub should go before attempting the vertical marker
+        self.forward_distance = 7.0
+        ###
         self.odom_sub = self.create_subscription(
             Odometry,
             '/pontus/odometry',
@@ -25,7 +29,7 @@ class GateToVertical(BaseTask):
         self.cmd_sent = False
     
     # Callbacks
-    def odom_callback(self, msg):
+    def odom_callback(self, msg: Odometry):
         self.current_pose = msg.pose.pose
 
     # Autonomy?
@@ -36,7 +40,7 @@ class GateToVertical(BaseTask):
 
         if not self.cmd_sent:
             cmd_pose = Pose()
-            cmd_pose.position.x = self.current_pose.position.x + 7.0
+            cmd_pose.position.x = self.current_pose.position.x + self.forward_distance
             cmd_pose.position.y = self.current_pose.position.y
             cmd_pose.position.z = self.current_pose.position.z
             self.go_to_pose_client.go_to_pose(cmd_pose)

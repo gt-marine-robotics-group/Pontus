@@ -1392,10 +1392,10 @@
     <include>
       <uri>Gate</uri>
       <!-- <pose>3.1 0.5 -1.8 1.57 0 1.57</pose> -->
-      <pose>3.1 0 -1.8 1.57 0 -1.57</pose>
+      <pose>4 0 -1.8 1.57 0 -1.57</pose>
     </include>
 
-    <!-- <model name='prequal_marker'>
+    <model name='prequal_marker'>
       <pose>13 0 -1.2 0 0 0</pose>
       <link name='marker_cylinder'>
         <inertial>
@@ -1428,7 +1428,7 @@
       </link>
       <static>true</static>
       <self_collide>false</self_collide>
-    </model> -->
+    </model>
 
   </world>
 </sdf>

@@ -7,10 +7,14 @@ class Submerge(BaseTask):
     def __init__(self):
         super().__init__('submerge')
 
-        self.go_to_pose_client = GoToPoseClient(self)
+        ### Hyperparameters
 
+        # Determines the desired depth the sub should start autonomy
         self.desired_depth = -1.5
 
+        ###
+
+        self.go_to_pose_client = GoToPoseClient(self)
 
         self.timer = self.create_timer(
             0.2, self.submerge

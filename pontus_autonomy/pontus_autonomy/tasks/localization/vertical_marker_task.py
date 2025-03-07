@@ -1,11 +1,12 @@
 from enum import Enum
-import numpy as np
+from typing import Optional
 
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+import rclpy.client
 from geometry_msgs.msg import Pose
 from nav_msgs.msg import Odometry
-import tf_transformations
+from geometry_msgs.msg import Point
 
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient
 from pontus_autonomy.tasks.base_task import BaseTask
@@ -52,22 +53,52 @@ class VerticalMarkerTask(BaseTask):
         self.current_desired_position = 0
         self.desired_depth = None
     
-    def state_debugger(self):
+
+    def state_debugger(self) -> None:
+        """
+        Displays state changes in the state machine
+
+        Parameters:
+        None
+
+        Returns:
+        None
+        """
         if self.previous_state != self.state:
             self.get_logger().info(f"Now at: {self.state.name}")
             self.previous_state = self.state
     
+
     # Callbacks
-    def odom_callback(self, msg: Odometry):
+    def odom_callback(self, msg: Odometry) -> None:
+        """
+        Keeps track of current odometry. On the first odometry message, will set the desired depth
+        as the current depth.
+
+        Parameters:
+        msg (Odometry) : odometry message from /pontus/odometry
+
+        Returns:
+        None
+        """
         if self.current_pose is None:
             self.desired_depth = msg.pose.pose.position.z
         self.current_pose = msg.pose.pose
 
     
     # Helpers
-    def get_vertical_marker_location(self):
+    def get_vertical_marker_location(self, detection_client: rclpy.client.Client) -> Optional[Point]:
+        """
+        Returns the vertical marker detection if detected
+
+        Parameters:
+        detection_client (rclpy.client.Client) : the vertical marker detection client
+
+        Returns:
+        Optional[Point] : vertical marker detection if located
+        """
         request = GetVerticalMarkerLocation.Request()
-        future = self.vertical_marker_detection_client.call_async(request)
+        future = detection_client.call_async(request)
         rclpy.spin_until_future_complete(self, future, timeout_sec=1.0)
         vertical_marker = None
         if future.result() is not None:
@@ -77,7 +108,17 @@ class VerticalMarkerTask(BaseTask):
         self.get_logger().debug(f"{vertical_marker}")
         return vertical_marker
 
-    def copy_pose(self, pose):
+
+    def copy_pose(self, pose: Pose) -> Pose:
+        """
+        Deep copies the given pose.
+
+        Parameters:
+        pose (Pose) : the pose we want to copy
+
+        Returns:
+        Pose : the copied pose
+        """
         new_pose = Pose()
         new_pose.position.x = pose.position.x
         new_pose.position.y = pose.position.y
@@ -110,7 +151,7 @@ class VerticalMarkerTask(BaseTask):
     def search(self):
         cmd_pose = Pose()
         if not self.detected and self.current_pose is not None:
-            vertical_marker = self.get_vertical_marker_location()
+            vertical_marker = self.get_vertical_marker_location(self.vertical_marker_detection_client)
             GREEN = "\033[92m"
             RESET = "\033[0m"
             YELLOW = "\033[93m"
