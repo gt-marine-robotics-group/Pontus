@@ -36,7 +36,7 @@ def generate_launch_description():
                     {'auv': auv_config_str}
                 ],
                 remappings=[
-                    ('input', topic + '/image_raw'),
+                    ('input', topic + '/image_rect_color'),
                     ('results', topic + '/yolo_results'),
                     ('yolo_debug', topic + '/yolo_debug')
                 ]

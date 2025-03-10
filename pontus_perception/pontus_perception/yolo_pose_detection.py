@@ -49,8 +49,8 @@ class YoloPoseDetection(Node):
         )
 
         self.disparity_sub = self.create_subscription(
-            DisparityImage,
-            '/disparity',
+            Image,
+            '/disparity_image',
             self.disparity_callback,
             10
         )
@@ -244,7 +244,7 @@ class YoloPoseDetection(Node):
         Returns:
         np.ndarray : the 3d pose of the detection in body coordinates
         """
-        disparity_image = self.bridge.imgmsg_to_cv2(disparity_msg.image)
+        disparity_image = self.bridge.imgmsg_to_cv2(disparity_msg)
         x_min, y_min, x_max, y_max = int(left_result.x1), int(left_result.y1), int(left_result.x2), int(left_result.y2)
         disparity_cropped = disparity_image[y_min:y_max, x_min:x_max]
         
@@ -344,8 +344,8 @@ class YoloPoseDetection(Node):
         Returns:
         None
         """
-        if not self.Tx or not self.f:
-        # if not self.Tx or not self.f or not self.disparity_msg:
+        # if not self.Tx or not self.f:
+        if not self.Tx or not self.f or not self.disparity_msg:
             self.get_logger().info("Waiting to receive camera info topic")
             return
         # The following two for loops are different ways to calculate the stereo depth of a detection. you should be using the disparity map,
@@ -355,35 +355,35 @@ class YoloPoseDetection(Node):
         # and the center of the detection in the right camera
         # Not robust, but doesn't heavily depend on stereo/calibration
         # START
-        paired_detections = self.pair_detections(left_result, right_result, 1, 6, self.Tx, self.image_width)
-        for pair in paired_detections:
-            detection_body_frame = self.calculate_3d_pose_stereo(pair, self.Tx, self.cx, self.cy, self.f)
-            if pair[0].class_id == 0:
-                left_side = self.determine_if_left_gate(pair[0], self.left_camera)
-                if left_side is None:
-                    continue
-                pair[0].class_id = 0 if left_side else 10
-            self.get_logger().info(f"{detection_body_frame}")
-            self.add_to_semantic_map(pair[0].class_id, detection_body_frame)
+        # paired_detections = self.pair_detections(left_result, right_result, 1, 6, self.Tx, self.image_width)
+        # for pair in paired_detections:
+        #     detection_body_frame = self.calculate_3d_pose_stereo(pair, self.Tx, self.cx, self.cy, self.f)
+        #     if pair[0].class_id == 0:
+        #         left_side = self.determine_if_left_gate(pair[0], self.left_camera)
+        #         if left_side is None:
+        #             continue
+        #         pair[0].class_id = 0 if left_side else 10
+        #     self.get_logger().info(f"{detection_body_frame}")
+        #     self.add_to_semantic_map(pair[0].class_id, detection_body_frame)
         # END
         
         # This calculates the disparity by referencing the disparity map
         # More robust, but need to have a good disparity map creating
         # These also need to be aligned
         # START
-        # for detection in left_result.results:
-        #     detection_body_frame = self.calculate_3d_pose_disparity_map(detection, self.disparity_msg, self.Tx, self.cx, self.cy, self.f, SamplingMethod.MEDIAN)
-        #     # Will be nan if the object is out of the field of view of the camera
-        #     if np.isnan(detection_body_frame).any() or detection_body_frame[0] > 10:
-        #         continue
+        for detection in left_result.results:
+            detection_body_frame = self.calculate_3d_pose_disparity_map(detection, self.disparity_msg, self.Tx, self.cx, self.cy, self.f, SamplingMethod.MEDIAN)
+            # Will be nan if the object is out of the field of view of the camera
+            if np.isnan(detection_body_frame).any() or detection_body_frame[0] > 10:
+                continue
 
-        #     # If detected gate size
-        #     if detection.class_id == 0:
-        #         left_side = self.determine_if_left_gate(detection, self.left_camera)
-        #         if left_side is None:
-        #             continue
-        #         detection.class_id = 0 if left_side else 1
-        #     self.add_to_semantic_map(detection.class_id, detection_body_frame)
+            # If detected gate size
+            if detection.class_id == 0:
+                left_side = self.determine_if_left_gate(detection, self.left_camera)
+                if left_side is None:
+                    continue
+                detection.class_id = 0 if left_side else 10
+            self.add_to_semantic_map(detection.class_id, detection_body_frame)
         # END
 
 
