@@ -256,6 +256,7 @@ class GateTask(BaseTask):
             cmd_pose.position.x = (self.left_gate.x + self.right_gate.x)/2
             cmd_pose.position.y = (self.left_gate.y + self.right_gate.y)/2
             cmd_pose.position.z = self.desired_depth
+            cmd_pose.orientation.x = -1.0
             self.sent = True
             return cmd_pose
         

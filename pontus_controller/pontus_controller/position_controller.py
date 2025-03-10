@@ -30,10 +30,10 @@ class PositionNode(Node):
         self.state = PositionControllerState.Maintain_position
         self.transition_threshold = {}
         self.transition_threshold[PositionControllerState.Z_correction] = 0.1
-        self.transition_threshold[PositionControllerState.Direction_correction] = 0.2
+        self.transition_threshold[PositionControllerState.Direction_correction] = 0.1
         self.transition_threshold[PositionControllerState.Linear_correction] = 0.1
         self.transition_threshold[PositionControllerState.Strafe] = 0.05
-        self.transition_threshold[PositionControllerState.Angular_correction] = 0.12
+        self.transition_threshold[PositionControllerState.Angular_correction] = 0.1
 
         self.deadzone = 0.2
         self.stuck_error_threshold = 0.3

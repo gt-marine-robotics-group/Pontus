@@ -23,7 +23,7 @@
             <attenuation>
                 <range>10</range>
                 <constant>1</constant>
-                <linear>0.5</linear>
+                <linear>0.12</linear>
                 <quadratic>0.05</quadratic>
             </attenuation>
             <cutoff>0.785</cutoff>

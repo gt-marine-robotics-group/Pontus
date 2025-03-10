@@ -141,15 +141,15 @@ class SemanticMapManager(Node):
         Returns:
         Pose : the pose in the map frame
         """
-        for i in range(0,5):
-            try:
-                transform = tf_buffer.lookup_transform(
-                    "map",
-                    position.header.frame_id,
-                    rclpy.time.Time()
-                )
-            except Exception as e:
-                self.get_logger().info(f"Attempt: {i} Failed to get map transfrom")
+        try:
+            transform = tf_buffer.lookup_transform(
+                "map",
+                position.header.frame_id,
+                rclpy.time.Time()
+            )
+        except Exception as e:
+            self.get_logger().info(f"Attempt: Failed to get map transfrom")
+            return None
 
         pose_map_frame = do_transform_pose(position.pose, transform)
         return pose_map_frame
@@ -208,6 +208,9 @@ class SemanticMapManager(Node):
             self.get_logger().info("Moving, skipping add to semantic map")
             return response
         map_position = self.convert_to_map_frame(request.position, self.tf_buffer)
+        if not map_position:
+            self.get_logger().warn("Unable to find map transform, skipping add")
+            return response
         current_object = SemanticObject(request.id)
         new_entry = [current_object, map_position.position.x, map_position.position.y, map_position.position.z, 1, 1, 1]
         self.semantic_map.loc[len(self.semantic_map)] = new_entry
