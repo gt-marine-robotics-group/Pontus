@@ -37,7 +37,7 @@ class VelocityNode(Node):
         self.pid_angular = [
           PID(1, 0, 0, 0), # R
           PID(1, 0, 0, 0), # P
-          PID(1.15, 0, 0, 0)  # Y
+          PID(0.7, 0, 0, 0)  # Y
         ]
 
         # ROS infrastructure
