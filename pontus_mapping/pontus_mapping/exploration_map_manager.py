@@ -11,6 +11,7 @@ from geometry_msgs.msg import Polygon
 from geometry_msgs.msg import Point32
 
 from pontus_msgs.action import SearchRegion
+from pontus_mapping.helpers import get_fov_polygon, polygon_contained
 
 '''
 This is intended to mark areas that are considered explored. 
@@ -157,34 +158,6 @@ class ExplorationMapManager(Node):
         return value - (value % resolution)
     
 
-    def polygon_contained(self, polygon: Polygon, point: tuple[int, int]) -> bool:
-        """
-        Function to determine whether or not a given point is within a polygon. This uses the ray-casting
-        algorithm
-
-        Parameters:
-        polygon (Polygon) : the bounding polygon
-        point (tuple[int, int]) : the point to be checked if inside the polygon
-
-        Returns:
-        bool : whether or not the point is contained within the polygon
-        """
-        x, y = point[0], point[1]
-        vertices = polygon.points
-        n = len(vertices)
-        inside = False
-        j = n - 1
-        # If a ray casted by the point has an even number of intersections with the polygon, 
-        # then it is outside of the polygon
-        for i in range(n):
-            xi, yi = vertices[i].x, vertices[i].y
-            xj, yj = vertices[j].x, vertices[j].y
-            if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / (yj - yi) + xi):
-                inside = not inside
-            j = i
-        return inside
-    
-
     def calculate_polygon_region_points(self, polygon: Polygon, map_resolution: float) -> list[tuple[int, int]]:
         """
         Given a geometry_msg/Polygon, return a list of points that are contained within that polygon.
@@ -214,7 +187,7 @@ class ExplorationMapManager(Node):
         # Initial check to see which points to queue
         for neighbor in neighbor_list:
             new_starting_point = (starting_point[0] + neighbor[0], starting_point[1] + neighbor[1])
-            if self.polygon_contained(polygon, new_starting_point):
+            if polygon_contained(polygon, new_starting_point):
                 bfs_queue.put(new_starting_point)
         
         # Run BFS
@@ -225,42 +198,11 @@ class ExplorationMapManager(Node):
             visited_set.add(current_node)
             for neighbor in neighbor_list:
                 new_point = (current_node[0] + neighbor[0], current_node[1] + neighbor[1])
-                if new_point in visited_set or not self.polygon_contained(polygon, new_point):
+                if new_point in visited_set or not polygon_contained(polygon, new_point):
                     continue
                 bfs_queue.put(new_point)
         
         return list(visited_set)
-
-
-    def get_fov_polygon(self, current_odometry: Odometry, perception_fov: float, perception_distance: float) -> Polygon:
-        """
-        Returns a polygon in the map frame that defines our fov.
-
-        Parameters:
-        current_odometry (nav_msgs/Odometry) : our current odometry
-        perception_fov (float) : the angle of our perception fov in radians
-        perception_distance (float) : the max distance we can reliablely see in meters
-
-        Returns:
-        (geometry_msgs/Polygon) : the polygon representing our FOV
-        """
-        fov_polygon = Polygon()
-        current_x = current_odometry.pose.pose.position.x
-        current_y = current_odometry.pose.pose.position.y
-
-        fov_polygon.points.append(Point32(x=np.float32(current_x), y=np.float32(current_y)))
-        _, _, current_yaw = tf_transformations.euler_from_quaternion([current_odometry.pose.pose.orientation.x,
-                                                                      current_odometry.pose.pose.orientation.y,
-                                                                      current_odometry.pose.pose.orientation.z,
-                                                                      current_odometry.pose.pose.orientation.w])
-        r0, theta0 = perception_distance, current_yaw - perception_fov / 2
-        r1, theta1 = perception_distance, current_yaw + perception_fov / 2
-        
-        x0, y0 = np.float32(current_x + r0 * np.cos(theta0)), np.float32(current_y + r0 * np.sin(theta0))
-        x1, y1 = np.float32(current_x + r1 * np.cos(theta1)), np.float32(current_y + r1 * np.sin(theta1))
-        fov_polygon.points.append(Point32(x=x0, y=y0))
-        fov_polygon.points.append(Point32(x=x1, y=y1))
-        return fov_polygon
 
 
     def exploration_map_update(self):
@@ -271,7 +213,7 @@ class ExplorationMapManager(Node):
             self.get_logger().info("Waiting on odometry callback, skipping")
             return
         # Calculate which squares should be marked visited 
-        fov_polygon = self.get_fov_polygon(self.current_odometry, self.perception_fov, self.perception_distance)
+        fov_polygon = get_fov_polygon(self.current_odometry, self.perception_fov, self.perception_distance)
         new_visited = self.calculate_polygon_region_points(fov_polygon, self.map_resolution)
         for point in new_visited:
             visited_square_location_index = self.convert_odom_point_to_map(point,

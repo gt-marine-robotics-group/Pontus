@@ -16,6 +16,10 @@ from geometry_msgs.msg import Pose
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Point
 from pontus_msgs.srv import GetVerticalMarkerLocation
+from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Polygon
+
+from pontus_mapping.helpers import get_fov_polygon, polygon_contained
 
 class SemanticObject(Enum):
     LeftGate = 0
@@ -50,21 +54,21 @@ class SemanticMapManager(Node):
             self.handle_get_vertical_marker_location
         )
 
-        # TODO: Remove this
-        # For now since we're having issues with detections while moving, we turn off the semantic map
-        # when we move
-        self.velocity_sub = self.create_subscription(
+        # Since we're having issues with detections while moving, we turn off the semantic map
+        # when we move. This will also be useful for calculating fov confidences
+        self.odom_sub = self.create_subscription(
             Odometry, 
             '/pontus/odometry',
-            self.velocity_callback,
+            self.odom_callback,
             10,
         )
 
-        self.semantic_map = pd.DataFrame(columns=['type', 'x_loc', 'y_loc', 'z_loc', 'num_detected', 'num_expected', 'confidence'])
+        self.semantic_map = pd.DataFrame(columns=['type', 'x_loc', 'y_loc', 'z_loc', 'num_detected', 'num_expected', 'confidence', 'last_updated'])
         self.object_seen_order = 0
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
-        self.current_velocity = np.zeros((2, 3))
+        self.current_odom = Odometry()
+        self.iteration_updated = 0
 
 
     # Callbacks
@@ -108,6 +112,7 @@ class SemanticMapManager(Node):
         # If no gate found, say no gate found and return
         return response
     
+
     def handle_get_vertical_marker_location(self, request: GetVerticalMarkerLocation.Request, response: GetVerticalMarkerLocation.Response):
         response.location = Point()
         response.found = False
@@ -125,9 +130,8 @@ class SemanticMapManager(Node):
         return response
 
 
-    def velocity_callback(self, msg: Odometry):
-        self.current_velocity[0] = np.array([msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z])
-        self.current_velocity[1] = np.array([msg.twist.twist.angular.x, msg.twist.twist.angular.y, msg.twist.twist.angular.z])
+    def odom_callback(self, msg: Odometry):
+        self.current_odom = msg
 
 
     def convert_to_map_frame(self, position: PoseStamped, tf_buffer: tf2_ros.buffer) -> Pose:
@@ -155,7 +159,7 @@ class SemanticMapManager(Node):
         return pose_map_frame
 
 
-    def remove_duplicates(self, current_object: SemanticObject, current_object_pose: Pose, min_distance: float) -> None:
+    def remove_duplicates(self, current_object: SemanticObject, current_object_pose: Pose, min_distance: float, iteration_number: int) -> None:
         """
         Removes all duplicate detections within a min distance
 
@@ -163,6 +167,7 @@ class SemanticMapManager(Node):
         current_object (SemanticObject) : the object we want to check duplicates for
         current_object_pose (Pose) : 
         min_distance (float) : the minimum distance to another marker
+        iteration_number (int) : the iteration number used to keep track when we last updated a detection
 
         Returns:
         None
@@ -171,6 +176,7 @@ class SemanticMapManager(Node):
             + (np.array(self.semantic_map['y_loc']) - current_object_pose.position.y)**2 \
             + (np.array(self.semantic_map['z_loc']) - current_object_pose.position.z)**2)**0.5
         matches = self.semantic_map[(distances < min_distance) & (self.semantic_map['type'] == current_object)]
+        # If the only match is itself, then there are no duplicates.
         if len(matches) <= 1:
             return
         
@@ -179,44 +185,100 @@ class SemanticMapManager(Node):
         weighted_y = (matches['y_loc'] * matches['confidence']).sum() / total_weight
         weighted_z = (matches['z_loc'] * matches['confidence']).sum() / total_weight
 
-        new_entry = [current_object, weighted_x, weighted_y, weighted_z, matches['num_detected'].sum(), matches['num_expected'].sum(), matches['num_detected'].sum() / matches['num_expected'].sum()]
+
+        total_num_expected = matches['num_expected'].sum()
+        total_num_detected = matches['num_detected'].sum()
+
+        confidence = total_num_detected / total_num_expected
+
+        # Confidence is handled later
+        new_entry = [
+            current_object,
+            weighted_x,
+            weighted_y,
+            weighted_z,
+            total_num_detected,
+            total_num_expected,
+            confidence,
+            iteration_number]
         # new_entry = [current_object, current_object_pose.position.x, current_object_pose.position.y, current_object_pose.position.z, matches['num_detected'].sum(), matches['num_expected'].sum(), matches['num_detected'].sum() / matches['num_expected'].sum()]
+        # Remove all duplicates
         self.semantic_map.drop(matches.index, inplace=True)
         self.semantic_map.reset_index(drop=True, inplace=True)
+        # Add combined new entry
         self.semantic_map.loc[len(self.semantic_map)] = new_entry
 
 
-    def moving(self, current_velocity: np.ndarray) -> bool:
+    def moving(self, current_twist: Twist) -> bool:
         """
         Returns true if the sub is moving based on our current_velocity
         
         Parameters:
-        current_velocity (np.ndarray) : the current velocity where the first row is linear, and the second row is angular
+        current_twist (Twist) : the current velocity where the first row is linear, and the second row is angular
 
         Returns:
         bool : true if the sub is moving
         """
-        return np.linalg.norm(current_velocity[0]) > 0.2 or np.linalg.norm(current_velocity[1]) > 0.1
+        current_linear_velocity = np.array([current_twist.linear.x, current_twist.linear.y, current_twist.linear.z])
+        current_angular_velocity = np.array([current_twist.angular.x, current_twist.angular.y, current_twist.angular.z])
+        return np.linalg.norm(current_linear_velocity) > 0.15 or np.linalg.norm(current_angular_velocity) > 0.1
 
     
+    def update_confidences(self, fov_polygon: Polygon, update_iteration) -> None:
+        """
+        Iterates through the list of objects in the map. If it is within our fov and we did not detect it,
+        decrease its confidence
+
+        Parameters:
+        fov_polygon : the polygon representing our FOV
+        update_iteration : the iteration number to keep track of what has already been updated
+
+        Returns:
+        None
+        """
+        for _, row in self.semantic_map.iterrows():
+            if row['last_updated'] == update_iteration or not polygon_contained(fov_polygon, (row['x_loc'], row['y_loc'])):
+                continue
+            # Else, we know that we have a detection that we didn't just see and is within our fov
+            # because of this, we should decrease its confidence
+            row['num_expected'] += 1
+            row['confidence'] = row['num_detected'] / row['num_expected']
+            row['last_updated'] = update_iteration
+        return
+
+
     def handle_add_semantic_object(self, request: AddSemanticObject.Request, response: AddSemanticObject.Response):
         """
         Add semantic object to the map.
         """
-        if self.moving(self.current_velocity):
+        if self.moving(self.current_odom.twist.twist):
             response.added = False
             self.get_logger().info("Moving, skipping add to semantic map")
             return response
-        map_position = self.convert_to_map_frame(request.position, self.tf_buffer)
-        if not map_position:
-            self.get_logger().warn("Unable to find map transform, skipping add")
-            return response
-        current_object = SemanticObject(request.id)
-        new_entry = [current_object, map_position.position.x, map_position.position.y, map_position.position.z, 1, 1, 1]
-        self.semantic_map.loc[len(self.semantic_map)] = new_entry
-        self.remove_duplicates(current_object, map_position, 1.5)
+        # Calculate current FOV polygon
+        # This will be used to make sure faulty detections are not included
+        # This will also be used to adjust confidences 
+        fov_polygon = get_fov_polygon(self.current_odom)
+
+        # TODO:
+        # See if there is a way to see if the self.tf_buffer is valid
+        for class_id, detection_pose in zip(request.ids, request.positions):
+            map_position = self.convert_to_map_frame(detection_pose, self.tf_buffer)
+            if not map_position:
+                self.get_logger().warn("Unable to find map transform, skipping add")
+                return response
+            # Test to see if this is within our FOV
+            if not polygon_contained(fov_polygon, (map_position.position.x, map_position.position.y)):
+                self.get_logger().info(f"Detection {class_id} {detection_pose} fell outside of fov, ignoring")
+                continue
+            current_object = SemanticObject(class_id)
+            new_entry = [current_object, map_position.position.x, map_position.position.y, map_position.position.z, 1, 1.0, 1.0, 0.0]
+            self.semantic_map.loc[len(self.semantic_map)] = new_entry
+            self.remove_duplicates(current_object, map_position, 1.5, self.iteration_updated)
+        self.update_confidences(fov_polygon)
         self.publish_semantic_map()
         response.added = True
+        self.iteration_updated += 1
         return response
 
 

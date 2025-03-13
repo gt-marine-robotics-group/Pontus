@@ -11,11 +11,11 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from sensor_msgs.msg import CameraInfo
 from stereo_msgs.msg import DisparityImage
 from sensor_msgs.msg import Image
+from geometry_msgs.msg import PoseStamped
 
 from pontus_msgs.srv import AddSemanticObject
 from pontus_msgs.msg import YOLOResult
 from pontus_msgs.msg import YOLOResultArray
-
 
 class SamplingMethod(Enum):
     AVERAGE = 0
@@ -274,28 +274,30 @@ class YoloPoseDetection(Node):
         return detection_body_frame
 
 
-    def add_to_semantic_map(self, class_id: int, detection_body_frame: np.ndarray) -> None:
+    def add_to_semantic_map(self, detection_array: tuple[int, np.ndarray]) -> None:
         """
-        Adds a detection to the semantic map
+        Adds detections to the semantic map
 
         Parameters:
-        class_id (int) : the class id of the object
-        detection_body_frame (np.ndarray) : the detection pose in body_frame coordaintes
+        detection_array (tuple[int, np.ndarray]) : an array of class_ids and their detection pose
 
         Returns:
         None
         """
         request = AddSemanticObject.Request()
-        request.id = class_id
-        request.position.header.frame_id = "camera_2"
-        request.position.pose.position.x = detection_body_frame[0]
-        request.position.pose.position.y = detection_body_frame[1]
-        request.position.pose.position.z = detection_body_frame[2]
+        for detection in detection_array:
+            request.ids.append(detection[0])
+            pose_stamped = PoseStamped()
+            pose_stamped.header.frame_id = "camera_2"
+            pose_stamped.pose.position.x = detection[1][0]
+            pose_stamped.pose.position.y = detection[1][1]
+            pose_stamped.pose.position.z = detection[1][2]
+            request.positions.append(pose_stamped)
         future = self.add_semantic_object_client.call_async(request)
         rclpy.spin_until_future_complete(self, future, timeout_sec=2.0)
         if future.result() is None:
             self.get_logger().info("Failed to call add semantic object service")
-        self.get_logger().info(f'{class_id} {detection_body_frame}')
+        self.get_logger().info(f'Adding to semantic map {detection_array}')
 
 
     def determine_if_left_gate(self, yolo_result: YOLOResult, image: np.ndarray) -> None:
@@ -371,6 +373,7 @@ class YoloPoseDetection(Node):
         # More robust, but need to have a good disparity map creating
         # These also need to be aligned
         # START
+        detections = []
         for detection in left_result.results:
             detection_body_frame = self.calculate_3d_pose_disparity_map(detection, self.disparity_msg, self.Tx, self.cx, self.cy, self.f, SamplingMethod.MEDIAN)
             # Will be nan if the object is out of the field of view of the camera
@@ -383,7 +386,9 @@ class YoloPoseDetection(Node):
                 if left_side is None:
                     continue
                 detection.class_id = 0 if left_side else 10
-            self.add_to_semantic_map(detection.class_id, detection_body_frame)
+                detections.append((detection.class_id, detection_body_frame))
+        # Every loop we will add to the semantic map, this is used to keep track of confidences
+        self.add_to_semantic_map(detections)
         # END
 
 

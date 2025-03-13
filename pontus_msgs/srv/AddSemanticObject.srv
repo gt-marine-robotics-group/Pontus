@@ -1,4 +1,4 @@
-int32 id
-geometry_msgs/PoseStamped position
+int32[] ids
+geometry_msgs/PoseStamped[] positions
 ---
 bool added
