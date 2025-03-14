@@ -12,12 +12,13 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        (os.path.join('share', package_name, 'launch'), glob(os.path.join('launch', '*.launch.py'))),
-        
-        (os.path.join('share', package_name, 'config/auv'), 
+        (os.path.join('share', package_name, 'launch'),
+         glob(os.path.join('launch', '*.launch.py'))),
+
+        (os.path.join('share', package_name, 'config/auv'),
             glob(os.path.join('config', 'auv', '*.yaml'))),
-        
-        (os.path.join('share', package_name, 'config/sim'), 
+
+        (os.path.join('share', package_name, 'config/sim'),
             glob(os.path.join('config', 'sim', '*.yaml'))),
 
         (os.path.join('share', package_name, 'yolo/auv'),
@@ -36,13 +37,7 @@ setup(
     entry_points={
         'console_scripts': [
             'yolo = pontus_perception.yolo_node:main',
-            'image_preprocessing = pontus_perception.image_preprocessing.preprocessing_node:main',
-            'sonoptix_cloud_transform = pontus_perception.sonoptix_pc_transform:main',
-            'sonoptix = pontus_perception.sonoptix:main',
-            'point_cloud_camera = pontus_perception.point_cloud_camera:main',
             'point_cloud_downsampling = pontus_perception.point_cloud_downsampling:main',
-            'gate_detection = pontus_perception.gate_detection.gate_detection:main',
-            'vertical_marker_detection = pontus_perception.vertical_marker_detection.vertical_marker_detection:main',
             'bag2mp4 = pontus_perception.bag2mp4:main',
             'yolo_pose_detection = pontus_perception.yolo_pose_detection:main',
         ],

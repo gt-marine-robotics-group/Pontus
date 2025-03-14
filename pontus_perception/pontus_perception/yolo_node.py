@@ -8,9 +8,9 @@ from ultralytics import YOLO
 from ament_index_python.packages import get_package_share_directory
 import torch
 
-class YOLONode(Node):
 
-    def __init__(self):
+class YOLONode(Node):
+    def __init__(self):  # noqa 107
         super().__init__('perception_YOLO')
 
         self.declare_parameters(namespace='', parameters=[
@@ -46,18 +46,31 @@ class YOLONode(Node):
             'results',
             10
         )
-    
-    def image_callback(self, msg: Image):
+
+    def image_callback(self, msg: Image) -> None:
+        """
+        Take in an image and run YOLO on the image.
+
+        Args:
+        ----
+            msg (Image): the image we want to run YOLO on
+
+        Return:
+        ------
+            None
+
+        """
         bgr = self.cv_bridge.imgmsg_to_cv2(msg, 'bgr8')
 
         results = self.model(bgr)[0]
 
-        result_array = YOLOResultArray() 
+        result_array = YOLOResultArray()
 
         for result in results.boxes.data.tolist():
             x1, y1, x2, y2, conf, class_id = result
-            
-            if conf < self.threshold: continue 
+
+            if conf < self.threshold:
+                continue
 
             conf_score = round(conf, 2)
             label = f"{results.names[int(class_id)]}: {conf_score}"
@@ -73,14 +86,11 @@ class YOLONode(Node):
             r.class_id = int(class_id)
             r.label = results.names[int(class_id)]
             r.confidence = conf
-
             result_array.results.append(r)
 
         self.results_pub.publish(result_array)
-        
         ros_image = self.cv_bridge.cv2_to_imgmsg(bgr, encoding='bgr8')
-
-        self.image_pub.publish(ros_image) 
+        self.image_pub.publish(ros_image)
 
 
 def main(args=None):
@@ -92,7 +102,3 @@ def main(args=None):
 
     node.destroy_node()
     rclpy.shutdown()
-
-if __name__ == '__main__':
-    main()
-

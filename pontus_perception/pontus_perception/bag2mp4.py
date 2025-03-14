@@ -1,12 +1,13 @@
 import rclpy
 from rclpy.node import Node
-import cv2
 
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
+import cv2
+
 
 class Bag2Mp4(Node):
-    def __init__(self):
+    def __init__(self):  # noqa D107
         super().__init__('bag_to_mp4')
 
         self.camera_sub = self.create_subscription(
@@ -22,15 +23,39 @@ class Bag2Mp4(Node):
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         self.out = cv2.VideoWriter(self.output, fourcc, fps, (self.frame_width, self.frame_height))
         self.bridge = CvBridge()
-    
-    def camera_callback(self, msg):
+
+    def camera_callback(self, msg: Image) -> None:
+        """
+        Handle camera callback and write to output.
+
+        Args:
+        ----
+            msg (Image): the camera iamge
+
+        Return:
+        ------
+            None
+
+        """
         cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
         self.out.write(cv_image)
-        key = cv2.waitKey(1) & 0xFF
-    
-    def destroy_node(self):
+
+    def destroy_node(self) -> None:
+        """
+        Override destroy_node to handle releasing the recording.
+
+        Args:
+        ----
+            None
+
+        Return:
+        ------
+            None
+
+        """
         self.out.release()  # Properly release the VideoWriter
         super().destroy_node()
+
 
 def main(args=None):
     rclpy.init(args=args)
