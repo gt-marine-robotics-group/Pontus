@@ -19,5 +19,5 @@ import pytest
 @pytest.mark.linter
 @pytest.mark.pep257
 def test_pep257():
-    rc = main(argv=['.', 'test'])
+    rc = main(argv=['.', '--add-select', 'D102', 'D106', 'D107', 'D417'])
     assert rc == 0, 'Found code style errors / warnings'
