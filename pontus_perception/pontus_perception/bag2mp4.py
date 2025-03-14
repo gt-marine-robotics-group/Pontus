@@ -4,10 +4,11 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
+from typing import Optional, List
 
 
 class Bag2Mp4(Node):
-    def __init__(self):  # noqa D107
+    def __init__(self):
         super().__init__('bag_to_mp4')
 
         self.camera_sub = self.create_subscription(
@@ -57,7 +58,7 @@ class Bag2Mp4(Node):
         super().destroy_node()
 
 
-def main(args=None):
+def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
     node = Bag2Mp4()
     try:

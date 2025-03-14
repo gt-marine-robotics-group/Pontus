@@ -7,10 +7,11 @@ from cv_bridge import CvBridge
 from ultralytics import YOLO
 from ament_index_python.packages import get_package_share_directory
 import torch
+from typing import Optional, List
 
 
 class YOLONode(Node):
-    def __init__(self):  # noqa 107
+    def __init__(self):
         super().__init__('perception_YOLO')
 
         self.declare_parameters(namespace='', parameters=[
@@ -93,7 +94,7 @@ class YOLONode(Node):
         self.image_pub.publish(ros_image)
 
 
-def main(args=None):
+def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
 
     node = YOLONode()

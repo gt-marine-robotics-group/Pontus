@@ -1,5 +1,5 @@
 import queue
-from typing import Any
+from typing import Any, Optional, List
 
 import rclpy
 from rclpy.node import Node
@@ -27,7 +27,7 @@ Create Action Server
 
 
 class ExplorationMapManager(Node):
-    def __init__(self):  # noqa: D107
+    def __init__(self):
         super().__init__('exploration_map_manager')
 
         self.exploration_map_publisher = self.create_publisher(
@@ -290,7 +290,7 @@ class ExplorationMapManager(Node):
         self.previous_odometry = self.current_odometry
 
 
-def main(args=None):
+def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
     node = ExplorationMapManager()
     rclpy.spin(node)

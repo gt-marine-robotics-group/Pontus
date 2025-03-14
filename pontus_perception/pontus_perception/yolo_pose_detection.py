@@ -1,6 +1,7 @@
 from enum import Enum
 import numpy as np
 import cv2
+from typing import Optional, List
 
 import rclpy
 from rclpy.node import Node
@@ -24,7 +25,7 @@ class SamplingMethod(Enum):
 
 
 class YoloPoseDetection(Node):
-    def __init__(self):  # noqa D107
+    def __init__(self):
         super().__init__('yolo_pose_detection')
 
         self.left_yolo_sub = Subscriber(
@@ -498,7 +499,7 @@ class YoloPoseDetection(Node):
         # END
 
 
-def main(args=None):
+def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
     node = YoloPoseDetection()
     rclpy.spin(node)

@@ -25,7 +25,9 @@ setup(
             glob(os.path.join('yolo', 'auv', '*.pt'))),
 
         (os.path.join('share', package_name, 'yolo/sim'),
-            glob(os.path.join('yolo', 'sim', '*.pt')))
+            glob(os.path.join('yolo', 'sim', '*.pt'))),
+        (os.path.join('share', package_name, 'test'),
+            glob(os.path.join('test', '.flake8'))),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

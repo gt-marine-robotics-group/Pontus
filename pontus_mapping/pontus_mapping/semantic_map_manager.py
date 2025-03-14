@@ -2,6 +2,7 @@ import pandas as pd
 from pandas import Series
 from enum import Enum
 import numpy as np
+from typing import Optional, List
 
 import tf2_ros
 from tf2_geometry_msgs import do_transform_pose
@@ -29,7 +30,7 @@ class SemanticObject(Enum):
 
 
 class SemanticMapManager(Node):
-    def __init__(self):  # noqa: D107
+    def __init__(self):
         super().__init__('semantic_map_manager')
 
         self.add_service = self.create_service(
@@ -139,7 +140,8 @@ class SemanticMapManager(Node):
 
     def handle_get_vertical_marker_location(self,
                                             request: GetVerticalMarkerLocation.Request,
-                                            response: GetVerticalMarkerLocation.Response):
+                                            response: GetVerticalMarkerLocation.Response
+                                            ) -> None:
         """
         Handle get vertical marker request.
 
@@ -486,7 +488,7 @@ class SemanticMapManager(Node):
         self.semantic_map_manager_pub.publish(marker_array)
 
 
-def main(args=None):
+def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
     node = SemanticMapManager()
     rclpy.spin(node)

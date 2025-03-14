@@ -19,6 +19,8 @@ setup(
             glob(os.path.join('config', '*.yaml'))),
         (os.path.join('share', package_name, 'visual_meshes'),
             glob(os.path.join('visual_meshes', '*'))),
+        (os.path.join('share', package_name, 'test'),
+            glob(os.path.join('test', '.flake8'))),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

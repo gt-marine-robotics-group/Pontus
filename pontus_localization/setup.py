@@ -21,6 +21,8 @@ setup(
 
         (os.path.join('share', package_name, 'config/sim'),
             glob(os.path.join('config', 'sim', '*.yaml'))),
+        (os.path.join('share', package_name, 'test'),
+            glob(os.path.join('test', '.flake8'))),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

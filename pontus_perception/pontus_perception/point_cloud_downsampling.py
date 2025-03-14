@@ -4,10 +4,11 @@ from sensor_msgs.msg import PointCloud2
 import sensor_msgs_py.point_cloud2 as pc2
 import numpy as np
 import open3d as o3d
+from typing import Optional, List
 
 
 class PointCloudDownsampling(Node):
-    def __init__(self):  # noqa D107
+    def __init__(self):
         super().__init__('point_cloud_downsampling')
         self.point_cloud_sub = self.create_subscription(
             PointCloud2,
@@ -56,7 +57,7 @@ class PointCloudDownsampling(Node):
         self.point_cloud_pub.publish(downsampled_msg)
 
 
-def main(args=None):
+def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
     node = PointCloudDownsampling()
     rclpy.spin(node)

@@ -46,7 +46,6 @@ install(PROGRAMS
   pontus_sensors/camera_republish.py
   pontus_sensors/imu_republish.py
   pontus_sensors/depth_republish.py
-  pontus_sensors/oak_imu_republish.py
   pontus_sensors/sonoptix_driver.py
   pontus_sensors/sim_odom_tf_broadcaster.py
   pontus_sensors/sim_camera_tf_broadcaster.py
