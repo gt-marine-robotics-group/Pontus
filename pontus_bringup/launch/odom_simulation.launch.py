@@ -73,10 +73,6 @@ def generate_launch_description():
         }.items()
     )
 
-    odom_tf_publisher = Node(
-        package='pontus_sensors',
-        executable='sim_odom_tf_broadcaster.py',
-    )
     dvl_republisher = Node(
         package='pontus_sensors',
         executable='dvl_republish_sim.py',
@@ -88,7 +84,6 @@ def generate_launch_description():
         gzsim,
         spawn_vehicle,
         odom_bridge,
-        odom_tf_publisher,
         controls,
         dvl_republisher,
         localization

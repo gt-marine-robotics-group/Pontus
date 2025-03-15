@@ -4,13 +4,15 @@ from rclpy.node import Node
 from nav_msgs.msg import Odometry
 import tf_transformations
 from rclpy.qos import QoSProfile, ReliabilityPolicy
+from typing import Optional, List
 
 """
 Robot localization expects the position from odom to already be in the odom frame.
-Since our DVL is not in the correct frame, this republisher will convert odom into the 
+Since our DVL is not in the correct frame, this republisher will convert odom into the
 correct frame
 TODO: Make the transforms based on urdf
 """
+
 
 class DvlRepub(Node):
     def __init__(self):
@@ -33,13 +35,20 @@ class DvlRepub(Node):
             10
         )
 
-    def dvl_callback(self, msg: Odometry):
+    def dvl_callback(self, msg: Odometry) -> None:
         """
-        Transforms dvl frame of position to odom. Velocity is left alone because
-        this is taken care of by robot localization.
+        Transform dvl frame of position to odom.
 
-        Parameters:
-        msg (Odometry) : the Odometry from the dvk
+        Velocity is left alone because this is taken care of by robot localization.
+
+        Args:
+        ----
+            msg (Odometry): the Odometry from the dvl
+
+        Return:
+        ------
+            None
+
         """
         # Roll 180 degrees to fix frame
         msg.header.frame_id = 'odom'
@@ -66,11 +75,13 @@ class DvlRepub(Node):
 
         self.pub.publish(msg)
 
-def main(args=None):
+
+def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
     dvl_repub = DvlRepub()
     rclpy.spin(dvl_repub)
     rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()

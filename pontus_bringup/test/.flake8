@@ -1,0 +1,6 @@
+[flake8]
+max-line-length = 100
+extend-ignore = ANN101, ANN204
+
+[flake8-annotations]
+ignore = ANN103

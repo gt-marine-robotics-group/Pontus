@@ -3,6 +3,8 @@ import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
 from rclpy.qos import QoSProfile, ReliabilityPolicy
+from typing import Optional, List
+
 
 class DvlRepubSim(Node):
     def __init__(self):
@@ -25,17 +27,32 @@ class DvlRepubSim(Node):
             10
         )
 
-    def dvl_callback(self, msg: Odometry):
-        # Roll 180 degrees to fix frame
+    def dvl_callback(self, msg: Odometry) -> None:
+        """
+        Republish odometry with correct frame.
+
+        This is primarily to ensure that the simulated odometry works with robot localiation.
+
+        Args:
+        ----
+            msg (Odometry): the odometry from the topic
+
+        Return:
+        ------
+            None
+
+        """
         msg.header.frame_id = 'odom'
         msg.child_frame_id = 'base_link'
         self.pub.publish(msg)
 
-def main(args=None):
+
+def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
     dvl_repub = DvlRepubSim()
     rclpy.spin(dvl_repub)
     rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()

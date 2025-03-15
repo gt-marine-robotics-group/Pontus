@@ -3,9 +3,10 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
+from typing import Optional, List
+
 
 class CameraRepublish(Node):
-    
     def __init__(self):
         super().__init__('camera_republish')
 
@@ -19,11 +20,23 @@ class CameraRepublish(Node):
 
         self.sub = self.create_subscription(Image, 'input', self.callback, 10)
 
-    def callback(self, msg: Image):
+    def callback(self, msg: Image) -> None:
+        """
+        Republish image from topic.
+
+        Args:
+        ----
+            msg (Image): image we want to republish
+
+        Return:
+        ------
+            None
+
+        """
         self.pub.publish(msg)
 
 
-def main(args=None):
+def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
 
     camera_republish = CameraRepublish()
@@ -35,6 +48,7 @@ def main(args=None):
     # when the garbage collector destroys the node object
     camera_republish.destroy_node()
     rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()
