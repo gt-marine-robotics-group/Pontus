@@ -4,20 +4,21 @@ from nav_msgs.msg import Odometry
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient
 from pontus_autonomy.tasks.base_task import BaseTask
 
+
 class GateToVertical(BaseTask):
     def __init__(self):
         super().__init__("gate_to_vertical")
-        ### Hyperparameters
-        
+        # Hyperparameters
+
         # Denotes how much forward the sub should go before attempting the vertical marker
         self.forward_distance = 7.0
-        ###
+        # End
         self.odom_sub = self.create_subscription(
             Odometry,
             '/pontus/odometry',
             self.odom_callback,
             10,
-        )     
+        )
 
         self.current_pose = Pose()
         self.timer = self.create_timer(
@@ -27,13 +28,39 @@ class GateToVertical(BaseTask):
         self.go_to_pose_client = GoToPoseClient(self)
 
         self.cmd_sent = False
-    
+
     # Callbacks
-    def odom_callback(self, msg: Odometry):
+    def odom_callback(self, msg: Odometry) -> None:
+        """
+        Handle callback for odometry.
+
+        This is used to get the new location to find the vertical marker.
+
+        Args:
+        ----
+            msg (Odometry): the odometry message
+
+        Return:
+        ------
+            None
+
+        """
         self.current_pose = msg.pose.pose
 
-    # Autonomy?
-    def go(self):
+    # Autonomy
+    def go(self) -> None:
+        """
+        Command AUV to go to next point to find vertical marker.
+
+        Args:
+        ----
+            None
+
+        Return:
+        ------
+            None
+
+        """
         if not self.current_pose:
             self.get_logger().info("Waiting for current pose")
             return
@@ -47,5 +74,3 @@ class GateToVertical(BaseTask):
             self.cmd_sent = True
         elif self.cmd_sent and self.go_to_pose_client.at_pose():
             self.complete(True)
-        
-        

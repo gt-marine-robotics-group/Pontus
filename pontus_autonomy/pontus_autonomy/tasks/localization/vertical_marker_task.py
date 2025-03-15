@@ -12,23 +12,24 @@ from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient
 from pontus_autonomy.tasks.base_task import BaseTask
 from pontus_msgs.srv import GetVerticalMarkerLocation
 
-class State(Enum):
-    Searching = 0
-    Circumnavigate = 1
-    Done = 2
 
 class VerticalMarkerTask(BaseTask):
+    class State(Enum):
+        Searching = 0
+        Circumnavigate = 1
+        Done = 2
+
     def __init__(self):
         super().__init__("Vertial_Marker_task")
 
         # Need this to prevent deadlock issues
         self.service_callback_group = MutuallyExclusiveCallbackGroup()
-        self.vertical_marker_detection_client = self.create_client(
+        self.vm_detection_client = self.create_client(
             GetVerticalMarkerLocation,
             '/pontus/get_vertical_marker_detection',
             callback_group=self.service_callback_group
         )
-        while not self.vertical_marker_detection_client.wait_for_service(timeout_sec=3.0):
+        while not self.vm_detection_client.wait_for_service(timeout_sec=3.0):
             self.get_logger().info("Waiting for get vertial marker location service")
 
         self.odom_sub = self.create_subscription(
@@ -40,7 +41,7 @@ class VerticalMarkerTask(BaseTask):
 
         self.go_to_pose_client = GoToPoseClient(self)
 
-        self.state = State.Searching
+        self.state = self.State.Searching
         self.previous_state = None
 
         self.autonomy_loop = self.create_timer(
@@ -52,50 +53,59 @@ class VerticalMarkerTask(BaseTask):
         self.command_sent = False
         self.current_desired_position = 0
         self.desired_depth = None
-    
 
     def state_debugger(self) -> None:
         """
-        Displays state changes in the state machine
+        Display state changes in the state machine.
 
-        Parameters:
-        None
+        Args:
+        ----
+            None
 
-        Returns:
-        None
+        Return:
+        ------
+            None
+
         """
         if self.previous_state != self.state:
             self.get_logger().info(f"Now at: {self.state.name}")
             self.previous_state = self.state
-    
 
     # Callbacks
     def odom_callback(self, msg: Odometry) -> None:
         """
+        Handle odom callback.
+
         Keeps track of current odometry. On the first odometry message, will set the desired depth
         as the current depth.
 
-        Parameters:
-        msg (Odometry) : odometry message from /pontus/odometry
+        Args:
+        ----
+            msg (Odometry): odometry message from /pontus/odometry
 
-        Returns:
-        None
+        Return:
+        ------
+            None
+
         """
         if self.current_pose is None:
             self.desired_depth = msg.pose.pose.position.z
         self.current_pose = msg.pose.pose
 
-    
     # Helpers
-    def get_vertical_marker_location(self, detection_client: rclpy.client.Client) -> Optional[Point]:
+    def get_vertical_marker_location(self,
+                                     detection_client: rclpy.client.Client) -> Optional[Point]:
         """
-        Returns the vertical marker detection if detected
+        Return the vertical marker detection if detected.
 
-        Parameters:
-        detection_client (rclpy.client.Client) : the vertical marker detection client
+        Args:
+        ----
+            detection_client (rclpy.client.Client): the vertical marker detection client
 
-        Returns:
-        Optional[Point] : vertical marker detection if located
+        Return:
+        ------
+            Optional[Point]: vertical marker detection if located
+
         """
         request = GetVerticalMarkerLocation.Request()
         future = detection_client.call_async(request)
@@ -108,16 +118,18 @@ class VerticalMarkerTask(BaseTask):
         self.get_logger().debug(f"{vertical_marker}")
         return vertical_marker
 
-
     def copy_pose(self, pose: Pose) -> Pose:
         """
         Deep copies the given pose.
 
-        Parameters:
-        pose (Pose) : the pose we want to copy
+        Args:
+        ----
+            pose (Pose): the pose we want to copy
 
-        Returns:
-        Pose : the copied pose
+        Return:
+        ------
+            Pose: the copied pose
+
         """
         new_pose = Pose()
         new_pose.position.x = pose.position.x
@@ -130,36 +142,68 @@ class VerticalMarkerTask(BaseTask):
         return new_pose
 
     # Autonomy
-    def state_machine(self):
+    def state_machine(self) -> None:
+        """
+        Perform state machine for vertical marker task.
+
+        The state machine is defined as the following:
+            1. Detect the vertical marker and get its 3D pose
+            2. Then cicumnavigate the vertical marker by having a set of keypoints that is
+               just a square.
+            3. Complete
+
+        Args:
+        ----
+            None
+
+        Return:
+        ------
+            None
+
+        """
         if self.current_pose is None:
             self.get_logger().info("Waiting for current pose update")
             return
         self.state_debugger()
         cmd_pose = None
         match self.state:
-            case State.Searching:
+            case self.State.Searching:
                 cmd_pose = self.search()
-            case State.Circumnavigate:
+            case self.State.Circumnavigate:
                 cmd_pose = self.circumnavigate()
-            case State.Done:
+            case self.State.Done:
                 self.complete(True)
             case _:
                 self.get_logger().info("Unrecognized state")
         if cmd_pose:
             self.go_to_pose_client.go_to_pose(cmd_pose)
 
-    def search(self):
+    def search(self) -> None:
+        """
+        Search for vertical marker.
+
+        This will find the vertical marker by just looking forward. Then it will set us 1.5 meters
+        behind the vertical marker to prepare to circumnavigate it.
+
+        Args:
+        ----
+            None
+
+        Return:
+        ------
+            None
+
+        """
         cmd_pose = Pose()
         if not self.detected and self.current_pose is not None:
-            vertical_marker = self.get_vertical_marker_location(self.vertical_marker_detection_client)
+            vertical_marker = self.get_vertical_marker_location(self.vm_detection_client)
             GREEN = "\033[92m"
             RESET = "\033[0m"
-            YELLOW = "\033[93m"
             if vertical_marker is None:
                 self.get_logger().info("Unable to find vertical marker")
                 return None
             self.get_logger().info(f"{GREEN} Found Vertical Marker! {RESET} {vertical_marker}")
-            vertical_surprise = """⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⠤⠤⡀⠀⠀⠀⠀⠀⠀⠀⢠⢤⡀⠀⠀⠀⠀⠠⣄⣀⣀⡤⠤⠤⠤⠤⠤⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡤⠎⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⠇⠀⠙⡄⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣜⣀⣀⣀⣀⢇⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢣⠀⠀⠀⠀⠀⠀⠀⢠⠀⠀⠀⢸⠀⠀⠀⠀⠀⠸⡀⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢧⡀⠀⠀⠀⠀⢠⠃⠀⠀⢰⠃⠀⠀⠀⠀⠀⠘⡆⠀⠀⠀⠀⠀⠀⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⠋⠓⢤⠈⠦⢄⡠⠴⠃⠀⠀⠀⠘⠂⠀⠀⠀⠀⠀⠀⠁⠀⠀⠀⠀⠀⠀⣠⠤⠤⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠈⢧⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡴⠋⠀⠀⠀⠘⡆⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠙⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠏⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⢇⠀⠀⠀⠀⠀⠀⠈⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡴⠁⠀⠀⠀⠀⠀⠀⢠⠇⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⡀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⠀⠀⠀⠈⢇⡤⠤⠖⠒⠒⠋⠉⠉⠓⠲⢤⠜⠁⠀⠀⠀⠀⠀⠀⠀⠀⡞⠀⠀⣠⠔⠀⠀⠀⠀⠀\n⠀⠀⠀⠉⠓⠤⢄⣀⢀⡤⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣀⡤⡄⠀⠀⠀⠀⠀⣀⡠⠤⠤⡄⠀⠀⠀⠀⠀⠀⣰⠯⢷⠋⠁⠀⠀⠀⠀⠀\n⠀⠉⠓⠦⣄⡀⠀⢠⠏⠉⠉⠑⠒⠒⠀⠀⠀⠴⠋⠀⠀⠀⠀⠁⠀⠀⠀⡉⠁⠀⠀⠀⠀⠉⠀⠠⠴⠒⠉⠀⠀⠀⡠⠇⠀⢀⣀⡤⠄⠀\n⠀⠀⠀⠀⠀⠈⠑⠺⡤⢄⣀⣀⣀⣀⣀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣉⡷⠾⠥⢴⠤⠤⠄⠀⠀⠀⠀⣠⠤⠤⢤⠞⠛⠉⠈⠁⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠄⠐⠦⣄⠘⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⠁⠀⣇⠀⠀⠀⡸⠀⠀⠀⠀⠀⠀⠀⠀⠀⢯⠀⠀⢀⡴⠊⠃⠁⢻⠀⠀\n⠀⠀⠀⠀⠲⡀⠀⠀⢑⣏⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠒⠒⠋⠀⠀⠀⠀⠀⠀⠀⠀⣀⡼⠦⠊⠁⠀⠀⠀⠀⡴⠁⠀\n⠀⠀⠀⠀⠀⠙⡆⠀⠘⠊⠳⠤⠤⠤⠤⠒⠒⠋⠉⠑⢤⣀⠀⣀⡠⠤⠒⠉⠳⠤⠤⠴⠊⠉⠁⠀⠀⠀⠀⠀⠀⠀⠀⣀⡇⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠈⠧⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡀⠀⠀⠀⠀⠀⣀⡠⠤⠚⠁⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠈⠓⠒⠒⠒⠲⠤⣄⣤⠴⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⢷⠒⠒⠒⠒⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡖⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢣⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡼⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣏⡠⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢧⠀⠀⠀⠀⠀⠀⠀⠀⠀"""
+            vertical_surprise = """⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⠤⠤⡀⠀⠀⠀⠀⠀⠀⠀⢠⢤⡀⠀⠀⠀⠀⠠⣄⣀⣀⡤⠤⠤⠤⠤⠤⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡤⠎⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⠇⠀⠙⡄⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣜⣀⣀⣀⣀⢇⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢣⠀⠀⠀⠀⠀⠀⠀⢠⠀⠀⠀⢸⠀⠀⠀⠀⠀⠸⡀⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢧⡀⠀⠀⠀⠀⢠⠃⠀⠀⢰⠃⠀⠀⠀⠀⠀⠘⡆⠀⠀⠀⠀⠀⠀⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⠋⠓⢤⠈⠦⢄⡠⠴⠃⠀⠀⠀⠘⠂⠀⠀⠀⠀⠀⠀⠁⠀⠀⠀⠀⠀⠀⣠⠤⠤⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠈⢧⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡴⠋⠀⠀⠀⠘⡆⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠙⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠏⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⢇⠀⠀⠀⠀⠀⠀⠈⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡴⠁⠀⠀⠀⠀⠀⠀⢠⠇⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⡀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⠀⠀⠀⠈⢇⡤⠤⠖⠒⠒⠋⠉⠉⠓⠲⢤⠜⠁⠀⠀⠀⠀⠀⠀⠀⠀⡞⠀⠀⣠⠔⠀⠀⠀⠀⠀\n⠀⠀⠀⠉⠓⠤⢄⣀⢀⡤⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣀⡤⡄⠀⠀⠀⠀⠀⣀⡠⠤⠤⡄⠀⠀⠀⠀⠀⠀⣰⠯⢷⠋⠁⠀⠀⠀⠀⠀\n⠀⠉⠓⠦⣄⡀⠀⢠⠏⠉⠉⠑⠒⠒⠀⠀⠀⠴⠋⠀⠀⠀⠀⠁⠀⠀⠀⡉⠁⠀⠀⠀⠀⠉⠀⠠⠴⠒⠉⠀⠀⠀⡠⠇⠀⢀⣀⡤⠄⠀\n⠀⠀⠀⠀⠀⠈⠑⠺⡤⢄⣀⣀⣀⣀⣀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣉⡷⠾⠥⢴⠤⠤⠄⠀⠀⠀⠀⣠⠤⠤⢤⠞⠛⠉⠈⠁⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠄⠐⠦⣄⠘⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⠁⠀⣇⠀⠀⠀⡸⠀⠀⠀⠀⠀⠀⠀⠀⠀⢯⠀⠀⢀⡴⠊⠃⠁⢻⠀⠀\n⠀⠀⠀⠀⠲⡀⠀⠀⢑⣏⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠒⠒⠋⠀⠀⠀⠀⠀⠀⠀⠀⣀⡼⠦⠊⠁⠀⠀⠀⠀⡴⠁⠀\n⠀⠀⠀⠀⠀⠙⡆⠀⠘⠊⠳⠤⠤⠤⠤⠒⠒⠋⠉⠑⢤⣀⠀⣀⡠⠤⠒⠉⠳⠤⠤⠴⠊⠉⠁⠀⠀⠀⠀⠀⠀⠀⠀⣀⡇⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠈⠧⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡀⠀⠀⠀⠀⠀⣀⡠⠤⠚⠁⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠈⠓⠒⠒⠒⠲⠤⣄⣤⠴⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⢷⠒⠒⠒⠒⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡖⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢣⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡼⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣏⡠⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢧⠀⠀⠀⠀⠀⠀⠀⠀⠀"""  # noqa E501
             # Convert detection to odom frame
             self.get_logger().info(f"\n{vertical_surprise}")
             cmd_pose.position.x = vertical_marker.x - 1.5
@@ -167,16 +211,29 @@ class VerticalMarkerTask(BaseTask):
             cmd_pose.position.z = self.desired_depth
             self.detected = True
             return cmd_pose
-        
+
         elif self.detected and self.go_to_pose_client.at_pose():
-            self.state = State.Circumnavigate
+            self.state = self.State.Circumnavigate
             self.starting_pose = self.current_pose
             self.get_logger().info(f"Starting pose: {self.starting_pose}")
-        
+
         return None
 
+    def circumnavigate(self) -> None:
+        """
+        Circumnavigate the vertical marker.
 
-    def circumnavigate(self):
+        This will command the AUV to go in a box around the vertical marker.
+
+        Args:
+        ----
+            None
+
+        Return:
+        ------
+            None
+
+        """
         cmd_pose = Pose()
 
         # First pose
@@ -198,18 +255,18 @@ class VerticalMarkerTask(BaseTask):
         fourth_pose.position.y += -0.9
 
         desired_positions = [first_pose, second_pose, third_pose, fourth_pose, self.starting_pose]
-        
+
         if not self.command_sent:
             cmd_pose = desired_positions[self.current_desired_position]
             cmd_pose.orientation.x = -1.0
             self.command_sent = True
             return cmd_pose
-        
+
         elif self.go_to_pose_client.at_pose():
             self.current_desired_position += 1
             self.command_sent = False
-        
+
         if self.current_desired_position == len(desired_positions):
-            self.state = State.Done
-        
+            self.state = self.State.Done
+
         return None

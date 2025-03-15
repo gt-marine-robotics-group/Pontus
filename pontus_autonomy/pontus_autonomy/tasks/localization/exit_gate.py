@@ -4,6 +4,7 @@ from nav_msgs.msg import Odometry
 from pontus_autonomy.tasks.base_task import BaseTask
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient
 
+
 class ExitGate(BaseTask):
     def __init__(self):
         super().__init__("exit_gate")
@@ -13,7 +14,7 @@ class ExitGate(BaseTask):
             '/pontus/odometry',
             self.odom_callback,
             10,
-        )    
+        )
         self.go_to_pose_client = GoToPoseClient(self)
         self.current_pose = Pose()
 
@@ -24,11 +25,37 @@ class ExitGate(BaseTask):
         self.cmd_sent = False
 
     # Callbacks
-    def odom_callback(self, msg: Odometry):
+    def odom_callback(self, msg: Odometry) -> None:
+        """
+        Handle odom callback.
+
+        Keeps track of current odometry.
+
+        Args:
+        ----
+            msg (Odometry): odometry message from /pontus/odometry
+
+        Return:
+        ------
+            None
+
+        """
         self.current_pose = msg.pose.pose
-    
-    # Autonomy?
-    def go(self):
+
+    # Autonomy
+    def go(self) -> None:
+        """
+        Command the AUV to go forward a bit to exit the gate.
+
+        Args:
+        ----
+            None
+
+        Return:
+        ------
+            None
+
+        """
         if not self.cmd_sent and self.current_pose is not None:
             cmd_pose = Pose()
             cmd_pose.position.z = self.current_pose.position.z
@@ -36,5 +63,3 @@ class ExitGate(BaseTask):
             self.cmd_sent = True
         elif self.cmd_sent and self.go_to_pose_client.at_pose():
             self.complete(True)
-        
-        

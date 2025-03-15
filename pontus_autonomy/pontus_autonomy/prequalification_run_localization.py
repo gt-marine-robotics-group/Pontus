@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
-
 import rclpy
-import numpy as np
+
+from typing import Optional, List
 
 from pontus_autonomy.base_run import BaseRun
 
@@ -13,8 +12,8 @@ from pontus_autonomy.tasks.localization.vertical_marker_task import VerticalMark
 from pontus_autonomy.tasks.localization.vertical_to_gate import VerticalToGate
 from pontus_autonomy.tasks.localization.exit_gate import ExitGate
 
-class PrequalificationRun(BaseRun):
 
+class PrequalificationRun(BaseRun):
     def __init__(self):
         super().__init__("prequalification_run")
 
@@ -47,18 +46,11 @@ class PrequalificationRun(BaseRun):
         # Exit Gate
         result = self.run_task(ExitGate)
         self.get_logger().info(f"Exit gate task: {result}")
-        
 
 
-def main(args=None):
+def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
-
     node = PrequalificationRun()
-
     rclpy.spin(node)
-
     node.destroy_node()
     rclpy.shutdown()
-
-if __name__ == '__main__':
-    main()

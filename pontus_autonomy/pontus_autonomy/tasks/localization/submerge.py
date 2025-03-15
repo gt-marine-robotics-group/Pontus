@@ -3,16 +3,17 @@ from geometry_msgs.msg import Pose
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient
 from pontus_autonomy.tasks.base_task import BaseTask
 
+
 class Submerge(BaseTask):
     def __init__(self):
         super().__init__('submerge')
 
-        ### Hyperparameters
+        # Hyperparameters
 
         # Determines the desired depth the sub should start autonomy
         self.desired_depth = -1.5
 
-        ###
+        # End
 
         self.go_to_pose_client = GoToPoseClient(self)
 
@@ -21,8 +22,22 @@ class Submerge(BaseTask):
         )
         self.cmd_sent = False
 
+    def submerge(self) -> None:
+        """
+        Command sub to submerge.
 
-    def submerge(self):
+        Before completing any tasks, the sub must first submerge. This task will send the sub to
+        a desired depth.
+
+        Args:
+        ----
+            None
+
+        Return:
+        ------
+            None
+
+        """
         if not self.cmd_sent:
             lower_pose = Pose()
             lower_pose.position.z = self.desired_depth

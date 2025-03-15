@@ -12,7 +12,10 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        (os.path.join('share', package_name, 'launch'), glob(os.path.join('launch', '*.launch.py'))),
+        (os.path.join('share', package_name, 'launch'), glob(os.path.join('launch',
+                                                                          '*.launch.py'))),
+        (os.path.join('share', package_name, 'test'),
+            glob(os.path.join('test', '.flake8'))),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -23,7 +26,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'prequalification_run_localization = pontus_autonomy.prequalification_run_localization:main',
+            'prequal_loc = pontus_autonomy.prequalification_run_localization:main',
             'gate_information_service = pontus_autonomy.gate_information_service:main',
             'search_region_test = pontus_autonomy.helpers.SearchRegionClient:main'
         ],

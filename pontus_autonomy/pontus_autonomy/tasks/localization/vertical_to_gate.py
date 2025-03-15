@@ -9,10 +9,11 @@ from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient
 from pontus_autonomy.tasks.base_task import BaseTask
 from pontus_msgs.srv import GateInformation
 
+
 class VerticalToGate(BaseTask):
     def __init__(self):
         super().__init__("vertical_to_gate")
-        
+
         self.service_callback_group = MutuallyExclusiveCallbackGroup()
         self.gate_information_client = self.create_client(
             GateInformation,
@@ -21,14 +22,14 @@ class VerticalToGate(BaseTask):
         )
 
         while not self.gate_information_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info("Waiting to connect to /pontus/gate_information service")   
+            self.get_logger().info("Waiting to connect to /pontus/gate_information service")
 
         self.odom_sub = self.create_subscription(
             Odometry,
             '/pontus/odometry',
             self.odom_callback,
             10,
-        )     
+        )
 
         self.go_to_pose_client = GoToPoseClient(self)
 
@@ -38,14 +39,38 @@ class VerticalToGate(BaseTask):
         )
         self.cmd_sent = False
 
-
     # Callbacks
-    def odom_callback(self, msg: Odometry):
-        self.current_pose = msg.pose.pose
-    
+    def odom_callback(self, msg: Odometry) -> None:
+        """
+        Handle odom callback.
 
-    # Autonomy?
-    def go(self):
+        Keeps track of current odometry.
+
+        Args:
+        ----
+            msg (Odometry): odometry message from /pontus/odometry
+
+        Return:
+        ------
+            None
+
+        """
+        self.current_pose = msg.pose.pose
+
+    # Autonomy
+    def go(self) -> None:
+        """
+        Command AUV to return to the gate.
+
+        Args:
+        ----
+            None
+
+        Return:
+        ------
+            None
+
+        """
         if not self.cmd_sent and self.current_pose:
             request = GateInformation.Request()
             future = self.gate_information_client.call_async(request)
@@ -54,14 +79,15 @@ class VerticalToGate(BaseTask):
             gate_location = None
             if future.result() is not None:
                 response = future.result()
-                gate_location = response.gate_location 
+                gate_location = response.gate_location
             else:
                 new_point = Point()
                 new_point.x = self.current_pose.position.x - 8.0
                 new_point.y = self.current_pose.position.y
                 new_point.z = self.current_pose.position.z
                 gate_location = new_point
-                self.get_logger().info("Failed to get location from service, using current position instead")
+                self.get_logger().info("Failed to get location from service, \
+                                       using current position instead")
             cmd_pose.position.x = gate_location.x + 2.0
             cmd_pose.position.y = gate_location.y
             cmd_pose.position.z = gate_location.z
@@ -71,5 +97,3 @@ class VerticalToGate(BaseTask):
 
         elif self.cmd_sent and self.go_to_pose_client.at_pose():
             self.complete(True)
-        
-        

@@ -1,7 +1,6 @@
-import os
-import launch
 from launch import LaunchDescription
 from launch_ros.actions import Node
+
 
 def generate_launch_description():
     return LaunchDescription([
@@ -13,8 +12,8 @@ def generate_launch_description():
         ),
         Node(
             package='pontus_autonomy',
-            executable='prequalification_run_localization',
-            name='prequalification_run_localization',
+            executable='prequal_loc',
+            name='prequal_loc',
             output='screen',
         ),
     ])

@@ -15,6 +15,7 @@ from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient
 from pontus_msgs.srv import GetGateLocation
 from pontus_msgs.srv import GateInformation
 
+
 class GateTask(BaseTask):
     class State(Enum):
         Searching = 0
@@ -30,17 +31,16 @@ class GateTask(BaseTask):
     def __init__(self):
         super().__init__("Gate_Task")
 
-        ### Hyperparameters / hardcoded values
+        # Hyperparameters / hardcoded values
 
         # This represents how much the sub turns to identify the left / right gate
         self.search_angle = np.pi/4
-        
-        ###
 
+        # End
 
         # Need this to prevent deadlock issues
         self.service_callback_group = MutuallyExclusiveCallbackGroup()
-        
+
         # Service to detect gate
         self.gate_detection_client = self.create_client(
             GetGateLocation,
@@ -49,7 +49,7 @@ class GateTask(BaseTask):
         )
         while not self.gate_detection_client.wait_for_service(timeout_sec=3.0):
             self.get_logger().info("Waiting for get gate location service")
-        
+
         # Service to keep track of where the gate is, and which side we went through
         self.gate_information_client = self.create_client(
             GateInformation,
@@ -58,7 +58,7 @@ class GateTask(BaseTask):
         )
         while not self.gate_information_client.wait_for_service(timeout_sec=1.0):
             self.get_logger().info("Waiting to connect to /pontus/gate_information service")
-        
+
         # Abstracted go to pose client
         self.go_to_pose_client = GoToPoseClient(self)
 
@@ -83,52 +83,63 @@ class GateTask(BaseTask):
         self.right_gate = None
         self.sent = False
 
-
     def state_debugger(self) -> None:
         """
-        Displays state changes in the state machine
+        Display state changes in the state machine.
 
-        Parameters:
-        None
+        Args:
+        ----
+            None
 
-        Returns:
-        None
+        Return:
+        ------
+            None
+
         """
         if self.previous_state != self.state:
             self.get_logger().info(f"Now at: {self.state.name}")
             self.previous_state = self.state
-    
 
     # Callbacks
     def odom_callback(self, msg: Odometry) -> None:
         """
+        Handle odom callback.
+
         Keeps track of current odometry. On the first odometry message, will set the desired depth
         as the current depth.
 
-        Parameters:
-        msg (Odometry) : odometry message from /pontus/odometry
+        Args:
+        ----
+            msg (Odometry): odometry message from /pontus/odometry
 
-        Returns:
-        None
+        Return:
+        ------
+            None
+
         """
         # On the first call, maintain this pose
         if self.current_pose is None:
             self.desired_depth = msg.pose.pose.position.z
         self.current_pose = msg.pose.pose
 
-
     # Helpers
-    def get_gate_location(self, detection_client: rclpy.client.Client) -> tuple[Optional[Point], Optional[Point]]:
+    def get_gate_location(self,
+                          detection_client: rclpy.client.Client
+                          ) -> tuple[Optional[Point], Optional[Point]]:
         """
-        Returns the gate detection. If the left/right detection is not detected, the respective value
-        will be None.
+        Return the gate detection.
 
-        Parameters:
-        detection_client (rclpy.client.Client) : the gate detection client
+        If the left/right detection is not detected, the respective value will be None.
 
-        Returns:
-        tuple[Optional[Point], Optional[Point]] : a tuple containing the left and right gate detection if the 
-                                                  resepctive gate is found
+        Args:
+        ----
+            detection_client (rclpy.client.Client): the gate detection client
+
+        Return:
+        ------
+            tuple[Optional[Point], Optional[Point]]: a tuple containing the left and right gate
+                                                     detection if the resepctive gate is found
+
         """
         request = GetGateLocation.Request()
         future = detection_client.call_async(request)
@@ -143,26 +154,32 @@ class GateTask(BaseTask):
                 right_gate = response.right_location
         return left_gate, right_gate
 
-
     # Autonomy
     def state_machine(self) -> None:
         """
+        Perform state machine for autonomy.
+
         The state machine to do the gate task. The state machine is defined as the following:
-            1. Search for the gate by turning left 45 degrees and right 45 degrees to detect both sides of the gate.
+            1. Search for the gate by turning left 45 degrees and right 45 degrees to detect
+               both sides of the gate.
                TODO: Create autonomy that handles not seeing the gate when turned
             2. Go to the center point of the detected gate
-            3. Done, saves the gate location and side we came through. And completes the task future
-        
-        Parameters:
-        None
+            3. Done, saves the gate location and side we came through. And completes the task
+               future
 
-        Returns:
-        None
+        Args:
+        ----
+            None
+
+        Return:
+        ------
+            None
+
         """
         if self.current_pose is None or self.desired_depth is None:
             self.get_logger().info("Waiting for current pose update")
             return
-        
+
         self.state_debugger()
         cmd_pose = None
         match self.state:
@@ -178,17 +195,22 @@ class GateTask(BaseTask):
         if cmd_pose:
             self.go_to_pose_client.go_to_pose(cmd_pose)
 
-
     def search(self) -> Optional[Pose]:
         """
-        Find the gate by first turning left to detect the left gate. Then turn right to detect the right gate
+        Find the gate by turning.
 
-        Parameters:
-        None
+        First turn left to identify left gate, then turn right to identify right gate.
+        TODO: This works fine for prequal, but the autonomy needs to be changed for regular comp
 
-        Returns:
-        Optional[Pose] : if None, indicates the sub should maintain its current trajectory,
-                         else indicates the new pose the sub should go to
+        Args:
+        ----
+            None
+
+        Return:
+        ------
+            Optional[Pose]: if None, indicates the sub should maintain its current trajectory,
+                            else indicates the new pose the sub should go to
+
         """
         cmd_pose = self.current_pose
         self.left_gate, self.right_gate = self.get_gate_location(self.gate_detection_client)
@@ -198,12 +220,13 @@ class GateTask(BaseTask):
 
         # If both gates are found, transition to next state
         if self.left_gate and self.right_gate:
-            self.get_logger().info(f"{GREEN} Found gate! {RESET} {self.left_gate} {self.right_gate}")
-            surprise = """╭━━━╮┈┈╱╲┈┈┈╱╲\n┃╭━━╯┈┈▏▔▔▔▔▔▏\n┃╰━━━━━▏╭▆┊╭▆▕\n╰┫╯╯╯╯╯▏╰╯▼╰╯▕\n┈┃╯╯╯╯╯▏╰━┻━╯▕\n┈╰┓┏┳━┓┏┳┳━━━━╯\n┈┈┃┃┃┈┃┃┃┃┈┈┈┈\n┈┈┗┻┛┈┗┛┗┛┈┈┈┈"""
+            self.get_logger().info(f"{GREEN} Found gate! {RESET} \
+                                   {self.left_gate} {self.right_gate}")
+            surprise = """╭━━━╮┈┈╱╲┈┈┈╱╲\n┃╭━━╯┈┈▏▔▔▔▔▔▏\n┃╰━━━━━▏╭▆┊╭▆▕\n╰┫╯╯╯╯╯▏╰╯▼╰╯▕\n┈┃╯╯╯╯╯▏╰━┻━╯▕\n┈╰┓┏┳━┓┏┳┳━━━━╯\n┈┈┃┃┃┈┃┃┃┃┈┈┈┈\n┈┈┗┻┛┈┗┛┗┛┈┈┈┈"""  # noqa E501
             self.get_logger().info(f"\n{surprise}")
             self.state = self.State.Passing_Through
             return cmd_pose
-        
+
         # TODO: Make this following logic better
         # If left_gate found, turn to where we expect the right_gate to be,
         # For now, just do 45 degrees
@@ -225,31 +248,37 @@ class GateTask(BaseTask):
             cmd_pose.orientation.w = quat[3]
             self.searching_state = self.SearchState.Turn_Left
             return cmd_pose
-        
-        if self.searching_state == self.SearchState.Turn_Left and not self.go_to_pose_client.at_pose():
+
+        if self.searching_state == self.SearchState.Turn_Left \
+                and not self.go_to_pose_client.at_pose():
             return
-        if self.searching_state == self.SearchState.Turn_Left and self.go_to_pose_client.at_pose():
+        if self.searching_state == self.SearchState.Turn_Left \
+                and self.go_to_pose_client.at_pose():
             if not self.left_gate:
                 self.get_logger().info("Waiting to get left gate detection")
             return None
 
-        if self.searching_state == self.SearchState.Turn_Right and not self.go_to_pose_client.at_pose():
+        if self.searching_state == self.SearchState.Turn_Right \
+                and not self.go_to_pose_client.at_pose():
             return None
-        if self.searching_state == self.SearchState.Turn_Right and self.go_to_pose_client.at_pose():
+        if self.searching_state == self.SearchState.Turn_Right \
+                and self.go_to_pose_client.at_pose():
             self.get_logger().info("Waiting to get right gate detection")
         return None
 
-        
     def pass_through(self) -> Optional[Pose]:
         """
         Given the gate detection from the semantic map, go to the midpoint.
 
-        Parameters:
-        None
+        Args:
+        ----
+            None
 
-        Returns:
-        Optional[Pose] : if None, indicates the sub should maintain its current trajectory,
-                         else indicates the new pose the sub should go tos
+        Return:
+        ------
+            Optional[Pose]: if None, indicates the sub should maintain its current trajectory,
+                            else indicates the new pose the sub should go to
+
         """
         if not self.sent:
             cmd_pose = Pose()
@@ -259,21 +288,29 @@ class GateTask(BaseTask):
             cmd_pose.orientation.x = -1.0
             self.sent = True
             return cmd_pose
-        
+
         if self.go_to_pose_client.at_pose():
             self.state = self.State.Done
         return None
 
-
     def done(self) -> None:
         """
-        Calls the service to save information to /pontus/gate_information. This is temporary and realistically should go into mapping.
-        This will also complete the future to move onto the next task.
+        Finish state machine.
 
-        Parameters:
-        None
+        Calls the service to save information to /pontus/gate_information.
+        This is temporary and realistically should go into mapping. This will also complete
+        the future to move onto the next task.
 
-        Returns None
+        TODO: Move this over to the semantic map
+
+        Args:
+        ----
+            None
+
+        Return:
+        ------
+            None
+
         """
         request = GateInformation.Request()
         request.set.data = True
