@@ -2,19 +2,15 @@ import rclpy
 from rclpy.node import Node
 import numpy as np
 
-import tf2_ros
 import tf_transformations
-# sudo pip3 install transforms3d
-# sudo apt install ros-humble-tf-transformations
-
+from typing import Optional, List
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Float64
 
 from .PID import PID
 
-class HybridControllerNode(Node):
 
+class HybridControllerNode(Node):
     def __init__(self):
         super().__init__('hybrid_controller')
 
@@ -25,15 +21,15 @@ class HybridControllerNode(Node):
 
         # TODO: Tune these
         self.pid_linear = [
-          PID(2, 0, 0, 2), # X
-          PID(2, 0, 0, 2), # Y
-          PID(20, 0.0, 0.0, 0.0)  # Z
+          PID(2, 0, 0, 2),
+          PID(2, 0, 0, 2),
+          PID(20, 0.0, 0.0, 0.0)
         ]
         # 32 0 35
         self.pid_angular = [
-          PID(0.5, 0, 0, 2), # R
-          PID(40, 0.0, 6, 1), # P
-          PID(2, 0, 0, 2)  # Y
+          PID(0.5, 0, 0, 2),
+          PID(40, 0.0, 6, 1),
+          PID(2, 0, 0, 2)
         ]
 
         # ROS infrastructure
@@ -59,32 +55,73 @@ class HybridControllerNode(Node):
 
         self.cmd_accel_pub = self.create_publisher(Twist, '/cmd_accel', 10)
 
-        #self.cmd_depth = None
+        # self.cmd_depth = None
         self.cmd_depth = -0.5
         self.depth_msg = Odometry()
 
+    def depth_callback(self, msg: Odometry) -> None:
+        """
+        Save depth from depth sensor.
 
-    def depth_callback(self, msg):
-      self.depth_msg = msg
+        Args:
+        ----
+          msg (Odometry): depth message
 
+        Return:
+        ------
+          None
 
-    def cmd_vel_callback(self, msg):
-        # Store the commanded velocities to use in the odometry callback
+        """
+        self.depth_msg = msg
+
+    def cmd_vel_callback(self, msg: Twist) -> None:
+        """
+        Store the commanded velocities to use in the odometry callback.
+
+        Args:
+        ----
+          msg (Twist): command velocity from topic
+
+        Return:
+        ------
+          None
+
+        """
         self.cmd_linear = np.array([msg.linear.x, msg.linear.y, msg.linear.z])
         self.cmd_angular = np.array([msg.angular.x, msg.angular.y, msg.angular.z])
 
-    def odometry_callback(self, msg):
+    def odometry_callback(self, msg: Odometry) -> None:
+        """
+        Convert command velocity to acceleration.
+
+        This says odometry, but we are really just using the IMU data from robot localization.
+        Since there is no proper linear feedback, we will just guess the acceleration we need to
+        go to achieve a certain velocity.
+
+        Args:
+        ----
+          msg (Odometry): odometry message from topic
+
+        Return:
+        ------
+          None
+
+        """
         self.depth_msg = msg
 
         # Compute and publish the body accelerations
         accel_msg = Twist()
 
         # Get the orientation from odometry
-        x, y, z, w = msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w
+        x = msg.pose.pose.orientation.x
+        y = msg.pose.pose.orientation.y
+        z = msg.pose.pose.orientation.z
+        w = msg.pose.pose.orientation.w
         roll, pitch, yaw = tf_transformations.euler_from_quaternion((x, y, z, w))
 
         # Enable active roll/pitch control to 0
-        #accel_msg.angular.x = self.pid_angular[0](-roll, self.get_clock().now() - self.prev_time)
+        # accel_msg.angular.x = self.pid_angular[0](-roll,
+        #                                           self.get_clock().now() - self.prev_time)
         accel_msg.angular.y = self.pid_angular[1](-pitch, self.get_clock().now() - self.prev_time)
         # self.get_logger().info(str(accel_msg.angular.y))
 
@@ -95,11 +132,14 @@ class HybridControllerNode(Node):
         accel_msg.linear.x = 5 * self.cmd_linear[0]
         accel_msg.linear.y = 5 * self.cmd_linear[1]
 
-        accel_msg.linear.z = self.pid_linear[2](self.cmd_depth - msg.pose.pose.position.z, self.get_clock().now() - self.prev_time)
+        dt = self.get_clock().now() - self.prev_time
+        z_err = self.cmd_depth - self.depth_msg.pose.pose.position.z
+        accel_msg.linear.z = self.pid_linear[2](z_err, dt)
 
         # Maintain depth if no commanded velocity
         if abs(self.cmd_linear[2]) < 0.05:
-            accel_msg.linear.z = self.pid_linear[2](self.cmd_depth - self.depth_msg.pose.pose.position.z, self.get_clock().now() - self.prev_time)
+            z_err = self.cmd_depth - self.depth_msg.pose.pose.position.z
+            accel_msg.linear.z = self.pid_linear[2](z_err, dt)
 
         # Follow commanded z velocity
         else:
@@ -110,13 +150,11 @@ class HybridControllerNode(Node):
 
         self.prev_time = self.get_clock().now()
 
-def main(args=None):
+
+def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
 
     hybrid_node = HybridControllerNode()
     rclpy.spin(hybrid_node)
 
     rclpy.shutdown()
-
-if __name__ == '__main__':
-    main()

@@ -20,7 +20,7 @@ from ament_index_python.packages import get_package_share_directory
 @pytest.mark.flake8
 @pytest.mark.linter
 def test_flake8():
-    package_share_path = get_package_share_directory("pontus_controller")
+    package_share_path = get_package_share_directory("pontus_description")
     
     # Get flake8 config file
     config_path = os.path.join(package_share_path, 'test', '.flake8')

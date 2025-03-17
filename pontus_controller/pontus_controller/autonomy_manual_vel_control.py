@@ -2,6 +2,8 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Twist
+from typing import Optional, List
+
 
 class AutonomyManualVelControl(Node):
     def __init__(self):
@@ -31,23 +33,58 @@ class AutonomyManualVelControl(Node):
             10
         )
 
+    def autonomy_mode_callback(self, msg: Bool) -> None:
+        """
+        Handle when autonomy mode is turned off and on.
 
-    def autonomy_mode_callback(self, msg):
+        Args:
+        ----
+            msg (Bool): whether or not autonomy mode is turned off or on
+
+        Return:
+        ------
+            None
+
+        """
         if msg.data:
             self.autonomy_mode_selected = True
         else:
             self.autonomy_mode_selected = False
 
-    def autonomy_vel_callback(self, msg):
+    def autonomy_vel_callback(self, msg: Twist) -> None:
+        """
+        Publish cmd_vel from autonomy if autonomy mode is selected.
+
+        Args:
+        ----
+            msg (Twist): command velocity
+
+        Return:
+        ------
+            None
+
+        """
         if self.autonomy_mode_selected:
             self.cmd_vel_pub.publish(msg)
 
-    def manual_vel_callback(self, msg):
+    def manual_vel_callback(self, msg: Twist) -> None:
+        """
+        Publish cmd_vel from manual controller if autonomy mode is not selected.
+
+        Args:
+        ----
+            msg (Twist): command velocity
+
+        Return:
+        ------
+            None
+
+        """
         if not self.autonomy_mode_selected:
             self.cmd_vel_pub.publish(msg)
 
 
-def main(args=None):
+def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
     node = AutonomyManualVelControl()
     rclpy.spin(node)
