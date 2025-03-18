@@ -1413,7 +1413,7 @@
         <visual name='marker_cylinder_visual'>
           <geometry>
             <cylinder>
-                <radius>0.2</radius>
+                <radius>0.1</radius>
                 <length>2.5</length>
             </cylinder>
           </geometry>

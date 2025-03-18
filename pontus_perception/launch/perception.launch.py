@@ -38,23 +38,21 @@ def generate_launch_description():
                 ('yolo_debug', '/pontus/camera_2/yolo_debug')
             ]
         ),
-        Node(
-            package='pontus_perception',
-            executable='yolo',
-            name='camera_3_yolo',
-            parameters=[{
-                'auv': auv_config_str,
-                'model_path': os.path.join(pkg_share,
-                                           'yolo',
-                                           auv_config_str,
-                                           front_right_camera_model)
-            }],
-            remappings=[
-                ('input', '/pontus/camera_3/image_rect_color'),
-                ('results', '/pontus/camera_3/yolo_results'),
-                ('yolo_debug', '/pontus/camera_3/yolo_debug')
-            ]
-        ),
+        # Not needed if using disparity map
+        # Node(
+        #     package='pontus_perception',
+        #     executable='yolo',
+        #     name='camera_3_yolo',
+        #     parameters=[{
+        #         'auv': auv_config_str,
+        #         'model_path' : os.path.join(pkg_share, 'yolo', auv_config_str, front_right_camera_model)
+        #     }],
+        #     remappings=[
+        #         ('input', '/pontus/camera_3/image_rect_color'),
+        #         ('results', '/pontus/camera_3/yolo_results'),
+        #         ('yolo_debug', '/pontus/camera_3/yolo_debug')
+        #     ]
+        # ),
         Node(
             package='pontus_perception',
             executable='yolo_pose_detection',
@@ -66,13 +64,13 @@ def generate_launch_description():
             launch_arguments={
                 'left_namespace': '/pontus/camera_2',
                 'right_namespace': '/pontus/camera_3',
-                'num_disparities': '64',
-                'window_size': '7',
-                'prefilter_cap': '31',
-                'texture_threshold': '10',
-                'uniqueness_ratio': '5',
-                'speckle_window_size': '200',
-                'speckle_range': '64',
+                'num_disparities' : '16',
+                'window_size' : '7',
+                'prefilter_cap' : '31',
+                'texture_threshold' : '10',
+                'uniqueness_ratio' : '5',
+                'speckle_window_size' : '200',
+                'speckle_range' : '64',
             }.items()
         ),
     ])
