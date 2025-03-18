@@ -31,11 +31,11 @@ class Submerge(BaseTask):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         if not self.cmd_sent:

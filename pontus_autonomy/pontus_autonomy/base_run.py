@@ -13,11 +13,11 @@ class BaseRun(Node):
 
         Args:
         ----
-            task (BaseTask): the task we want to run
+        task (BaseTask): the task we want to run
 
         Return:
         ------
-            bool: the result of the task
+        bool: the result of the task
 
         """
         task = task()

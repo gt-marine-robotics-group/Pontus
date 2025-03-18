@@ -27,12 +27,12 @@ class GateInformationService(Node):
 
         Args:
         ----
-            request (GateInformation.Request): the GateInformation request
-            response (GateInformation.Response): the GateInformation response
+        request (GateInformation.Request): the GateInformation request
+        response (GateInformation.Response): the GateInformation response
 
         Return:
         ------
-            GateInformation.Response: the response to be sent back to the client
+        GateInformation.Response: the response to be sent back to the client
 
         """
         if request.set.data:

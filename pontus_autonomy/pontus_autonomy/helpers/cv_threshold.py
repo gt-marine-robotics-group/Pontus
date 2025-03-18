@@ -18,11 +18,11 @@ class CVThreshold:
 
         Args:
         ----
-            image (np.ndarray): the image we want to mask
+        image (np.ndarray): the image we want to mask
 
         Return:
         ------
-            np.ndarray: the masked image
+        np.ndarray: the masked image
 
         """
         self.mask = cv2.inRange(image, self.lower1, self.upper1)
@@ -37,11 +37,11 @@ class CVThreshold:
 
         Args:
         ----
-            image (np.ndarray): the image we want to get the markers from
+        image (np.ndarray): the image we want to get the markers from
 
         Return:
         ------
-            list[tuple[int, int]]: list of tuples representing the markers
+        list[tuple[int, int]]: list of tuples representing the markers
 
         """
         self.mask_image(image)
@@ -54,8 +54,8 @@ class CVThreshold:
             M = cv2.moments(contour)
 
             # Only use contours with nonzero area
-            if M["m00"] != 0:
-                center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+            if M['m00'] != 0:
+                center = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
                 markers.append(center)
 
         return markers

@@ -60,11 +60,11 @@ class VerticalMarkerTask(BaseTask):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         if self.previous_state != self.state:
@@ -81,11 +81,11 @@ class VerticalMarkerTask(BaseTask):
 
         Args:
         ----
-            msg (Odometry): odometry message from /pontus/odometry
+        msg (Odometry): odometry message from /pontus/odometry
 
         Return:
         ------
-            None
+        None
 
         """
         if self.current_pose is None:
@@ -100,11 +100,11 @@ class VerticalMarkerTask(BaseTask):
 
         Args:
         ----
-            detection_client (rclpy.client.Client): the vertical marker detection client
+        detection_client (rclpy.client.Client): the vertical marker detection client
 
         Return:
         ------
-            Optional[Point]: vertical marker detection if located
+        Optional[Point]: vertical marker detection if located
 
         """
         request = GetVerticalMarkerLocation.Request()
@@ -124,11 +124,11 @@ class VerticalMarkerTask(BaseTask):
 
         Args:
         ----
-            pose (Pose): the pose we want to copy
+        pose (Pose): the pose we want to copy
 
         Return:
         ------
-            Pose: the copied pose
+        Pose: the copied pose
 
         """
         new_pose = Pose()
@@ -154,11 +154,11 @@ class VerticalMarkerTask(BaseTask):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         if self.current_pose is None:
@@ -187,11 +187,11 @@ class VerticalMarkerTask(BaseTask):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         cmd_pose = Pose()
@@ -227,11 +227,11 @@ class VerticalMarkerTask(BaseTask):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         cmd_pose = Pose()

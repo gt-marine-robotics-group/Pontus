@@ -7,7 +7,7 @@ from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient
 
 class ExitGate(BaseTask):
     def __init__(self):
-        super().__init__("exit_gate")
+        super().__init__('exit_gate')
 
         self.odom_sub = self.create_subscription(
             Odometry,
@@ -33,11 +33,11 @@ class ExitGate(BaseTask):
 
         Args:
         ----
-            msg (Odometry): odometry message from /pontus/odometry
+        msg (Odometry): odometry message from /pontus/odometry
 
         Return:
         ------
-            None
+        None
 
         """
         self.current_pose = msg.pose.pose
@@ -49,11 +49,11 @@ class ExitGate(BaseTask):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         if not self.cmd_sent and self.current_pose is not None:

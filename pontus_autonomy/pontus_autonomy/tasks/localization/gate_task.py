@@ -89,11 +89,11 @@ class GateTask(BaseTask):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         if self.previous_state != self.state:
@@ -110,11 +110,11 @@ class GateTask(BaseTask):
 
         Args:
         ----
-            msg (Odometry): odometry message from /pontus/odometry
+        msg (Odometry): odometry message from /pontus/odometry
 
         Return:
         ------
-            None
+        None
 
         """
         # On the first call, maintain this pose
@@ -133,12 +133,12 @@ class GateTask(BaseTask):
 
         Args:
         ----
-            detection_client (rclpy.client.Client): the gate detection client
+        detection_client (rclpy.client.Client): the gate detection client
 
         Return:
         ------
-            tuple[Optional[Point], Optional[Point]]: a tuple containing the left and right gate
-                                                     detection if the resepctive gate is found
+        tuple[Optional[Point], Optional[Point]]: a tuple containing the left and right gate
+                                                 detection if the resepctive gate is found
 
         """
         request = GetGateLocation.Request()
@@ -169,11 +169,11 @@ class GateTask(BaseTask):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         if self.current_pose is None or self.desired_depth is None:
@@ -204,12 +204,12 @@ class GateTask(BaseTask):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            Optional[Pose]: if None, indicates the sub should maintain its current trajectory,
-                            else indicates the new pose the sub should go to
+        Optional[Pose]: if None, indicates the sub should maintain its current trajectory,
+                        else indicates the new pose the sub should go to
 
         """
         cmd_pose = self.current_pose
@@ -272,12 +272,12 @@ class GateTask(BaseTask):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            Optional[Pose]: if None, indicates the sub should maintain its current trajectory,
-                            else indicates the new pose the sub should go to
+        Optional[Pose]: if None, indicates the sub should maintain its current trajectory,
+                        else indicates the new pose the sub should go to
 
         """
         if not self.sent:
@@ -305,11 +305,11 @@ class GateTask(BaseTask):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         request = GateInformation.Request()

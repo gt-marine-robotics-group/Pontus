@@ -48,11 +48,11 @@ class VerticalToGate(BaseTask):
 
         Args:
         ----
-            msg (Odometry): odometry message from /pontus/odometry
+        msg (Odometry): odometry message from /pontus/odometry
 
         Return:
         ------
-            None
+        None
 
         """
         self.current_pose = msg.pose.pose
@@ -64,11 +64,11 @@ class VerticalToGate(BaseTask):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         if not self.cmd_sent and self.current_pose:

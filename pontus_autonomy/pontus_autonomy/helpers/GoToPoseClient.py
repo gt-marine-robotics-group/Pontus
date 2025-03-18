@@ -22,7 +22,7 @@ class GoToPoseClient:
         )
 
         if not self.action_client.wait_for_server(timeout_sec=5.0):
-            node.get_logger().error("GoToPose action server not available.")
+            node.get_logger().error('GoToPose action server not available.')
         self.current_state = PositionControllerState.Maintain_position
         self.completed = False
         self.is_in_progress = False
@@ -34,11 +34,11 @@ class GoToPoseClient:
 
         Args:
         ----
-            goal_pose (Pose): the desired pose
+        goal_pose (Pose): the desired pose
 
         Return:
         ------
-            None
+        None
 
         """
         self.completed = False
@@ -57,11 +57,11 @@ class GoToPoseClient:
 
         Args:
         ----
-            feedback (GoToPose.Feedback): feedback object from gotopose
+        feedback (GoToPose.Feedback): feedback object from gotopose
 
         Return:
         ------
-            None
+        None
 
         """
         self.current_state = PositionControllerState(feedback.feedback.current_state)
@@ -72,11 +72,11 @@ class GoToPoseClient:
 
         Args:
         ----
-            future (Future): the send goal future
+        future (Future): the send goal future
 
         Return:
         ------
-            None
+        None
 
         """
         goal_handle = future.result()
@@ -89,11 +89,11 @@ class GoToPoseClient:
 
         Args:
         ----
-            future (Future): the result future
+        future (Future): the result future
 
         Return:
         ------
-            None
+        None
 
         """
         result = future.result().result
@@ -110,11 +110,11 @@ class GoToPoseClient:
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            PositionControllerState: the current state the position controller is in
+        PositionControllerState: the current state the position controller is in
 
         """
         return self.current_state
@@ -125,11 +125,11 @@ class GoToPoseClient:
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            bool: true if completed
+        bool: true if completed
 
         """
         return self.completed
@@ -140,11 +140,11 @@ class GoToPoseClient:
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            bool: true if in progress else false
+        bool: true if in progress else false
 
         """
         return self.is_in_progress

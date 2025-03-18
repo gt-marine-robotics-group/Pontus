@@ -20,11 +20,11 @@ class BaseTask(Node):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         return self.task_future
@@ -35,11 +35,11 @@ class BaseTask(Node):
 
         Args:
         ----
-            success (bool): whether or not the task succeeded
+        success (bool): whether or not the task succeeded
 
         Return:
         ------
-            None
+        None
 
         """
         self.task_future.set_result(success)

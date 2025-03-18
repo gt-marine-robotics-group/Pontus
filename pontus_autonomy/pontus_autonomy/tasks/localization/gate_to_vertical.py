@@ -38,11 +38,11 @@ class GateToVertical(BaseTask):
 
         Args:
         ----
-            msg (Odometry): the odometry message
+        msg (Odometry): the odometry message
 
         Return:
         ------
-            None
+        None
 
         """
         self.current_pose = msg.pose.pose
@@ -54,11 +54,11 @@ class GateToVertical(BaseTask):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         if not self.current_pose:

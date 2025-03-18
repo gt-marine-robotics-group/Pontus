@@ -26,7 +26,7 @@ class SearchRegionClient:
         )
 
         if not self.action_client.wait_for_server(timeout_sec=5.0):
-            node.get_logger().error("SearchRegion action server not available.")
+            node.get_logger().error('SearchRegion action server not available.')
 
         self.completed = False
         self.is_in_progress = False
@@ -39,11 +39,11 @@ class SearchRegionClient:
 
         Args:
         ----
-            search_region (Polygon): the region the AUV should search
+        search_region (Polygon): the region the AUV should search
 
         Return:
         ------
-            None
+        None
 
         """
         self.completed = False
@@ -63,11 +63,11 @@ class SearchRegionClient:
 
         Args:
         ----
-            feedback (SearchRegion.Feedback): the feedback from the action
+        feedback (SearchRegion.Feedback): the feedback from the action
 
         Return:
         ------
-            None
+        None
 
         """
         self.next_pose = feedback.feedback.next_pose
@@ -78,11 +78,11 @@ class SearchRegionClient:
 
         Args:
         ----
-            future (Future): the future from the send goal action
+        future (Future): the future from the send goal action
 
         Return:
         ------
-            None
+        None
 
         """
         goal_handle = future.result()
@@ -95,11 +95,11 @@ class SearchRegionClient:
 
         Args:
         ----
-            future (Future): the future from the result service
+        future (Future): the future from the result service
 
         Return:
         ------
-            None
+        None
 
         """
         result = future.result().result
@@ -116,11 +116,11 @@ class SearchRegionClient:
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            Pose : the next pose the AUV should go to
+        Pose: the next pose the AUV should go to
 
         """
         return self.next_pose
@@ -131,11 +131,11 @@ class SearchRegionClient:
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            bool: whether or not we are done searching the region
+        bool: whether or not we are done searching the region
 
         """
         return self.completed
@@ -146,11 +146,11 @@ class SearchRegionClient:
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            bool: whether or not the searching action is in progress.
+        bool: whether or not the searching action is in progress.
 
         """
         return self.is_in_progress
