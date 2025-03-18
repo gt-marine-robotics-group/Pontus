@@ -76,11 +76,11 @@ class SonoptixDriver(Node):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         while self.cap.isOpened():
@@ -103,11 +103,11 @@ class SonoptixDriver(Node):
 
         Args:
         ----
-            frame (np.ndarray): the frame we want to apply the preprocessing
+        frame (np.ndarray): the frame we want to apply the preprocessing
 
         Return:
         ------
-            np.ndarray: the preprocessed iamge
+        np.ndarray: the preprocessed iamge
 
         """
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)

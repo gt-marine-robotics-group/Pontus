@@ -31,11 +31,11 @@ class Bag2Mp4(Node):
 
         Args:
         ----
-            msg (Image): the camera iamge
+        msg (Image): the camera iamge
 
         Return:
         ------
-            None
+        None
 
         """
         cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
@@ -47,11 +47,11 @@ class Bag2Mp4(Node):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         self.out.release()  # Properly release the VideoWriter

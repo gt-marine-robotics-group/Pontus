@@ -30,10 +30,11 @@ class PointCloudDownsampling(Node):
 
         Args:
         ----
-            msg (PointCloud2): pointcloud message from topic
+        msg (PointCloud2): pointcloud message from topic
+
         Return:
         ------
-            None
+        None
 
         """
         pc_data = np.array(list(pc2.read_points(msg, field_names=("x", "y", "z"), skip_nans=True)))

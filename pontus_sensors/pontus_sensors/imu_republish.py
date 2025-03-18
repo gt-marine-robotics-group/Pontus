@@ -31,11 +31,11 @@ class IMURepublishNode(Node):
 
         Args:
         ----
-            msg (Imu): Imu message
+        msg (Imu): Imu message
 
         Return:
         ------
-            None
+        None
 
         """
         self.imu_data = msg

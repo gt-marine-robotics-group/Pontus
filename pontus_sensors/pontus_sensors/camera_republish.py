@@ -26,11 +26,11 @@ class CameraRepublish(Node):
 
         Args:
         ----
-            msg (Image): image we want to republish
+        msg (Image): image we want to republish
 
         Return:
         ------
-            None
+        None
 
         """
         self.pub.publish(msg)

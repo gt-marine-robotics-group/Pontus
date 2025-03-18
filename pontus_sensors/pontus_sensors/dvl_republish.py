@@ -43,11 +43,11 @@ class DvlRepub(Node):
 
         Args:
         ----
-            msg (Odometry): the Odometry from the dvl
+        msg (Odometry): the Odometry from the dvl
 
         Return:
         ------
-            None
+        None
 
         """
         # Roll 180 degrees to fix frame

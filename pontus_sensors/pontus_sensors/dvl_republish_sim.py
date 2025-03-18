@@ -35,11 +35,11 @@ class DvlRepubSim(Node):
 
         Args:
         ----
-            msg (Odometry): the odometry from the topic
+        msg (Odometry): the odometry from the topic
 
         Return:
         ------
-            None
+        None
 
         """
         msg.header.frame_id = 'odom'

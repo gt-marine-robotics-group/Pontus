@@ -54,11 +54,11 @@ class YOLONode(Node):
 
         Args:
         ----
-            msg (Image): the image we want to run YOLO on
+        msg (Image): the image we want to run YOLO on
 
         Return:
         ------
-            None
+        None
 
         """
         bgr = self.cv_bridge.imgmsg_to_cv2(msg, 'bgr8')

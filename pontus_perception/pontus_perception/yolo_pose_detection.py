@@ -99,11 +99,11 @@ class YoloPoseDetection(Node):
 
         Args:
         ----
-            msg (Image): image message from topic
+        msg (Image): image message from topic
 
         Return:
         ------
-            None
+        None
 
         """
         self.left_camera = self.bridge.imgmsg_to_cv2(msg)
@@ -116,11 +116,11 @@ class YoloPoseDetection(Node):
 
         Args:
         ----
-            msg (Image): image message from topic
+        msg (Image): image message from topic
 
         Return:
         ------
-            None
+        None
 
         """
         self.disparity_msg = msg
@@ -134,11 +134,11 @@ class YoloPoseDetection(Node):
 
         Args:
         ----
-            msg (CameraInfo): camera info message from topic
+        msg (CameraInfo): camera info message from topic
 
         Return:
         ------
-            None
+        None
 
         """
         self.Tx = -msg.p[3]
@@ -152,11 +152,11 @@ class YoloPoseDetection(Node):
 
         Args:
         ----
-            msg (CameraInfo): camera info message from topic
+        msg (CameraInfo): camera info message from topic
 
         Return:
         ------
-            None
+        None
 
         """
         self.f = msg.k[0]
@@ -172,13 +172,13 @@ class YoloPoseDetection(Node):
 
         Args:
         ----
-            detection_pair (tuple[YOLOResult, YOLOResult]): the left and right camera detection
-                                                            pair
-            image_width (int): the width of the image
+        detection_pair (tuple[YOLOResult, YOLOResult]): the left and right camera detection
+                                                        pair
+        image_width (int): the width of the image
 
         Return:
         ------
-            bool: whether any of the bounding boxes are near the frame of FOV
+        bool: whether any of the bounding boxes are near the frame of FOV
 
         """
         return (detection_pair[0].x1 <= 5 or detection_pair[0].x2 >= (image_width - 5)
@@ -193,16 +193,16 @@ class YoloPoseDetection(Node):
 
         Args:
         ----
-            left_result (YOLOResultArray): the detecitons from the left camera
-            right_result (YOLOResultArray): the detections from the right camera
-            min_distance (float): the minimum distance to be considered a detection
-            max_distance (float): the maximum distance to be considered a detection
-            Tx (float): the translation of the left and right frame center in pixels
-            image_width (int): the width of the image
+        left_result (YOLOResultArray): the detecitons from the left camera
+        right_result (YOLOResultArray): the detections from the right camera
+        min_distance (float): the minimum distance to be considered a detection
+        max_distance (float): the maximum distance to be considered a detection
+        Tx (float): the translation of the left and right frame center in pixels
+        image_width (int): the width of the image
 
         Return:
         ------
-            list[tuple[YOLOResult, YOLOResult]]: pairs of YOLOResults representing the same object
+        list[tuple[YOLOResult, YOLOResult]]: pairs of YOLOResults representing the same object
 
         """
         valid_pairs = []
@@ -250,18 +250,18 @@ class YoloPoseDetection(Node):
 
         Args:
         ----
-            pair (tuple[YOLOResult, YOLOResult]): pair of detections of the same object we want
-                                                  to calculate pose for
-            Tx (float): the translation in pixels between the left and right camera frame center
-            cx (float): the x coordiante of the frame center of the left image
-            cy (float): the y coordiante of the frame center of the left image
-            f (float): the focal length in pixels of the left camera
-            sampling_method (SamplingMethod): sampling method to determine disparity
+        pair (tuple[YOLOResult, YOLOResult]): pair of detections of the same object we want
+                                                to calculate pose for
+        Tx (float): the translation in pixels between the left and right camera frame center
+        cx (float): the x coordiante of the frame center of the left image
+        cy (float): the y coordiante of the frame center of the left image
+        f (float): the focal length in pixels of the left camera
+        sampling_method (SamplingMethod): sampling method to determine disparity
 
         Return:
         ------
-            np.ndarray: a numpy array of size 3 containing the pose of the object in
-                        the relative body frame
+        np.ndarray: a numpy array of size 3 containing the pose of the object in
+                    the relative body frame
 
         """
         valid_disparities = []
@@ -305,19 +305,19 @@ class YoloPoseDetection(Node):
 
         Args:
         ----
-            left_result (YOLOResult): The yolo detection
-            disparity_msg (DisparityImage): The disparity image created by the left
-                                            and right camera
-            Tx (float): the translation in pixels between the left and right camera frame center
-            cx (float): the x coordiante of the frame center of the left image
-            cy (float): the y coordiante of the frame center of the left image
-            f (float): the focal length in pixels of the left camera
-            sampling_method (SamplingMethod): the sampling method to sample the bounding
+        left_result (YOLOResult): The yolo detection
+        disparity_msg (DisparityImage): The disparity image created by the left
+                                        and right camera
+        Tx (float): the translation in pixels between the left and right camera frame center
+        cx (float): the x coordiante of the frame center of the left image
+        cy (float): the y coordiante of the frame center of the left image
+        f (float): the focal length in pixels of the left camera
+        sampling_method (SamplingMethod): the sampling method to sample the bounding
                                               box of disparity values
 
         Return:
         ------
-            np.ndarray: the 3d pose of the detection in body coordinates
+        np.ndarray: the 3d pose of the detection in body coordinates
 
         """
         disparity_image = self.bridge.imgmsg_to_cv2(disparity_msg)
@@ -356,12 +356,12 @@ class YoloPoseDetection(Node):
 
         Args:
         ----
-            detection_array (tuple[int, np.ndarray]): an array of class_ids and their detection
-                                                      pose
+        detection_array (tuple[int, np.ndarray]): an array of class_ids and their detection
+                                                    pose
 
         Return:
         ------
-            None
+        None
 
         """
         request = AddSemanticObject.Request()
@@ -388,12 +388,12 @@ class YoloPoseDetection(Node):
 
         Args:
         ----
-            yolo_result (YOLOResult): the yolo result of the gate_side
-            image (np.ndarray): the left camera feed that correlates to the yolo_result
+        yolo_result (YOLOResult): the yolo result of the gate_side
+        image (np.ndarray): the left camera feed that correlates to the yolo_result
 
         Return:
         ------
-            bool: if the gate_side detection is the left side or right side
+        bool: if the gate_side detection is the left side or right side
 
         """
         x_min, x_max = int(yolo_result.x1), int(yolo_result.x2)
@@ -430,12 +430,12 @@ class YoloPoseDetection(Node):
 
         Args:
         ----
-            left_result (YOLOResultArray): the yolo results from the left camera
-            right_result (YOLOResultArray): the yolo results from the right camera
+        left_result (YOLOResultArray): the yolo results from the left camera
+        right_result (YOLOResultArray): the yolo results from the right camera
 
         Return:
         ------
-            None
+        None
 
         """
         # if not self.Tx or not self.f:

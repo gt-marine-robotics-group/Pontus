@@ -42,6 +42,9 @@ setup(
             'point_cloud_downsampling = pontus_perception.point_cloud_downsampling:main',
             'bag2mp4 = pontus_perception.bag2mp4:main',
             'yolo_pose_detection = pontus_perception.yolo_pose_detection:main',
+            'compressed_image_republisher = pontus_perception.compressed_image_republisher:main',
+            'camera_info_publisher_left = pontus_perception.camera_info_publisher_left:main',
+            'camera_info_publisher_right = pontus_perception.camera_info_publisher_right:main',
         ],
     },
 )
