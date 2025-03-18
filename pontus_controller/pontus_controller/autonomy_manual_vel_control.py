@@ -39,11 +39,11 @@ class AutonomyManualVelControl(Node):
 
         Args:
         ----
-            msg (Bool): whether or not autonomy mode is turned off or on
+        msg (Bool): whether or not autonomy mode is turned off or on
 
         Return:
         ------
-            None
+        None
 
         """
         if msg.data:
@@ -57,11 +57,11 @@ class AutonomyManualVelControl(Node):
 
         Args:
         ----
-            msg (Twist): command velocity
+        msg (Twist): command velocity
 
         Return:
         ------
-            None
+        None
 
         """
         if self.autonomy_mode_selected:
@@ -73,11 +73,11 @@ class AutonomyManualVelControl(Node):
 
         Args:
         ----
-            msg (Twist): command velocity
+        msg (Twist): command velocity
 
         Return:
         ------
-            None
+        None
 
         """
         if not self.autonomy_mode_selected:

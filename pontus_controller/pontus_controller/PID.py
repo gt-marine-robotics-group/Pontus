@@ -19,12 +19,12 @@ class PID:
 
         Args:
         ----
-            err (float): the error from the controller
-            dt (Duration): the amount of time since the last time PID was calculated
+        err (float): the error from the controller
+        dt (Duration): the amount of time since the last time PID was calculated
 
         Return:
         ------
-            float: the new control value
+        float: the new control value
 
         """
         # Convert ROS duration to seconds

@@ -39,11 +39,11 @@ class FirmwareCmdsNode(Node):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         msg = Float32MultiArray()
@@ -56,11 +56,11 @@ class FirmwareCmdsNode(Node):
 
         Args:
         ----
-            msg (Float64): desired thrust
+        msg (Float64): desired thrust
 
         Return:
         ------
-            None
+        None
 
         """
         self.thruster_cmds[0] = msg.data
@@ -71,11 +71,11 @@ class FirmwareCmdsNode(Node):
 
         Args:
         ----
-            msg (Float64): desired thrust
+        msg (Float64): desired thrust
 
         Return:
         ------
-            None
+        None
 
         """
         self.thruster_cmds[1] = msg.data
@@ -86,11 +86,11 @@ class FirmwareCmdsNode(Node):
 
         Args:
         ----
-            msg (Float64): desired thrust
+        msg (Float64): desired thrust
 
         Return:
         ------
-            None
+        None
 
         """
         self.thruster_cmds[2] = msg.data
@@ -101,11 +101,11 @@ class FirmwareCmdsNode(Node):
 
         Args:
         ----
-            msg (Float64): desired thrust
+        msg (Float64): desired thrust
 
         Return:
         ------
-            None
+        None
 
         """
         self.thruster_cmds[3] = msg.data
@@ -116,11 +116,11 @@ class FirmwareCmdsNode(Node):
 
         Args:
         ----
-            msg (Float64): desired thrust
+        msg (Float64): desired thrust
 
         Return:
         ------
-            None
+        None
 
         """
         self.thruster_cmds[4] = msg.data
@@ -131,11 +131,11 @@ class FirmwareCmdsNode(Node):
 
         Args:
         ----
-            msg (Float64): desired thrust
+        msg (Float64): desired thrust
 
         Return:
         ------
-            None
+        None
 
         """
         self.thruster_cmds[5] = msg.data
@@ -146,11 +146,11 @@ class FirmwareCmdsNode(Node):
 
         Args:
         ----
-            msg (Float64): desired thrust
+        msg (Float64): desired thrust
 
         Return:
         ------
-            None
+        None
 
         """
         self.thruster_cmds[6] = msg.data
@@ -161,11 +161,11 @@ class FirmwareCmdsNode(Node):
 
         Args:
         ----
-            msg (Float64): desired thrust
+        msg (Float64): desired thrust
 
         Return:
         ------
-            None
+        None
 
         """
         self.thruster_cmds[7] = msg.data

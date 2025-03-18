@@ -18,11 +18,11 @@ class Stop(Node):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         msg = Float32MultiArray()

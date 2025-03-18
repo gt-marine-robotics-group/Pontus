@@ -63,11 +63,11 @@ class DirectThrusterController(Node):
 
             Args:
             ----
-                value (float): the thrust for the thruster
+            value (float): the thrust for the thruster
 
             Return:
             ------
-                None
+            None
 
             """
             msg = Float64()
@@ -136,11 +136,11 @@ class DirectThrusterController(Node):
 
         Args:
         ----
-            msg (Twist): command velocity
+        msg (Twist): command velocity
 
         Return:
         ------
-            None
+        None
 
         """
         # TF isn't available yet
@@ -169,11 +169,11 @@ class DirectThrusterController(Node):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         tf_string = self.tf_buffer.all_frames_as_yaml()

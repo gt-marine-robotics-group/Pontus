@@ -134,11 +134,11 @@ class PositionNode(Node):
 
         Args:
         ----
-            goal_handle (Any): the goal handle of the action
+        goal_handle (Any): the goal handle of the action
 
         Return:
         ------
-            GoToPose.Result: the result of the action
+        GoToPose.Result: the result of the action
 
         """
         request = goal_handle.request
@@ -168,11 +168,11 @@ class PositionNode(Node):
 
         Args;
         ----
-            msg (Bool): Bool message from callback
+        msg (Bool): Bool message from callback
 
         Return:
         ------
-            None
+        None
 
         """
         if msg.data:
@@ -186,11 +186,11 @@ class PositionNode(Node):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         # self.get_logger().info(f"Goal pose: {self.goal_pose}")
@@ -204,11 +204,11 @@ class PositionNode(Node):
 
         Args:
         ----
-            msg (Pose): commanded pose
+        msg (Pose): commanded pose
 
         Return:
         ------
-            None
+        None
 
         """
         quat = msg.orientation
@@ -233,11 +233,11 @@ class PositionNode(Node):
 
         Args:
         ----
-            angle (float): the desired angle we want to convert
+        angle (float): the desired angle we want to convert
 
         Return:
         ------
-            float: the new angle
+        float: the new angle
 
         """
         return (angle + np.pi) % (2 * np.pi) - np.pi
@@ -248,11 +248,11 @@ class PositionNode(Node):
 
         Args:
         ----
-            msg (Odometry): our current odometry
+        msg (Odometry): our current odometry
 
         Return:
         ------
-            None
+        None
 
         """
         self.state_debugger()
@@ -313,12 +313,12 @@ class PositionNode(Node):
 
         Args:
         ----
-            desired_angle (np.ndarray): the angle we want to go to [r, p ,y]
-            current_angle (np.ndarray): the angle we currently are at [r, p, y]
+        desired_angle (np.ndarray): the angle we want to go to [r, p ,y]
+        current_angle (np.ndarray): the angle we currently are at [r, p, y]
 
         Return:
         ------
-            np.ndarray: the error in [r, p, y]
+        np.ndarray: the error in [r, p, y]
 
         """
         angular_diff = desired_angle - current_angle
@@ -339,13 +339,13 @@ class PositionNode(Node):
 
         Args:
         ----
-            desired_pose (np.ndarray): our desired position in [x, y, z]
-            current_pose (np.ndarray): our current position in [x, y, z]
-            quat_orientation (np.ndarray): our current orientation in [x, y, z, w]
+        desired_pose (np.ndarray): our desired position in [x, y, z]
+        current_pose (np.ndarray): our current position in [x, y, z]
+        quat_orientation (np.ndarray): our current orientation in [x, y, z, w]
 
         Return:
         ------
-            np.ndarray: our linear error in [x, y, z]
+        np.ndarray: our linear error in [x, y, z]
 
         """
         u = np.array(quat_orientation[:3])
@@ -368,12 +368,12 @@ class PositionNode(Node):
 
         Args:
         ----
-            current_position (np.ndarray): our current position
-            quat (np.ndarray): our current orientation
+        current_position (np.ndarray): our current position
+        quat (np.ndarray): our current orientation
 
         Return:
         ------
-            tuple[np.ndarray, np.ndarray]: linear error, angular error
+        tuple[np.ndarray, np.ndarray]: linear error, angular error
 
         """
         linear_err = self.calculate_linear_error(self.goal_pose, current_position, quat)
@@ -393,12 +393,12 @@ class PositionNode(Node):
 
         Args:
         ----
-            current_position (np.ndarray): our current position
-            quat (np.ndarray): our current orientation
+        current_position (np.ndarray): our current position
+        quat (np.ndarray): our current orientation
 
         Return:
         ------
-            tuple[np.ndarray, np.ndarray]: linear error, angular error
+        tuple[np.ndarray, np.ndarray]: linear error, angular error
 
         """
         self.goal_pose = [self.goal_pose[0], self.goal_pose[1], self.cmd_linear[2]]
@@ -421,12 +421,12 @@ class PositionNode(Node):
 
         Args:
         ----
-            current_position (np.ndarray): our current position
-            quat (np.ndarray): our current orientation
+        current_position (np.ndarray): our current position
+        quat (np.ndarray): our current orientation
 
         Return:
         ------
-            tuple[np.ndarray, np.ndarray]: linear error, angular error
+        tuple[np.ndarray, np.ndarray]: linear error, angular error
 
         """
         linear_err = self.calculate_linear_error(self.cmd_linear, current_position, quat)
@@ -456,12 +456,12 @@ class PositionNode(Node):
 
         Args:
         ----
-            current_position (np.ndarray): our current position
-            quat (np.ndarray): our current orientation
+        current_position (np.ndarray): our current position
+        quat (np.ndarray): our current orientation
 
         Return:
         ------
-            tuple[np.ndarray, np.ndarray]: linear error, angular error
+        tuple[np.ndarray, np.ndarray]: linear error, angular error
 
         """
         linear_err = self.calculate_linear_error(self.goal_pose, current_position, quat)
@@ -492,12 +492,12 @@ class PositionNode(Node):
 
         Args:
         ----
-            current_position (np.ndarray): our current position
-            quat (np.ndarray): our current orientation
+        current_position (np.ndarray): our current position
+        quat (np.ndarray): our current orientation
 
         Return:
         ------
-            tuple[np.ndarray, np.ndarray]: linear error, angular error
+        tuple[np.ndarray, np.ndarray]: linear error, angular error
 
         """
         # self.get_logger().info(f"{self.prev_linear_time_under_threshold}")
@@ -526,12 +526,12 @@ class PositionNode(Node):
 
         Args:
         ----
-            current_position (np.ndarray): our current position
-            quat (np.ndarray): our current orientation
+        current_position (np.ndarray): our current position
+        quat (np.ndarray): our current orientation
 
         Return:
         ------
-            tuple[np.ndarray, np.ndarray]: linear error, angular error
+        tuple[np.ndarray, np.ndarray]: linear error, angular error
 
         """
         linear_err = self.calculate_linear_error(self.goal_pose, current_position, quat)

@@ -65,11 +65,11 @@ class HybridControllerNode(Node):
 
         Args:
         ----
-          msg (Odometry): depth message
+        msg (Odometry): depth message
 
         Return:
         ------
-          None
+        None
 
         """
         self.depth_msg = msg
@@ -80,11 +80,11 @@ class HybridControllerNode(Node):
 
         Args:
         ----
-          msg (Twist): command velocity from topic
+        msg (Twist): command velocity from topic
 
         Return:
         ------
-          None
+        None
 
         """
         self.cmd_linear = np.array([msg.linear.x, msg.linear.y, msg.linear.z])
@@ -100,11 +100,11 @@ class HybridControllerNode(Node):
 
         Args:
         ----
-          msg (Odometry): odometry message from topic
+        msg (Odometry): odometry message from topic
 
         Return:
         ------
-          None
+        None
 
         """
         self.depth_msg = msg
