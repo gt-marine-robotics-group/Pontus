@@ -11,7 +11,7 @@ from geometry_msgs.msg import Polygon
 from pontus_msgs.action import SearchRegion
 from pontus_mapping.helpers import get_fov_polygon, polygon_contained
 
-'''
+"""
 This is intended to mark areas that are considered explored.
 Define exploration regions.
 Give next interested region if not found.
@@ -23,7 +23,7 @@ The exploration map is represneted through an occupancy grid
 Set desired region
 TODO:
 Create Action Server
-'''
+"""
 
 
 class ExplorationMapManager(Node):
@@ -97,11 +97,11 @@ class ExplorationMapManager(Node):
 
         Args:
         ----
-            msg (Odometry): current odometry
+        msg (Odometry): current odometry
 
         Return:
         ------
-            None
+        None
 
         """
         if not self.current_odometry:
@@ -118,11 +118,11 @@ class ExplorationMapManager(Node):
 
         Args:
         ----
-            goal_handle (Any): goal_handle from callback
+        goal_handle (Any): goal_handle from callback
 
         Return:
         ------
-            None
+        None
 
         """
         request = goal_handle.request
@@ -153,14 +153,14 @@ class ExplorationMapManager(Node):
 
         Args:
         ----
-            current_point (tuple(float, float)): point we want to convert
-            map_width_cells (float): the width of the map in cells
-            map_height_cells (float): the height of the map in cells
-            map_resolution (float): the resolution of the map in meters
+        current_point (tuple(float, float)): point we want to convert
+        map_width_cells (float): the width of the map in cells
+        map_height_cells (float): the height of the map in cells
+        map_resolution (float): the resolution of the map in meters
 
         Return:
         ------
-            int: the index in the map corresponding to the point
+        int: the index in the map corresponding to the point
 
         """
         map_x = self.my_floor(current_point[1], map_resolution) \
@@ -175,12 +175,12 @@ class ExplorationMapManager(Node):
 
         Args:
         ----
-            value (float): the value to be floored
-            resolution (float): the resolution at which the value should be floored to
+        value (float): the value to be floored
+        resolution (float): the resolution at which the value should be floored to
 
         Return:
         ------
-            (float) : floored value
+        (float) : floored value
 
         """
         return value - (value % resolution)
@@ -195,12 +195,12 @@ class ExplorationMapManager(Node):
 
         Args:
         ----
-            polygon (geometry_msgs/Polygon): Polygon in map coordinates of requested region
-            map_resolution (float): The resolution of the map in meters
+        polygon (geometry_msgs/Polygon): Polygon in map coordinates of requested region
+        map_resolution (float): The resolution of the map in meters
 
         Return:
         ------
-            list[tuple[int, int]]: a list of points that are within this region
+        list[tuple[int, int]]: a list of points that are within this region
 
         """
         bfs_queue = queue.Queue()
@@ -243,15 +243,15 @@ class ExplorationMapManager(Node):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         if not self.current_odometry:
-            self.get_logger().info("Waiting on odometry callback, skipping")
+            self.get_logger().info('Waiting on odometry callback, skipping')
             return
         # Calculate which squares should be marked visited
         fov_polygon = get_fov_polygon(self.current_odometry,

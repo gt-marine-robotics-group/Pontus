@@ -93,12 +93,12 @@ class SemanticMapManager(Node):
 
         Args:
         ----
-            request (GetGateLocation.Request): request field in the service request
-            response (GetGateLocation.Response): response field in the service request
+        request (GetGateLocation.Request): request field in the service request
+        response (GetGateLocation.Response): response field in the service request
 
         Return:
         ------
-            None
+        None
 
         """
         response.left_location = Point()
@@ -151,12 +151,12 @@ class SemanticMapManager(Node):
 
         Args:
         ----
-            request (GetGateLocation.Request): request field in the service request
-            response (GetGateLocation.Response): response field in the service request
+        request (GetGateLocation.Request): request field in the service request
+        response (GetGateLocation.Response): response field in the service request
 
         Return:
         ------
-            None
+        None
 
         """
         response.location = Point()
@@ -181,11 +181,11 @@ class SemanticMapManager(Node):
 
         Args:
         ----
-            msg (Odometry): odometry message
+        msg (Odometry): odometry message
 
         Return:
         ------
-            None
+        None
 
         """
         self.current_odom = msg
@@ -196,22 +196,22 @@ class SemanticMapManager(Node):
 
         Args:
         ----
-            position (PoseStamped): the point to transform
-            tf_buffer (tf2_ros.buffer): tf buffer to get transform
+        position (PoseStamped): the point to transform
+        tf_buffer (tf2_ros.buffer): tf buffer to get transform
 
         Return:
         ------
-            Pose: the pose in the map frame
+        Pose: the pose in the map frame
 
         """
         try:
             transform = tf_buffer.lookup_transform(
-                "map",
+                'map',
                 position.header.frame_id,
                 rclpy.time.Time()
             )
         except Exception as e:
-            self.get_logger().info(f"Exception {e}. Failed to get map transfrom. Skipping")
+            self.get_logger().info(f'Exception {e}. Failed to get map transfrom. Skipping')
             return None
 
         pose_map_frame = do_transform_pose(position.pose, transform)
@@ -227,15 +227,15 @@ class SemanticMapManager(Node):
 
         Args:
         ----
-            current_object (SemanticObject): the object we want to check duplicates for
-            current_object_pose (Pose): the pose of the current object
-            min_distance (float): the minimum distance to another marker
-            iteration_number (int): the iteration number used to keep track when we last updated a
-                                     detection
+        current_object (SemanticObject): the object we want to check duplicates for
+        current_object_pose (Pose): the pose of the current object
+        min_distance (float): the minimum distance to another marker
+        iteration_number (int): the iteration number used to keep track when we last updated a
+                                detection
 
         Return:
         ------
-            None
+        None
 
         """
         distances = ((np.array(self.semantic_map['x_loc']) - current_object_pose.position.x)**2
@@ -280,12 +280,12 @@ class SemanticMapManager(Node):
 
         Args:
         ----
-            current_twist (Twist): the current velocity where the first row is linear,
-                                    and the second row is angular
+        current_twist (Twist): the current velocity where the first row is linear,
+                               and the second row is angular
 
         Return:
         ------
-            bool: true if the sub is moving
+        bool: true if the sub is moving
 
         """
         current_linear_velocity = np.array([current_twist.linear.x,
@@ -308,13 +308,13 @@ class SemanticMapManager(Node):
 
         Args:
         ----
-            fov_polygon (Polygon): the polygon representing our FOV
-            update_iteration (int): the iteration number to keep track of what
-                                    has already been updated
+        fov_polygon (Polygon): the polygon representing our FOV
+        update_iteration (int): the iteration number to keep track of what has already
+                                been updated
 
         Return:
         ------
-            None
+        None
 
         """
         for _, row in self.semantic_map.iterrows():
@@ -336,17 +336,17 @@ class SemanticMapManager(Node):
 
         Args:
         ----
-            request (AddSemanticObject.Request): request containing semantic object to be added
-            response (AddSemanticObject.Response): response for service
+        request (AddSemanticObject.Request): request containing semantic object to be added
+        response (AddSemanticObject.Response): response for service
 
         Return:
         ------
-            None
+        None
 
         """
         if self.moving(self.current_odom.twist.twist):
             response.added = False
-            self.get_logger().info("Moving, skipping add to semantic map")
+            self.get_logger().info('Moving, skipping add to semantic map')
             return response
         # Calculate current FOV polygon
         # This will be used to make sure faulty detections are not included
@@ -358,13 +358,13 @@ class SemanticMapManager(Node):
         for class_id, detection_pose in zip(request.ids, request.positions):
             map_position = self.convert_to_map_frame(detection_pose, self.tf_buffer)
             if not map_position:
-                self.get_logger().warn("Unable to find map transform, skipping add")
+                self.get_logger().warn('Unable to find map transform, skipping add')
                 return response
             # Test to see if this is within our FOV
             if not polygon_contained(fov_polygon,
                                      (map_position.position.x, map_position.position.y)):
                 self.get_logger().info(
-                    f"Detection {class_id} {detection_pose} fell outside of fov, ignoring"
+                    f'Detection {class_id} {detection_pose} fell outside of fov, ignoring'
                 )
                 continue
             current_object = SemanticObject(class_id)
@@ -390,11 +390,11 @@ class SemanticMapManager(Node):
 
         Args:
         ----
-            row (Series): the pandas series representing the object
+        row (Series): the pandas series representing the object
 
         Return:
         ------
-            int: the hash valued
+        int: the hash valued
 
         """
         return row.name
@@ -405,19 +405,19 @@ class SemanticMapManager(Node):
 
         Args:
         ----
-            row (Series): the pd series containing the semantic object
-            marker (Marker): the marker message to be edited (passed by reference)
+        row (Series): the pd series containing the semantic object
+        marker (Marker): the marker message to be edited (passed by reference)
 
         Return:
         ------
-            None
+        None
 
         """
         match row['type']:
             case SemanticObject.LeftGate:
                 # 3D models of the gate
                 marker.type = Marker.MESH_RESOURCE
-                marker.mesh_resource = "package://pontus_mapping/visual_meshes/LeftGate.obj"
+                marker.mesh_resource = 'package://pontus_mapping/visual_meshes/LeftGate.obj'
                 marker.scale.x = 1.0
                 marker.scale.y = 1.0
                 marker.scale.z = 1.0
@@ -430,7 +430,7 @@ class SemanticMapManager(Node):
             case SemanticObject.RightGate:
                 # 3D models of the gate
                 marker.type = Marker.MESH_RESOURCE
-                marker.mesh_resource = "package://pontus_mapping/visual_meshes/RightGate.obj"
+                marker.mesh_resource = 'package://pontus_mapping/visual_meshes/RightGate.obj'
                 marker.scale.x = 1.0
                 marker.scale.y = 1.0
                 marker.scale.z = 1.0
@@ -441,7 +441,7 @@ class SemanticMapManager(Node):
                 marker.mesh_use_embedded_materials = True
             case SemanticObject.VerticalMarker:
                 marker.type = Marker.MESH_RESOURCE
-                marker.mesh_resource = "package://pontus_mapping/visual_meshes/VerticalMarker.obj"
+                marker.mesh_resource = 'package://pontus_mapping/visual_meshes/VerticalMarker.obj'
                 marker.scale.x = 1.0
                 marker.scale.y = 1.0
                 marker.scale.z = 1.0
@@ -451,7 +451,7 @@ class SemanticMapManager(Node):
                 marker.pose.position.z = row['z_loc']
                 marker.mesh_use_embedded_materials = True
             case _:
-                self.get_logger().info("Found marker with unknown object type, skipping")
+                self.get_logger().info('Found marker with unknown object type, skipping')
 
         return
 
@@ -461,11 +461,11 @@ class SemanticMapManager(Node):
 
         Args:
         ----
-            None
+        None
 
         Return:
         ------
-            None
+        None
 
         """
         marker_array = MarkerArray()
@@ -477,14 +477,14 @@ class SemanticMapManager(Node):
             if row['num_detected'] < 30:
                 continue
             marker = Marker()
-            marker.header.frame_id = "map"
+            marker.header.frame_id = 'map'
             marker.header.stamp = self.get_clock().now().to_msg()
             marker.ns = '/pontus'
             marker.id = self.marker_hash(row)
             self.set_marker_shape(row, marker)
             marker.action = Marker.ADD
             marker_array.markers.append(marker)
-        self.get_logger().info(f"\n {self.semantic_map}")
+        self.get_logger().info(f'\n {self.semantic_map}')
         self.semantic_map_manager_pub.publish(marker_array)
 
 

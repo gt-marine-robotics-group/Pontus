@@ -18,13 +18,13 @@ def get_fov_polygon(current_odometry: Odometry) -> Polygon:
 
     Args:
     ----
-        current_odometry (nav_msgs/Odometry): our current odometry
-        perception_fov (float): the angle of our perception fov in radians
-        perception_distance (float): the max distance we can reliablely see in meters
+    current_odometry (nav_msgs/Odometry): our current odometry
+    perception_fov (float): the angle of our perception fov in radians
+    perception_distance (float): the max distance we can reliablely see in meters
 
     Return:
     ------
-        (geometry_msgs/Polygon) : the polygon representing our FOV
+    (geometry_msgs/Polygon) : the polygon representing our FOV
 
     """
     fov_polygon = Polygon()
@@ -57,12 +57,12 @@ def polygon_contained(polygon: Polygon, point: tuple[float, float]) -> bool:
 
     Args:
     ----
-        polygon (Polygon): the bounding polygon
-        point (tuple[float, float]): the point to be checked if inside the polygon
+    polygon (Polygon): the bounding polygon
+    point (tuple[float, float]): the point to be checked if inside the polygon
 
     Return:
     ------
-        bool: whether or not the point is contained within the polygon
+    bool: whether or not the point is contained within the polygon
 
     """
     x, y = point[0], point[1]
