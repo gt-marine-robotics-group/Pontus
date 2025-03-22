@@ -46,9 +46,4 @@ def generate_launch_description():
                 'sim_mode': PythonExpression(["'", sim_config, "' == 'true'"])
             }]
         ),
-        Node(
-            package='pontus_controller',
-            executable='command_pose',
-            output='screen'
-        )
     ])

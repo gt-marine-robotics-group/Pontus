@@ -39,6 +39,7 @@ class PositionNode(Node):
         self.transition_threshold[PositionControllerState.Angular_correction] = 0.1
 
         self.deadzone = 0.2
+        self.linear_deadzone = 0.5
         self.stuck_error_threshold = 0.3
         self.stuck_error_time = Duration(seconds=7)
 
@@ -68,14 +69,14 @@ class PositionNode(Node):
             self.pid_angular = [
                 PID(0.5, 0, 0),
                 PID(0.5, 0, 0),
-                PID(0.4, 0, 0.0001)
+                PID(0.4, 0, 0)
             ]
         # Real values for sub
         else:
             self.pid_linear = [
                 PID(1.0, 0, 0),
                 PID(0.5, 0, 0),
-                PID(2.5, 0.1, 0, 0.12)
+                PID(2.5, 0, 0, 0.12)
             ]
 
             self.pid_angular = [
@@ -475,8 +476,8 @@ class PositionNode(Node):
         current_orientation = np.array([r, p, y])
         goal_orientation = np.array([0, 0, np.arctan2(linear_difference[1], linear_difference[0])])
         angular_err = self.calculate_angular_error(goal_orientation, current_orientation)
-
-        if angular_err[2] < self.transition_threshold[PositionControllerState.Direction_correction]:
+        transition_thresh = self.transition_threshold[PositionControllerState.Direction_correction]
+        if abs(angular_err[2]) < transition_thresh:
             self.state = PositionControllerState.Linear_correction
             self.goal_angle = goal_orientation
             self.prev_linear_time_under_threshold = self.get_clock().now()
@@ -503,9 +504,15 @@ class PositionNode(Node):
         # self.get_logger().info(f"{self.prev_linear_time_under_threshold}")
         self.goal_pose = self.cmd_linear
         linear_err = self.calculate_linear_error(self.goal_pose, current_position, quat)
-        angular_err = np.zeros(3)
+        linear_difference = self.cmd_linear - current_position
+        (r, p, y) = euler_from_quaternion(quat)
+        current_orientation = np.array([r, p, y])
+        goal_orientation = np.array([0, 0, np.arctan2(linear_difference[1], linear_difference[0])])
+        angular_err = self.calculate_angular_error(goal_orientation, current_orientation)
 
         transition_thresh = self.transition_threshold[PositionControllerState.Linear_correction]
+        if np.linalg.norm(linear_err[:2]) < self.linear_deadzone:
+            angular_err = np.zeros(3)
         if np.linalg.norm(linear_err) < transition_thresh:
             self.state = PositionControllerState.Angular_correction
 

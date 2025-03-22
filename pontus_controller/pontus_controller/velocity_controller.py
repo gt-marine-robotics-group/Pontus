@@ -5,7 +5,7 @@ import numpy as np
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from typing import Optional, List
-from .PID import PID
+from pontus_controller.PID import PID, DegreeOfFreedom
 
 
 class VelocityNode(Node):
@@ -19,9 +19,15 @@ class VelocityNode(Node):
 
         # TODO: Tune these
         self.pid_linear = [
-          PID(20, 0, 0, 2),  # X
-          PID(20, 0, 0, 2),  # Y
-          PID(10, 0, 0, 2)  # Z
+          PID(20, 0, 0, degree_of_freedom=DegreeOfFreedom.X),  # X
+          PID(20, 0, 0, degree_of_freedom=DegreeOfFreedom.Y),  # Y
+          PID(10, 0, 0, degree_of_freedom=DegreeOfFreedom.Z)  # Z
+        ]
+
+        self.pid_angular = [
+          PID(1, 0, 0, degree_of_freedom=DegreeOfFreedom.ROLL),  # R
+          PID(1, 0, 0, degree_of_freedom=DegreeOfFreedom.PITCH),  # P
+          PID(0.1, 0, 0, degree_of_freedom=DegreeOfFreedom.YAW)  # Y
         ]
 
         # Sim PID values
@@ -30,12 +36,6 @@ class VelocityNode(Node):
         #   PID(2, 1, 0, 2), # Y
         #   PID(2, 1, 0, 2)  # Z
         # ]
-
-        self.pid_angular = [
-          PID(1, 0, 0, 0),  # R
-          PID(1, 0, 0, 0),  # P
-          PID(0.7, 0, 0, 0)  # Y
-        ]
 
         # ROS infrastructure
         self.cmd_vel_sub = self.create_subscription(
@@ -99,13 +99,10 @@ class VelocityNode(Node):
         msg.linear.x = self.pid_linear[0](linear_err[0], dt)
         msg.linear.y = self.pid_linear[1](linear_err[1], dt)
         msg.linear.z = self.pid_linear[2](linear_err[2], dt)
-        # msg.angular.z = self.pid_angular[2](angular_err[2], dt)
-        # msg.angular.x = self.pid_angular[0](angular_err[0], dt)
-        # msg.angular.y = self.pid_angular[1](angular_err[1], dt)
+        msg.angular.x = self.pid_angular[0](self.cmd_angular[0], dt, self.cmd_angular[0])
+        msg.angular.y = self.pid_angular[1](self.cmd_angular[1], dt, self.cmd_angular[1])
+        msg.angular.z = self.pid_angular[2](self.cmd_angular[2], dt, self.cmd_angular[2])
         self.prev_time = self.get_clock().now()
-        msg.angular.x = self.cmd_angular[0]
-        msg.angular.y = self.cmd_angular[1]
-        msg.angular.z = self.cmd_angular[2]
 
         self.cmd_accel_pub.publish(msg)
 
