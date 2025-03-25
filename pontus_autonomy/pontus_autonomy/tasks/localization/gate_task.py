@@ -371,28 +371,36 @@ class GateTask(BaseTask):
         start = np.pi / 3
         end = -np.pi / 3
         left_gate, right_gate = self.get_gate_location(self.gate_detection_client)
+        self.get_logger().info(f"{left_gate} {right_gate}")
         # Case 1
         if left_gate and right_gate:
+            self.get_logger().info("Case #1")
             self.searching_state = self.SearchState.Done
             self.sent = False
             return
         # Case 2
         elif not left_gate and self.side_in_view(True):
+            self.get_logger().info("Case #2")
             self.previous_searching_state = self.searching_state
             self.searching_state = self.SearchState.Detect_Left
             self.sent = False
         # Case 3
         elif not right_gate and self.side_in_view(False):
+            self.get_logger().info("Case #3")
             self.previous_searching_state = self.searching_state
             self.searching_state = self.SearchState.Detect_Right
             self.sent = False
         # Case 4
-        elif not left_gate and not right_gate and abs(start - self.current_yaw) < 0.05:
+        elif not left_gate and not right_gate \
+                and abs(start - self.current_yaw) < 0.05 \
+                and self.searching_state == self.SearchState.Turn_CCW:
+            self.get_logger().info("Case #4")
             self.searching_state = self.SearchState.Turn_CC
             self.sent = False
             return
         # Case 5
         elif not left_gate and not right_gate and not self.sent:
+            self.get_logger().info("Case #5")
             cmd_pose = Pose()
             desired_angle = start if self.searching_state == self.SearchState.Turn_CCW else end
             quat = tf_transformations.quaternion_from_euler(0, 0, desired_angle)
@@ -405,6 +413,7 @@ class GateTask(BaseTask):
             return PoseObj(cmd_pose, False)
         # Case 6
         elif not left_gate and right_gate and not self.sent:
+            self.get_logger().info("Case #6")
             cmd_pose = Pose()
             desired_angle = start
             quat = tf_transformations.quaternion_from_euler(0, 0, desired_angle)
@@ -418,10 +427,12 @@ class GateTask(BaseTask):
         # Case 7
         # TODO: Handle this
         elif not left_gate and right_gate and abs(end - self.current_yaw) < 0.05:
+            self.get_logger().info("Case #7")
             self.get_logger().warn("Unhandled case where fully turned counter clockwise but "
                                    + "have not found left_gate")
         # Case 8
         elif left_gate and not right_gate and not self.sent:
+            self.get_logger().info("Case #8")
             cmd_pose = Pose()
             desired_angle = end
             quat = tf_transformations.quaternion_from_euler(0, 0, desired_angle)
@@ -434,10 +445,12 @@ class GateTask(BaseTask):
             return PoseObj(cmd_pose, False)
         # Case 9
         elif left_gate and not right_gate and abs(end - self.current_yaw) < 0.05:
+            self.get_logger().info("Case #9")
             self.get_logger().warn("Unhandled case where fully turned clockwise but "
                                    + "have not found right_gate")
         # Case 10
         elif not left_gate and not right_gate and abs(end - self.current_yaw) < 0.05:
+            self.get_logger().info("Case #10")
             self.get_logger().warn("Unhandled case where at end of search but no gate found")
 
     def align_with_gate(self, left: bool) -> Optional[PoseObj]:
