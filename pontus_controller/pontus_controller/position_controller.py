@@ -322,7 +322,6 @@ class PositionNode(Node):
         np.ndarray: the error in [r, p, y]
 
         """
-        self.get_logger().info(f"{desired_angle} {current_angle}")
         angular_diff = desired_angle - current_angle
         # find the shorter turn for angles
         angular_adj = np.sign(angular_diff) * 2 * np.pi

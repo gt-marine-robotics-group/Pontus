@@ -25,8 +25,8 @@ from pontus_mapping.helpers import get_fov_polygon, polygon_contained
 
 class SemanticObject(Enum):
     LeftGate = 0
-    RightGate = 10
-    VerticalMarker = 1
+    RightGate = 1
+    VerticalMarker = 4
 
 
 class SemanticMapManager(Node):
@@ -296,8 +296,23 @@ class SemanticMapManager(Node):
                                              current_twist.angular.y,
                                              current_twist.angular.z])
 
-        return (np.linalg.norm(current_linear_velocity) > 0.15
-                or np.linalg.norm(current_angular_velocity) > 0.1)
+        return (np.linalg.norm(current_linear_velocity) > 0.1
+                or np.linalg.norm(current_angular_velocity) > 0.05)
+
+    def not_submerged(self, current_pose: Pose) -> bool:
+        """
+        Return true if the sub is above a certain depth else false.
+
+        Args:
+        ----
+        current_pose (Pose): the current pose
+
+        Return:
+        ------
+        bool: true if the sub is moving
+
+        """
+        return current_pose.position.z > -1
 
     def update_confidences(self, fov_polygon: Polygon, update_iteration: int) -> None:
         """
@@ -348,6 +363,10 @@ class SemanticMapManager(Node):
             response.added = False
             self.get_logger().info('Moving, skipping add to semantic map')
             return response
+        if self.not_submerged(self.current_odom.pose.pose):
+            response.added = False
+            self.get_logger().info('Not submerged, skipping add to semantic map')
+            return response
         # Calculate current FOV polygon
         # This will be used to make sure faulty detections are not included
         # This will also be used to adjust confidences
@@ -378,7 +397,7 @@ class SemanticMapManager(Node):
                          'last_updated': 0}
             self.semantic_map.loc[len(self.semantic_map)] = new_entry
             self.remove_duplicates(current_object, map_position, 1.5, self.iteration_updated)
-        self.update_confidences(fov_polygon)
+        self.update_confidences(fov_polygon, self.iteration_updated)
         self.publish_semantic_map()
         response.added = True
         self.iteration_updated += 1

@@ -9,7 +9,7 @@ import tf_transformations
 
 
 PERCEPTION_FOV = 0.8
-PERCEPTION_DISTANCE = 5.0
+PERCEPTION_DISTANCE = 7.0
 
 
 def get_fov_polygon(current_odometry: Odometry) -> Polygon:

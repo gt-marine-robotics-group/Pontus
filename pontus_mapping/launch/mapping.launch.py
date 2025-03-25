@@ -8,11 +8,17 @@ def generate_launch_description():
     visited_parameters = f'{pontus_mapping_share}/config/visited_parameters.yaml'
 
     return LaunchDescription([
+        # Node(
+        #     package='pontus_mapping',
+        #     executable='exploration_map_manager',
+        #     name='exploration_map_manager',
+        #     output='screen',
+        #     parameters=[visited_parameters]
+        # )
         Node(
             package='pontus_mapping',
-            executable='exploration_map_manager',
-            name='exploration_map_manager',
+            executable='semantic_map_manager',
+            name='semantic_map_manager',
             output='screen',
-            parameters=[visited_parameters]
         )
     ])

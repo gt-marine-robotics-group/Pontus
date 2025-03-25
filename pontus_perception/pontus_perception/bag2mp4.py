@@ -13,7 +13,7 @@ class Bag2Mp4(Node):
 
         self.camera_sub = self.create_subscription(
             Image,
-            '/pontus/camera_2/image_raw',
+            '/pontus/camera_2/image_rect_color',
             self.camera_callback,
             10
         )

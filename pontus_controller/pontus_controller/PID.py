@@ -6,7 +6,7 @@ from numpy import sign
 MASS = 34.02
 VOLUME = 0.043
 # X, Y, Z, ROLL, PITCH, YAW
-DRAG = [0.0, 0.0, 0.0, 0.0, 0.0, 7]
+DRAG = [0.0, 0.0, 0.0, 0.0, 200.0, 7.0]
 WATER_DENSITY = 1000.0
 GRAVITY = 9.8
 

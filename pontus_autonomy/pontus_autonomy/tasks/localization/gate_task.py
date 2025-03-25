@@ -1,6 +1,7 @@
 from enum import Enum
 import numpy as np
 from typing import Optional
+import time
 
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -9,11 +10,13 @@ from nav_msgs.msg import Odometry
 import rclpy.client
 import tf_transformations
 from geometry_msgs.msg import Point
+from sensor_msgs.msg import CameraInfo
 
 from pontus_autonomy.tasks.base_task import BaseTask
-from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient
+from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
 from pontus_msgs.srv import GetGateLocation
 from pontus_msgs.srv import GateInformation
+from pontus_msgs.msg import YOLOResultArray
 
 
 class GateTask(BaseTask):
@@ -23,10 +26,11 @@ class GateTask(BaseTask):
         Done = 2
 
     class SearchState(Enum):
-        Find_Left = 0
-        Turn_Left = 1
-        FindRight = 2
-        Turn_Right = 3
+        Turn_CCW = 0
+        Turn_CC = 1
+        Detect_Left = 2
+        Detect_Right = 3
+        Done = 4
 
     def __init__(self):
         super().__init__("Gate_Task")
@@ -59,6 +63,20 @@ class GateTask(BaseTask):
         while not self.gate_information_client.wait_for_service(timeout_sec=1.0):
             self.get_logger().info("Waiting to connect to /pontus/gate_information service")
 
+        self.yolo_subscription = self.create_subscription(
+            YOLOResultArray,
+            '/pontus/camera_2/yolo_results',
+            self.yolo_callback,
+            10
+        )
+
+        self.camera_info_left_subscriber = self.create_subscription(
+            CameraInfo,
+            '/pontus/camera_2/camera_info',
+            self.camera_info_callback_left,
+            10,
+        )
+
         # Abstracted go to pose client
         self.go_to_pose_client = GoToPoseClient(self)
 
@@ -74,14 +92,19 @@ class GateTask(BaseTask):
         )
 
         self.state = self.State.Searching
-        self.searching_state = self.SearchState.Find_Left
+        self.searching_state = self.SearchState.Turn_CCW
         self.previous_state = None
         self.desired_depth = None
         self.detected = False
         self.current_pose = None
-        self.left_gate = None
-        self.right_gate = None
         self.sent = False
+        self.yolo_detections = None
+        self.Tx = None
+        self.cx = None
+        self.cy = None
+        self.image_width = None
+        self.previous_searching_state = self.SearchState.Turn_CCW
+        self.current_yaw = 0.0
 
     def state_debugger(self) -> None:
         """
@@ -121,6 +144,47 @@ class GateTask(BaseTask):
         if self.current_pose is None:
             self.desired_depth = msg.pose.pose.position.z
         self.current_pose = msg.pose.pose
+        quat = [self.current_pose.orientation.x,
+                self.current_pose.orientation.y,
+                self.current_pose.orientation.z,
+                self.current_pose.orientation.w]
+        _, _, self.current_yaw = tf_transformations.euler_from_quaternion(quat)
+
+    def yolo_callback(self, msg: YOLOResultArray) -> None:
+        """
+        Handle yolo callback.
+
+        Args:
+        ----
+        msg (YOLOResultArray): the yolo detections
+
+        Return:
+        ------
+        None
+
+        """
+        self.yolo_detections = msg
+
+    def camera_info_callback_left(self, msg: CameraInfo) -> None:
+        """
+        Handle callback for camera info of left camera.
+
+        The left camera info topics will be used for calculating the x and y location
+        of the object in the camera frame.
+
+        Args:
+        ----
+        msg (CameraInfo): camera info message from topic
+
+        Return:
+        ------
+        None
+
+        """
+        self.f = msg.k[0]
+        self.cx = msg.k[2]
+        self.cy = msg.k[5]
+        self.image_width = msg.width
 
     # Helpers
     def get_gate_location(self,
@@ -153,6 +217,49 @@ class GateTask(BaseTask):
             if response.right_valid:
                 right_gate = response.right_location
         return left_gate, right_gate
+
+    def side_in_view(self, left: bool) -> bool:
+        """
+        Return whether or not we have a yolo detection of the left gate in view.
+
+        Args:
+        ----
+        left (bool): if we want to see if the left or right side is in view
+
+        Return:
+        ------
+        bool: whether the left gate is currently detected
+
+        """
+        if self.yolo_detections is None:
+            return False
+        desired_id = 0 if left else 1
+        for detection in self.yolo_detections.results:
+            if detection.class_id == desired_id:
+                return True
+        return False
+
+    def get_angle(self, left_gate: bool) -> float:
+        """
+        Get the angle of a gate detection.
+
+        Args:
+        ----
+        left_gate (bool): whether to get the angle of the left gate or right gate
+                          if true, will return the left gate
+
+        Return:
+        ------
+        float: angle of the gate
+
+        """
+        desired_id = 0 if left_gate else 1
+        for detection in self.yolo_detections.results:
+            if detection.class_id == desired_id:
+                x = (detection.x1 + detection.x2) / 2
+                x_norm = (self.cx - x) / self.f
+                angle = np.arctan2(x_norm, 1)
+                return angle
 
     # Autonomy
     def state_machine(self) -> None:
@@ -193,14 +300,21 @@ class GateTask(BaseTask):
                 self.get_logger().info("Unrecognized state")
 
         if cmd_pose:
-            self.go_to_pose_client.go_to_pose(cmd_pose)
+            self.go_to_pose_client.go_to_pose(cmd_pose.cmd_pose, cmd_pose.skip)
 
-    def search(self) -> Optional[Pose]:
+    def search(self) -> Optional[PoseObj]:
         """
         Find the gate by turning.
 
-        First turn left to identify left gate, then turn right to identify right gate.
-        TODO: This works fine for prequal, but the autonomy needs to be changed for regular comp
+        Logic:
+            1. First turn to 0 degrees to start our search
+            2. Continue to turn clockwise
+            3. If our yolo model detects a left or right gate, center ourselves with the detection
+               and wait 2 seconds to allow the depth estimation
+            4. Done
+
+        Since our IMU isnt calibrated yet, we will just assume that we have to turn 90 degrees first
+        TODO: Tune IMU, adjust logic
 
         Args:
         ----
@@ -208,63 +322,166 @@ class GateTask(BaseTask):
 
         Return:
         ------
-        Optional[Pose]: if None, indicates the sub should maintain its current trajectory,
-                        else indicates the new pose the sub should go to
+        Optional[PoseObj]: if None, indicates the sub should maintain its current trajectory,
+                           else indicates the new pose the sub should go to
 
         """
-        cmd_pose = self.current_pose
-        self.left_gate, self.right_gate = self.get_gate_location(self.gate_detection_client)
-        GREEN = "\033[92m"
-        RESET = "\033[0m"
-        YELLOW = "\033[93m"
+        match self.searching_state:
+            case self.SearchState.Turn_CCW:
+                return self.turn()
+            case self.SearchState.Turn_CC:
+                return self.turn()
+            case self.SearchState.Detect_Left:
+                return self.align_with_gate(True)
+            case self.SearchState.Detect_Right:
+                return self.align_with_gate(False)
+            case self.SearchState.Done:
+                self.state = self.State.Passing_Through
 
-        # If both gates are found, transition to next state
-        if self.left_gate and self.right_gate:
-            self.get_logger().info(f"{GREEN} Found gate! {RESET} \
-                                   {self.left_gate} {self.right_gate}")
-            surprise = """╭━━━╮┈┈╱╲┈┈┈╱╲\n┃╭━━╯┈┈▏▔▔▔▔▔▏\n┃╰━━━━━▏╭▆┊╭▆▕\n╰┫╯╯╯╯╯▏╰╯▼╰╯▕\n┈┃╯╯╯╯╯▏╰━┻━╯▕\n┈╰┓┏┳━┓┏┳┳━━━━╯\n┈┈┃┃┃┈┃┃┃┃┈┈┈┈\n┈┈┗┻┛┈┗┛┗┛┈┈┈┈"""  # noqa E501
-            self.get_logger().info(f"\n{surprise}")
-            self.state = self.State.Passing_Through
-            return cmd_pose
+    def turn(self) -> Optional[Pose]:
+        """
+        Turn to find the gate.
 
-        # TODO: Make this following logic better
-        # If left_gate found, turn to where we expect the right_gate to be,
-        # For now, just do 45 degrees
-        if self.left_gate:
-            self.get_logger().info(f"{YELLOW} Found left gate: {RESET} {self.left_gate}")
-            quat = tf_transformations.quaternion_from_euler(0, 0, -self.search_angle)
-            cmd_pose.orientation.x = quat[0]
-            cmd_pose.orientation.y = quat[1]
-            cmd_pose.orientation.z = quat[2]
-            cmd_pose.orientation.w = quat[3]
-            self.searching_state = self.SearchState.Turn_Right
-            return cmd_pose
+        This will transition to the next state once the semantic map sees both.
 
-        if not self.left_gate and self.searching_state == self.SearchState.Find_Left:
-            quat = tf_transformations.quaternion_from_euler(0, 0, self.search_angle)
-            cmd_pose.orientation.x = quat[0]
-            cmd_pose.orientation.y = quat[1]
-            cmd_pose.orientation.z = quat[2]
-            cmd_pose.orientation.w = quat[3]
-            self.searching_state = self.SearchState.Turn_Left
-            return cmd_pose
+        Cases:
+            1. See both, end
+            2. See left, handle
+            3. See right, handle
+            4. See neither + at the end of turning CCW -> turn CC
+            5. Not see Left and not see right, continue turning
+            6. Seen right but not left, turn CCW
+            7. Seen right + at the end of turning CCW -> handle
+            8. Not see right but found left -> turn CCW
+            9. See left but not right + at the end of turning CC -> Handle
+            10. See neither + at end of turning CC -> handle
 
-        if self.searching_state == self.SearchState.Turn_Left \
-                and not self.go_to_pose_client.at_pose():
+        TODO: Handle situation #7, #9, #10
+
+        Args:
+        ----
+        None
+
+        Return:
+        ------
+        Optional[Pose]: command pose
+
+        """
+        # TODO: Make these use the IMU
+        start = np.pi / 3
+        end = -np.pi / 3
+        left_gate, right_gate = self.get_gate_location(self.gate_detection_client)
+        # Case 1
+        if left_gate and right_gate:
+            self.searching_state = self.SearchState.Done
+            self.sent = False
             return
-        if self.searching_state == self.SearchState.Turn_Left \
-                and self.go_to_pose_client.at_pose():
-            if not self.left_gate:
-                self.get_logger().info("Waiting to get left gate detection")
-            return None
+        # Case 2
+        elif not left_gate and self.side_in_view(True):
+            self.previous_searching_state = self.searching_state
+            self.searching_state = self.SearchState.Detect_Left
+            self.sent = False
+        # Case 3
+        elif not right_gate and self.side_in_view(False):
+            self.previous_searching_state = self.searching_state
+            self.searching_state = self.SearchState.Detect_Right
+            self.sent = False
+        # Case 4
+        elif not left_gate and not right_gate and abs(start - self.current_yaw) < 0.05:
+            self.searching_state = self.SearchState.Turn_CC
+            self.sent = False
+            return
+        # Case 5
+        elif not left_gate and not right_gate and not self.sent:
+            cmd_pose = Pose()
+            desired_angle = start if self.searching_state == self.SearchState.Turn_CCW else end
+            quat = tf_transformations.quaternion_from_euler(0, 0, desired_angle)
+            cmd_pose.position.z = self.desired_depth
+            cmd_pose.orientation.x = quat[0]
+            cmd_pose.orientation.y = quat[1]
+            cmd_pose.orientation.z = quat[2]
+            cmd_pose.orientation.w = quat[3]
+            self.sent = True
+            return PoseObj(cmd_pose, False)
+        # Case 6
+        elif not left_gate and right_gate and not self.sent:
+            cmd_pose = Pose()
+            desired_angle = start
+            quat = tf_transformations.quaternion_from_euler(0, 0, desired_angle)
+            cmd_pose.position.z = self.desired_depth
+            cmd_pose.orientation.x = quat[0]
+            cmd_pose.orientation.y = quat[1]
+            cmd_pose.orientation.z = quat[2]
+            cmd_pose.orientation.w = quat[3]
+            self.sent = True
+            return PoseObj(cmd_pose, False)
+        # Case 7
+        # TODO: Handle this
+        elif not left_gate and right_gate and abs(end - self.current_yaw) < 0.05:
+            self.get_logger().warn("Unhandled case where fully turned counter clockwise but "
+                                   + "have not found left_gate")
+        # Case 8
+        elif left_gate and not right_gate and not self.sent:
+            cmd_pose = Pose()
+            desired_angle = end
+            quat = tf_transformations.quaternion_from_euler(0, 0, desired_angle)
+            cmd_pose.position.z = self.desired_depth
+            cmd_pose.orientation.x = quat[0]
+            cmd_pose.orientation.y = quat[1]
+            cmd_pose.orientation.z = quat[2]
+            cmd_pose.orientation.w = quat[3]
+            self.sent = True
+            return PoseObj(cmd_pose, False)
+        # Case 9
+        elif left_gate and not right_gate and abs(end - self.current_yaw) < 0.05:
+            self.get_logger().warn("Unhandled case where fully turned clockwise but "
+                                   + "have not found right_gate")
+        # Case 10
+        elif not left_gate and not right_gate and abs(end - self.current_yaw) < 0.05:
+            self.get_logger().warn("Unhandled case where at end of search but no gate found")
 
-        if self.searching_state == self.SearchState.Turn_Right \
-                and not self.go_to_pose_client.at_pose():
-            return None
-        if self.searching_state == self.SearchState.Turn_Right \
-                and self.go_to_pose_client.at_pose():
-            self.get_logger().info("Waiting to get right gate detection")
-        return None
+    def align_with_gate(self, left: bool) -> Optional[PoseObj]:
+        """
+        Align the sub with the detected gate side.
+
+        This will wait one second to allow for detections.
+
+        Args:
+        ----
+        left (bool): whether to align with the left or right gate
+
+        Return:
+        ------
+        Optional[PoseObj]: command pose
+
+        """
+        if not self.sent:
+            angle = self.get_angle(left)
+            if angle is None:
+                self.searching_state = self.previous_searching_state
+                return
+            cmd_pose = Pose()
+            cmd_pose.position.z = self.desired_depth
+            quat = [self.current_pose.orientation.x,
+                    self.current_pose.orientation.y,
+                    self.current_pose.orientation.z,
+                    self.current_pose.orientation.w]
+            _, _, current_yaw = tf_transformations.euler_from_quaternion(quat)
+            new_yaw = current_yaw + angle
+            quat = tf_transformations.quaternion_from_euler(0.0, 0.0, new_yaw)
+            cmd_pose.orientation.x = quat[0]
+            cmd_pose.orientation.y = quat[1]
+            cmd_pose.orientation.z = quat[2]
+            cmd_pose.orientation.w = quat[3]
+            self.sent = True
+            return PoseObj(cmd_pose, False)
+
+        if self.go_to_pose_client.at_pose():
+            # Wait to allow detection
+            time.sleep(2)
+            self.searching_state = self.previous_searching_state
+            self.sent = False
+        return
 
     def pass_through(self) -> Optional[Pose]:
         """
@@ -276,18 +493,18 @@ class GateTask(BaseTask):
 
         Return:
         ------
-        Optional[Pose]: if None, indicates the sub should maintain its current trajectory,
-                        else indicates the new pose the sub should go to
+        Optional[PoseObj]: if None, indicates the sub should maintain its current trajectory,
+                           else indicates the new pose the sub should go to
 
         """
         if not self.sent:
+            left_gate, right_gate = self.get_gate_location(self.gate_detection_client)
             cmd_pose = Pose()
-            cmd_pose.position.x = (self.left_gate.x + self.right_gate.x)/2
-            cmd_pose.position.y = (self.left_gate.y + self.right_gate.y)/2
+            cmd_pose.position.x = (left_gate.x + right_gate.x)/2
+            cmd_pose.position.y = (left_gate.y + right_gate.y)/2
             cmd_pose.position.z = self.desired_depth
-            cmd_pose.orientation.x = -1.0
             self.sent = True
-            return cmd_pose
+            return PoseObj(cmd_pose, True)
 
         if self.go_to_pose_client.at_pose():
             self.state = self.State.Done

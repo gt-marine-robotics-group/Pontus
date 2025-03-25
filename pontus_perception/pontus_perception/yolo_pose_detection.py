@@ -251,7 +251,7 @@ class YoloPoseDetection(Node):
         Args:
         ----
         pair (tuple[YOLOResult, YOLOResult]): pair of detections of the same object we want
-                                                to calculate pose for
+                                              to calculate pose for
         Tx (float): the translation in pixels between the left and right camera frame center
         cx (float): the x coordiante of the frame center of the left image
         cy (float): the y coordiante of the frame center of the left image
@@ -414,7 +414,7 @@ class YoloPoseDetection(Node):
 
         # If the color is not drastically different, probably not the gate and a fake detection
         self.get_logger().info(f"{smaller_half_hue_mean / larger_half_hue_mean}")
-        if smaller_half_hue_mean / larger_half_hue_mean > 0.2:
+        if smaller_half_hue_mean / larger_half_hue_mean > 0.6:
             return None
         return smaller_half_hue_mean == upper_half_hue_mean
 
@@ -488,12 +488,13 @@ class YoloPoseDetection(Node):
                 continue
 
             # If detected gate size
-            if detection.class_id == 0:
-                left_side = self.determine_if_left_gate(detection, self.left_camera)
-                if left_side is None:
-                    continue
-                detection.class_id = 0 if left_side else 10
-                detections.append((detection.class_id, detection_body_frame))
+            # if detection.class_id == 0:
+            #     left_side = self.determine_if_left_gate(detection, self.left_camera)
+            #     if left_side is None:
+            #         continue
+            #     detection.class_id = 0 if left_side else 10
+
+            detections.append((detection.class_id, detection_body_frame))
         # Every loop we will add to the semantic map, this is used to keep track of confidences
         self.add_to_semantic_map(detections)
         # END

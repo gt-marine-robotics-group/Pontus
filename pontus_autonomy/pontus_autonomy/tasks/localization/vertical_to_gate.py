@@ -91,7 +91,6 @@ class VerticalToGate(BaseTask):
             cmd_pose.position.x = gate_location.x + 2.0
             cmd_pose.position.y = gate_location.y
             cmd_pose.position.z = gate_location.z
-            cmd_pose.orientation.x = -1.0
             self.go_to_pose_client.go_to_pose(cmd_pose)
             self.cmd_sent = True
 

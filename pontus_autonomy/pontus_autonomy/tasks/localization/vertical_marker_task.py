@@ -8,7 +8,7 @@ from geometry_msgs.msg import Pose
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Point
 
-from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient
+from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
 from pontus_autonomy.tasks.base_task import BaseTask
 from pontus_msgs.srv import GetVerticalMarkerLocation
 
@@ -176,7 +176,7 @@ class VerticalMarkerTask(BaseTask):
             case _:
                 self.get_logger().info("Unrecognized state")
         if cmd_pose:
-            self.go_to_pose_client.go_to_pose(cmd_pose)
+            self.go_to_pose_client.go_to_pose(cmd_pose.cmd_pose, cmd_pose.skip)
 
     def search(self) -> None:
         """
@@ -210,7 +210,7 @@ class VerticalMarkerTask(BaseTask):
             cmd_pose.position.y = vertical_marker.y
             cmd_pose.position.z = self.desired_depth
             self.detected = True
-            return cmd_pose
+            return PoseObj(cmd_pose, True)
 
         elif self.detected and self.go_to_pose_client.at_pose():
             self.state = self.State.Circumnavigate
@@ -258,9 +258,8 @@ class VerticalMarkerTask(BaseTask):
 
         if not self.command_sent:
             cmd_pose = desired_positions[self.current_desired_position]
-            cmd_pose.orientation.x = -1.0
             self.command_sent = True
-            return cmd_pose
+            return PoseObj(cmd_pose, True)
 
         elif self.go_to_pose_client.at_pose():
             self.current_desired_position += 1
