@@ -23,10 +23,15 @@ from geometry_msgs.msg import Polygon
 from pontus_mapping.helpers import get_fov_polygon, polygon_contained
 
 
+# These will correlate to YOLO
 class SemanticObject(Enum):
-    LeftGate = 0
-    RightGate = 1
-    VerticalMarker = 4
+    GateFish = 0
+    GateShark = 1
+    LeftGate = 2
+    RightGate = 3
+    SlalomRed = 4
+    SlalomWhite = 5
+    VerticalMarker = 6
 
 
 class SemanticMapManager(Node):

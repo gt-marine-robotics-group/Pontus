@@ -17,6 +17,7 @@ from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
 from pontus_msgs.srv import GetGateLocation
 from pontus_msgs.srv import GateInformation
 from pontus_msgs.msg import YOLOResultArray
+from pontus_mapping.semantic_map_manager import SemanticObject
 
 
 class GateTask(BaseTask):
@@ -233,7 +234,7 @@ class GateTask(BaseTask):
         """
         if self.yolo_detections is None:
             return False
-        desired_id = 0 if left else 1
+        desired_id = SemanticObject.LeftGate.value if left else SemanticObject.RightGate.value
         for detection in self.yolo_detections.results:
             if detection.class_id == desired_id:
                 return True
@@ -253,7 +254,7 @@ class GateTask(BaseTask):
         float: angle of the gate
 
         """
-        desired_id = 0 if left_gate else 1
+        desired_id = SemanticObject.LeftGate.value if left_gate else SemanticObject.RightGate.value
         for detection in self.yolo_detections.results:
             if detection.class_id == desired_id:
                 x = (detection.x1 + detection.x2) / 2
