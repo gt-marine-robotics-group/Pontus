@@ -85,13 +85,13 @@ class VelocityNode(Node):
         v_linear = np.array([msg.twist.twist.linear.x,
                              msg.twist.twist.linear.y,
                              msg.twist.twist.linear.z])
-        # v_angular = np.array([msg.twist.twist.angular.x,
-        #                       msg.twist.twist.angular.y,
-        #                       msg.twist.twist.angular.z])
+        v_angular = np.array([msg.twist.twist.angular.x,
+                              msg.twist.twist.angular.y,
+                              msg.twist.twist.angular.z])
 
         # Compute the error between desired velocity and current velocity
         linear_err = self.cmd_linear - v_linear
-        # angular_err = self.cmd_angular - v_angular
+        angular_err = self.cmd_angular - v_angular
 
         # Compute and publish the body accelerations
         msg = Twist()
@@ -99,9 +99,9 @@ class VelocityNode(Node):
         msg.linear.x = self.pid_linear[0](linear_err[0], dt)
         msg.linear.y = self.pid_linear[1](linear_err[1], dt)
         msg.linear.z = self.pid_linear[2](linear_err[2], dt)
-        msg.angular.x = self.pid_angular[0](self.cmd_angular[0], dt, self.cmd_angular[0])
-        msg.angular.y = self.pid_angular[1](self.cmd_angular[1], dt, self.cmd_angular[1])
-        msg.angular.z = self.pid_angular[2](self.cmd_angular[2], dt, self.cmd_angular[2])
+        msg.angular.x = self.pid_angular[0](angular_err[0], dt, self.cmd_angular[0])
+        msg.angular.y = self.pid_angular[1](angular_err[1], dt, self.cmd_angular[1])
+        msg.angular.z = self.pid_angular[2](angular_err[2], dt, self.cmd_angular[2])
         self.prev_time = self.get_clock().now()
 
         self.cmd_accel_pub.publish(msg)

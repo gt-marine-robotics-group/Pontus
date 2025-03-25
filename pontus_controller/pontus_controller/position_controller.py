@@ -68,7 +68,7 @@ class PositionNode(Node):
             ]
             self.pid_angular = [
                 PID(0.5, 0, 0),
-                PID(0.5, 0, 0),
+                PID(4, 0, 0),
                 PID(0.4, 0, 0)
             ]
         # Real values for sub
@@ -91,6 +91,7 @@ class PositionNode(Node):
 
         self.goal_pose = np.zeros(3)
         self.goal_angle = np.zeros(3)
+        self.skip_orientation = False
         # ROS infrastructure
         self.cmd_pos_sub = self.create_subscription(
           Pose,
@@ -144,6 +145,7 @@ class PositionNode(Node):
         """
         request = goal_handle.request
         self.cmd_pos_callback(request.desired_pose)
+        self.skip_orientation = request.skip_orientation
         feedback_msg = GoToPose.Feedback()
         while True:
             if self.state == PositionControllerState.Maintain_position:
@@ -216,8 +218,6 @@ class PositionNode(Node):
         (r, p, y) = euler_from_quaternion([quat.x, quat.y, quat.z, quat.w])
         cmd_pos_new = np.array([msg.position.x, msg.position.y, msg.position.z])
         cmd_ang_new = np.array([r, p, y])
-        if quat.x == -1.0:
-            cmd_ang_new[0] = -1.0
         self.goal_pose = [self.goal_pose[0], self.goal_pose[1], cmd_pos_new[2]]
         # If the cmd_pos and cmd_ang is the same as the previous, do nothing
         if np.array_equal(cmd_pos_new, self.cmd_linear) \
@@ -296,7 +296,7 @@ class PositionNode(Node):
         msg.linear.y = self.pid_linear[1](linear_err[1], dt)
         msg.linear.z = self.pid_linear[2](linear_err[2], dt)
 
-        # msg.angular.x = self.pid_angular[0](angular_err[0], dt)
+        msg.angular.x = self.pid_angular[0](angular_err[0], dt)
         msg.angular.y = self.pid_angular[1](angular_err[1], dt)
         msg.angular.z = self.pid_angular[2](angular_err[2], dt)
         self.prev_time = self.get_clock().now()
@@ -322,6 +322,7 @@ class PositionNode(Node):
         np.ndarray: the error in [r, p, y]
 
         """
+        self.get_logger().info(f"{desired_angle} {current_angle}")
         angular_diff = desired_angle - current_angle
         # find the shorter turn for angles
         angular_adj = np.sign(angular_diff) * 2 * np.pi
@@ -515,7 +516,6 @@ class PositionNode(Node):
             angular_err = np.zeros(3)
         if np.linalg.norm(linear_err) < transition_thresh:
             self.state = PositionControllerState.Angular_correction
-
             (r, p, y) = euler_from_quaternion(quat)
             current_orientation = np.array([0.0, 0.0, y])
             self.goal_angle = current_orientation
@@ -545,15 +545,11 @@ class PositionNode(Node):
 
         (r, p, y) = euler_from_quaternion(quat)
         current_orientation = np.array([r, p, y])
-        if self.cmd_angular[0] == -1.0:
-            current_orientation[0] = 0.0
-            current_orientation[1] = 0.0
-            self.goal_angle = current_orientation
-            self.state = PositionControllerState.Maintain_position
-            self.get_logger().info("Skipping correct orientation")
-            return linear_err, np.array([0.0, 0.0, 0.0])
         angular_err = self.calculate_angular_error(self.cmd_angular, current_orientation)
         transition_thresh = self.transition_threshold[PositionControllerState.Angular_correction]
+        if self.skip_orientation:
+            self.goal_angle = np.array([0.0, 0.0, y])
+            self.state = PositionControllerState.Maintain_position
         if np.linalg.norm(angular_err) < transition_thresh:
             self.goal_angle = self.cmd_angular
             self.state = PositionControllerState.Maintain_position

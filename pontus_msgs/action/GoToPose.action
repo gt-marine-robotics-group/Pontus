@@ -1,5 +1,6 @@
 # Request
 geometry_msgs/Pose desired_pose
+bool skip_orientation
 ---
 # Result
 bool completed 

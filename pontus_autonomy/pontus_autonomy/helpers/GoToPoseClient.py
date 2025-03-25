@@ -13,6 +13,12 @@ from pontus_controller.position_controller import PositionControllerState
 from pontus_autonomy.base_run import BaseTask
 
 
+class PoseObj:
+    def __init__(self, cmd_pose: Pose, skip: bool):
+        self.cmd_pose = cmd_pose
+        self.skip = skip
+
+
 class GoToPoseClient:
     def __init__(self, node: BaseTask):
         self.action_client = ActionClient(
@@ -28,13 +34,14 @@ class GoToPoseClient:
         self.is_in_progress = False
 
     # Ros architecture
-    def go_to_pose(self, goal_pose: Pose) -> None:
+    def go_to_pose(self, goal_pose: Pose, skip_orientation: bool = False) -> None:
         """
         Start Action client to go to pose.
 
         Args:
         ----
         goal_pose (Pose): the desired pose
+        skip_orientation (bool): whether to skip fixing the orientation at the end
 
         Return:
         ------
@@ -45,6 +52,7 @@ class GoToPoseClient:
         self.is_in_progress = True
         goal_msg = GoToPose.Goal()
         goal_msg.desired_pose = goal_pose
+        goal_msg.skip_orientation = skip_orientation
         self.send_goal_future = self.action_client.send_goal_async(
             goal_msg,
             feedback_callback=self.feedback_callback
