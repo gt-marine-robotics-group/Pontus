@@ -6,6 +6,7 @@ from typing import Optional, List
 
 import tf2_ros
 from tf2_geometry_msgs import do_transform_pose
+import tf_transformations
 import rclpy
 from rclpy.node import Node
 from pontus_msgs.srv import AddSemanticObject
@@ -75,6 +76,7 @@ class SemanticMapManager(Node):
                                                   'x_loc',
                                                   'y_loc',
                                                   'z_loc',
+                                                  'yaw_orien',
                                                   'num_detected',
                                                   'num_expected',
                                                   'confidence',
@@ -226,6 +228,7 @@ class SemanticMapManager(Node):
                           current_object: SemanticObject,
                           current_object_pose: Pose,
                           min_distance: float,
+                          newest_yaw: float,
                           iteration_number: int) -> None:
         """
         Remove all duplicate detections within a min distance.
@@ -237,6 +240,7 @@ class SemanticMapManager(Node):
         min_distance (float): the minimum distance to another marker
         iteration_number (int): the iteration number used to keep track when we last updated a
                                 detection
+        newest_yaw (float): the yaw orientation of the object
 
         Return:
         ------
@@ -264,15 +268,17 @@ class SemanticMapManager(Node):
         confidence = total_num_detected / total_num_expected
 
         # Confidence is handled later
-        new_entry = [
-            current_object,
-            weighted_x,
-            weighted_y,
-            weighted_z,
-            total_num_detected,
-            total_num_expected,
-            confidence,
-            iteration_number]
+        new_entry = {
+            'type': current_object,
+            'x_loc': weighted_x,
+            'y_loc': weighted_y,
+            'z_loc': weighted_z,
+            'yaw_orien': newest_yaw,
+            'num_detected': total_num_detected,
+            'num_expected': total_num_expected,
+            'confidence': confidence,
+            'last_updated': iteration_number
+        }
         # Remove all duplicates
         self.semantic_map.drop(matches.index, inplace=True)
         self.semantic_map.reset_index(drop=True, inplace=True)
@@ -392,16 +398,22 @@ class SemanticMapManager(Node):
                 )
                 continue
             current_object = SemanticObject(class_id)
+            quat = [map_position.orientation.x,
+                    map_position.orientation.y,
+                    map_position.orientation.z,
+                    map_position.orientation.w]
+            _, _, yaw = tf_transformations.euler_from_quaternion(quat)
             new_entry = {'type': current_object,
                          'x_loc': map_position.position.x,
                          'y_loc': map_position.position.y,
                          'z_loc': map_position.position.z,
+                         'yaw_orien': yaw,
                          'num_detected': 1,
                          'num_expected': 1.0,
                          'confidence': 1.0,
                          'last_updated': 0}
             self.semantic_map.loc[len(self.semantic_map)] = new_entry
-            self.remove_duplicates(current_object, map_position, 1.5, self.iteration_updated)
+            self.remove_duplicates(current_object, map_position, 1.5, yaw, self.iteration_updated)
         self.update_confidences(fov_polygon, self.iteration_updated)
         self.publish_semantic_map()
         response.added = True
@@ -450,7 +462,6 @@ class SemanticMapManager(Node):
                 marker.pose.position.y = row['y_loc']
                 marker.pose.position.z = row['z_loc']
                 marker.mesh_use_embedded_materials = True
-
             case SemanticObject.RightGate:
                 # 3D models of the gate
                 marker.type = Marker.MESH_RESOURCE
@@ -473,6 +484,44 @@ class SemanticMapManager(Node):
                 marker.pose.position.x = row['x_loc']
                 marker.pose.position.y = row['y_loc']
                 marker.pose.position.z = row['z_loc']
+                marker.mesh_use_embedded_materials = True
+            case SemanticObject.GateShark:
+                marker.type = Marker.MESH_RESOURCE
+                marker.mesh_resource = 'package://pontus_mapping/visual_meshes/shark_marker.obj'
+                marker.scale.x = 1.0
+                marker.scale.y = 1.0
+                marker.scale.z = 1.0
+                marker.pose = Pose()
+                marker.pose.position.x = row['x_loc']
+                marker.pose.position.y = row['y_loc']
+                marker.pose.position.z = row['z_loc']
+                roll = np.pi / 2
+                pitch = 0.0
+                yaw = -np.pi / 2 + row['yaw_orien']
+                quat = tf_transformations.quaternion_from_euler(roll, pitch, yaw)
+                marker.pose.orientation.x = quat[0]
+                marker.pose.orientation.y = quat[1]
+                marker.pose.orientation.z = quat[2]
+                marker.pose.orientation.w = quat[3]
+                marker.mesh_use_embedded_materials = True
+            case SemanticObject.GateFish:
+                marker.type = Marker.MESH_RESOURCE
+                marker.mesh_resource = 'package://pontus_mapping/visual_meshes/fish_marker.obj'
+                marker.scale.x = 1.0
+                marker.scale.y = 1.0
+                marker.scale.z = 1.0
+                marker.pose = Pose()
+                marker.pose.position.x = row['x_loc']
+                marker.pose.position.y = row['y_loc']
+                marker.pose.position.z = row['z_loc']
+                roll = np.pi / 2
+                pitch = 0.0
+                yaw = -np.pi / 2 + row['yaw_orien']
+                quat = tf_transformations.quaternion_from_euler(roll, pitch, yaw)
+                marker.pose.orientation.x = quat[0]
+                marker.pose.orientation.y = quat[1]
+                marker.pose.orientation.z = quat[2]
+                marker.pose.orientation.w = quat[3]
                 marker.mesh_use_embedded_materials = True
             case _:
                 self.get_logger().info('Found marker with unknown object type, skipping')
