@@ -9,7 +9,6 @@ from geometry_msgs.msg import Pose, Twist
 from nav_msgs.msg import Odometry
 from tf_transformations import euler_from_quaternion
 from std_msgs.msg import Bool
-from rclpy.duration import Duration
 import asyncio
 
 from .PID import PID
@@ -26,6 +25,11 @@ class PositionControllerState(Enum):
     Angular_correction = 6
 
 
+class MovementMethod(Enum):
+    TurnThenForward = 1
+    StrafeThenForward = 2
+
+
 class PositionNode(Node):
     def __init__(self):
         super().__init__('position_controller')
@@ -40,8 +44,6 @@ class PositionNode(Node):
 
         self.deadzone = 0.2
         self.linear_deadzone = 0.5
-        self.stuck_error_threshold = 0.3
-        self.stuck_error_time = Duration(seconds=7)
 
         self.cmd_linear = None
         self.cmd_angular = None
@@ -92,6 +94,7 @@ class PositionNode(Node):
         self.goal_pose = np.zeros(3)
         self.goal_angle = np.zeros(3)
         self.skip_orientation = False
+        self.movement_method = MovementMethod.TurnThenForward
         # ROS infrastructure
         self.cmd_pos_sub = self.create_subscription(
           Pose,
@@ -146,6 +149,7 @@ class PositionNode(Node):
         request = goal_handle.request
         self.cmd_pos_callback(request.desired_pose)
         self.skip_orientation = request.skip_orientation
+        self.movement_method = MovementMethod(request.movement_method)
         feedback_msg = GoToPose.Feedback()
         while True:
             if self.state == PositionControllerState.Maintain_position:
@@ -243,6 +247,47 @@ class PositionNode(Node):
         """
         return (angle + np.pi) % (2 * np.pi) - np.pi
 
+    def get_next_state(self,
+                       current_state: PositionControllerState,
+                       skip_orientation: bool,
+                       movement_method: MovementMethod) -> PositionControllerState:
+        """
+        Return the next state based on the parameters.
+
+        This basically defines the structure of our state machine, which may change based on
+        the inputs from the action. Represents the δ function p = δ(q, a).
+
+        Args:
+        ----
+        current_state (PositionControllerState): represents our current state
+        skip_orientation (bool): whether or not to skip fixing our orientation at the end
+        movement_method (MovementMethod): represents how the sub should reach the desired pose
+
+        Return:
+        ------
+        PositionControllerState: the next position controller state in the state machine
+
+        """
+        match current_state:
+            case PositionControllerState.Z_correction:
+                if movement_method == MovementMethod.StrafeThenForward:
+                    return PositionControllerState.Strafe
+                if movement_method == MovementMethod.TurnThenForward:
+                    return PositionControllerState.Direction_correction
+            case PositionControllerState.Strafe:
+                return PositionControllerState.Direction_correction
+            case PositionControllerState.Direction_correction:
+                return PositionControllerState.Linear_correction
+            case PositionControllerState.Linear_correction:
+                if skip_orientation:
+                    return PositionControllerState.Maintain_position
+                else:
+                    return PositionControllerState.Angular_correction
+            case PositionControllerState.Angular_correction:
+                return PositionControllerState.Maintain_position
+        self.get_logger().warn("Encountered unhandled case of movement method " +
+                               f"{movement_method} at state {current_state}")
+
     def odometry_callback(self, msg: Odometry) -> None:
         """
         Take in current odometry to command velocity to reach a pose.
@@ -289,7 +334,6 @@ class PositionNode(Node):
                 linear_err = np.zeros(3)
                 angular_err = np.zeros(3)
 
-        # Compute and publish the body vel commands, we cannot move in y direction
         dt = self.get_clock().now() - self.prev_time
         msg: Twist = Twist()
         msg.linear.x = self.pid_linear[0](linear_err[0], dt)
@@ -300,8 +344,8 @@ class PositionNode(Node):
         msg.angular.y = self.pid_angular[1](angular_err[1], dt)
         msg.angular.z = self.pid_angular[2](angular_err[2], dt)
         self.prev_time = self.get_clock().now()
-        # self.get_logger().info(f"Twist: {msg.angular.z}")
-        # self.get_logger().info(f"Error: {angular_err[2]}")
+
+        # If we are in controller mode, we are publishing command velociites from the rc controller
         if not self.controller_mode:
             self.cmd_vel_pub.publish(msg)
             self.hold_point_pub.publish(Bool(data=self.hold_point))
@@ -409,7 +453,9 @@ class PositionNode(Node):
         angular_err = self.calculate_angular_error(self.goal_angle, current_orientation)
         transition_thresh = self.transition_threshold[PositionControllerState.Z_correction]
         if abs(self.goal_pose[2] - current_position[2]) < transition_thresh:
-            self.state = PositionControllerState.Strafe
+            self.state = self.get_next_state(self.state,
+                                             self.skip_orientation,
+                                             self.movement_method)
         return linear_err, angular_err
 
     def correct_strafe(self,
@@ -431,19 +477,17 @@ class PositionNode(Node):
 
         """
         linear_err = self.calculate_linear_error(self.cmd_linear, current_position, quat)
-        # If distance super far, do not strafe, more efficient to turn and go forward
-        if np.linalg.norm(linear_err[:2]) > 1.2:
-            self.state = PositionControllerState.Direction_correction
-            return np.zeros(3), np.zeros(3)
-
+        # Remove x error
+        linear_err[0] = 0.0
         self.goal_pose = self.cmd_linear
-        # If distance is not super far, strafe
         (r, p, y) = euler_from_quaternion(quat)
         current_orientation = np.array([r, p, y])
         angular_err = self.calculate_angular_error(self.goal_angle, current_orientation)
         transition_thresh = self.transition_threshold[PositionControllerState.Strafe]
-        if np.linalg.norm(linear_err[:2]) < transition_thresh:
-            self.state = PositionControllerState.Direction_correction
+        if linear_err[1] < transition_thresh:
+            self.state = self.get_next_state(self.state,
+                                             self.skip_orientation,
+                                             self.movement_method)
         return linear_err, angular_err
 
     def turn_to_next_point(self,
@@ -469,7 +513,9 @@ class PositionNode(Node):
 
         linear_difference = self.cmd_linear - current_position
         if np.linalg.norm(linear_difference[:2]) < self.deadzone:
-            self.state = PositionControllerState.Angular_correction
+            self.state = self.get_next_state(self.state,
+                                             self.skip_orientation,
+                                             self.movement_method)
             return np.array([0.0, 0.0, 0.0]), np.array([0.0, 0.0, 0.0])
 
         (r, p, y) = euler_from_quaternion(quat)
@@ -478,7 +524,9 @@ class PositionNode(Node):
         angular_err = self.calculate_angular_error(goal_orientation, current_orientation)
         transition_thresh = self.transition_threshold[PositionControllerState.Direction_correction]
         if abs(angular_err[2]) < transition_thresh:
-            self.state = PositionControllerState.Linear_correction
+            self.state = self.get_next_state(self.state,
+                                             self.skip_orientation,
+                                             self.movement_method)
             self.goal_angle = goal_orientation
             self.prev_linear_time_under_threshold = self.get_clock().now()
         return linear_err, angular_err
@@ -501,7 +549,6 @@ class PositionNode(Node):
         tuple[np.ndarray, np.ndarray]: linear error, angular error
 
         """
-        # self.get_logger().info(f"{self.prev_linear_time_under_threshold}")
         self.goal_pose = self.cmd_linear
         linear_err = self.calculate_linear_error(self.goal_pose, current_position, quat)
         linear_difference = self.cmd_linear - current_position
@@ -510,16 +557,18 @@ class PositionNode(Node):
         goal_orientation = np.array([0, 0, np.arctan2(linear_difference[1], linear_difference[0])])
         angular_err = self.calculate_angular_error(goal_orientation, current_orientation)
 
-        transition_thresh = self.transition_threshold[PositionControllerState.Linear_correction]
         if np.linalg.norm(linear_err[:2]) < self.linear_deadzone:
             angular_err = np.zeros(3)
+
+        transition_thresh = self.transition_threshold[PositionControllerState.Linear_correction]
         if np.linalg.norm(linear_err) < transition_thresh:
-            self.state = PositionControllerState.Angular_correction
+            self.state = self.get_next_state(self.state,
+                                             self.skip_orientation,
+                                             self.movement_method)
             (r, p, y) = euler_from_quaternion(quat)
             current_orientation = np.array([0.0, 0.0, y])
             self.goal_angle = current_orientation
-        elif np.linalg.norm(linear_err) > self.stuck_error_threshold:
-            self.prev_linear_time_under_threshold = self.get_clock().now()
+
         return linear_err, angular_err
 
     def correct_orientation(self,
@@ -546,12 +595,11 @@ class PositionNode(Node):
         current_orientation = np.array([r, p, y])
         angular_err = self.calculate_angular_error(self.cmd_angular, current_orientation)
         transition_thresh = self.transition_threshold[PositionControllerState.Angular_correction]
-        if self.skip_orientation:
-            self.goal_angle = np.array([0.0, 0.0, y])
-            self.state = PositionControllerState.Maintain_position
         if np.linalg.norm(angular_err) < transition_thresh:
             self.goal_angle = self.cmd_angular
-            self.state = PositionControllerState.Maintain_position
+            self.state = self.get_next_state(self.state,
+                                             self.skip_orientation,
+                                             self.movement_method)
         return linear_err, angular_err
 
 

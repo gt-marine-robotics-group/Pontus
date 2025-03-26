@@ -1,7 +1,8 @@
 from geometry_msgs.msg import Pose
 
-from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient
+from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
 from pontus_autonomy.tasks.base_task import BaseTask
+from pontus_controller.position_controller import MovementMethod
 
 
 class Submerge(BaseTask):
@@ -11,7 +12,8 @@ class Submerge(BaseTask):
         # Hyperparameters
 
         # Determines the desired depth the sub should start autonomy
-        self.desired_depth = -1.5
+        # TODO: See if the DVL is able to get this
+        self.desired_depth = -1.2
 
         # End
 
@@ -41,7 +43,8 @@ class Submerge(BaseTask):
         if not self.cmd_sent:
             lower_pose = Pose()
             lower_pose.position.z = self.desired_depth
-            self.go_to_pose_client.go_to_pose(lower_pose)
+            pose_obj = PoseObj(lower_pose, False, MovementMethod.TurnThenForward)
+            self.go_to_pose_client.go_to_pose(pose_obj)
             self.cmd_sent = True
         if self.go_to_pose_client.at_pose():
             self.complete(True)

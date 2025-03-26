@@ -15,26 +15,16 @@ from sensor_msgs.msg import CameraInfo
 from pontus_autonomy.tasks.base_task import BaseTask
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
 from pontus_msgs.srv import GetGateLocation
-from pontus_msgs.srv import GateSideInformation
+from pontus_msgs.srv import GateInformation
 from pontus_msgs.msg import YOLOResultArray
 from pontus_mapping.semantic_map_manager import SemanticObject
-from pontus_controller.position_controller import MovementMethod
 
 
-"""
-Incomplete functions:
-turn()
-done()
-"""
-
-
-class GateTask(BaseTask):
+class GateTaskPrequal(BaseTask):
     class State(Enum):
         Searching = 0
-        Approach = 1
-        Align = 2
-        GoThroughLeft = 3
-        Done = 4
+        Passing_Through = 1
+        Done = 2
 
     class SearchState(Enum):
         Turn_CCW = 0
@@ -67,8 +57,8 @@ class GateTask(BaseTask):
 
         # Service to keep track of where the gate is, and which side we went through
         self.gate_information_client = self.create_client(
-            GateSideInformation,
-            '/pontus/gate_side_information',
+            GateInformation,
+            '/pontus/gate_information',
             callback_group=self.service_callback_group
         )
         while not self.gate_information_client.wait_for_service(timeout_sec=1.0):
@@ -280,7 +270,8 @@ class GateTask(BaseTask):
         The state machine to do the gate task. The state machine is defined as the following:
             1. Search for the gate by turning left 45 degrees and right 45 degrees to detect
                both sides of the gate.
-            2. Approach the gate such that the two pictures are visible
+               TODO: Create autonomy that handles not seeing the gate when turned
+            2. Go to the center point of the detected gate
             3. Done, saves the gate location and side we came through. And completes the task
                future
 
@@ -302,19 +293,15 @@ class GateTask(BaseTask):
         match self.state:
             case self.State.Searching:
                 cmd_pose = self.search()
-            case self.State.Approach:
-                cmd_pose = self.approach()
-            case self.State.Align:
-                cmd_pose = self.align()
-            case self.State.GoThroughLeft:
-                cmd_pose = self.go_through_left()
+            case self.State.Passing_Through:
+                cmd_pose = self.pass_through()
             case self.State.Done:
                 self.done()
             case _:
                 self.get_logger().info("Unrecognized state")
 
         if cmd_pose:
-            self.go_to_pose_client.go_to_pose(cmd_pose)
+            self.go_to_pose_client.go_to_pose(cmd_pose.cmd_pose, cmd_pose.skip)
 
     def search(self) -> Optional[PoseObj]:
         """
@@ -328,6 +315,7 @@ class GateTask(BaseTask):
             4. Done
 
         Since our IMU isnt calibrated yet, we will just assume that we have to turn 90 degrees first
+        TODO: Tune IMU, adjust logic
 
         Args:
         ----
@@ -349,7 +337,7 @@ class GateTask(BaseTask):
             case self.SearchState.Detect_Right:
                 return self.align_with_gate(False)
             case self.SearchState.Done:
-                self.state = self.State.Approach
+                self.state = self.State.Passing_Through
 
     def turn(self) -> Optional[Pose]:
         """
@@ -370,8 +358,6 @@ class GateTask(BaseTask):
             10. See neither + at end of turning CC -> handle
 
         TODO: Handle situation #7, #9, #10
-        TODO: Use fish and shark images to help finding gate as well
-        TODO: Make the start based off of the IMU
 
         Args:
         ----
@@ -438,7 +424,7 @@ class GateTask(BaseTask):
             cmd_pose.orientation.z = quat[2]
             cmd_pose.orientation.w = quat[3]
             self.sent = True
-            return PoseObj(cmd_pose, False, MovementMethod.TurnThenForward)
+            return PoseObj(cmd_pose, False)
         # Case 7
         # TODO: Handle this
         elif not left_gate and right_gate and abs(end - self.current_yaw) < 0.05:
@@ -457,7 +443,7 @@ class GateTask(BaseTask):
             cmd_pose.orientation.z = quat[2]
             cmd_pose.orientation.w = quat[3]
             self.sent = True
-            return PoseObj(cmd_pose, False, MovementMethod.TurnThenForward)
+            return PoseObj(cmd_pose, False)
         # Case 9
         elif left_gate and not right_gate and abs(end - self.current_yaw) < 0.05:
             self.get_logger().info("Case #9")
@@ -502,7 +488,7 @@ class GateTask(BaseTask):
             cmd_pose.orientation.z = quat[2]
             cmd_pose.orientation.w = quat[3]
             self.sent = True
-            return PoseObj(cmd_pose, False, MovementMethod.TurnThenForward)
+            return PoseObj(cmd_pose, False)
 
         if self.go_to_pose_client.at_pose():
             # Wait to allow detection
@@ -511,11 +497,9 @@ class GateTask(BaseTask):
             self.sent = False
         return
 
-    def approach(self) -> Optional[Pose]:
+    def pass_through(self) -> Optional[Pose]:
         """
-        Given the gate detection from the semantic map, approach the gate.
-
-        This will not have the sub pass through the sub to make sure that we pass through a side.
+        Given the gate detection from the semantic map, go to the midpoint.
 
         Args:
         ----
@@ -530,87 +514,11 @@ class GateTask(BaseTask):
         if not self.sent:
             left_gate, right_gate = self.get_gate_location(self.gate_detection_client)
             cmd_pose = Pose()
-            # Go to the point 1 meter away
-            mid_point_x = (left_gate.x + right_gate.x)/2
-            mid_point_y = (left_gate.y + right_gate.y)/2
-
-            perpendicular_vector = np.array([-right_gate.y + left_gate.y,
-                                             right_gate.x - left_gate.x])
-            perpendicular_vector_norm = perpendicular_vector / np.linalg.norm(perpendicular_vector)
-            cmd_pose.position.x = mid_point_x - perpendicular_vector_norm[0]
-            cmd_pose.position.y = mid_point_y - perpendicular_vector_norm[1]
+            cmd_pose.position.x = (left_gate.x + right_gate.x)/2
+            cmd_pose.position.y = (left_gate.y + right_gate.y)/2
             cmd_pose.position.z = self.desired_depth
             self.sent = True
-            return PoseObj(cmd_pose, True, MovementMethod.TurnThenForward)
-
-        if self.go_to_pose_client.at_pose():
-            self.sent = False
-            self.state = self.State.Align
-        return None
-
-    def align(self) -> Optional[Pose]:
-        """
-        Align the sub to face the gate.
-
-        After we approach the gate, we might not be orientated correctly so that we are facing
-        head onto the gate.
-
-        Args:
-        ----
-        None
-
-        Return:
-        ------
-        Optional[PoseObj]: command pose
-
-        """
-        if not self.sent:
-            left_gate, right_gate = self.get_gate_location(self.gate_detection_client)
-            cmd_pose = Pose()
-            # Calculate gate angle
-            angle = np.arctan2(right_gate.y - left_gate.y, right_gate.x - left_gate.x)
-            desired_angle = angle + np.pi / 2
-            cmd_pose.position.x = self.current_pose.position.x
-            cmd_pose.position.y = self.current_pose.position.y
-            cmd_pose.position.z = self.desired_depth
-            quat = tf_transformations.quaternion_from_euler(0.0, 0.0, desired_angle)
-            cmd_pose.orientation.x = quat[0]
-            cmd_pose.orientation.y = quat[1]
-            cmd_pose.orientation.z = quat[2]
-            cmd_pose.orientation.w = quat[3]
-            self.sent = True
-            return PoseObj(cmd_pose, False, MovementMethod.TurnThenForward)
-
-        if self.go_to_pose_client.at_pose():
-            self.sent = False
-            self.state = self.State.GoThroughLeft
-        return None
-
-    def go_through_left(self) -> Optional[Pose]:
-        """
-        Command sub to go through left side.
-
-        Args:
-        ----
-        None
-
-        Return:
-        ------
-        Optional[Pose]: command position
-
-        """
-        if not self.sent:
-            left_gate, right_gate = self.get_gate_location(self.gate_detection_client)
-            cmd_pose = Pose()
-            # Go to the point 1 meter away
-            quarter_point_x = 3/4 * left_gate.x + 1/4 * right_gate.x
-            quarter_point_y = 3/4 * left_gate.y + 1/4 * right_gate.y
-
-            cmd_pose.position.x = quarter_point_x
-            cmd_pose.position.y = quarter_point_y
-            cmd_pose.position.z = self.desired_depth
-            self.sent = True
-            return PoseObj(cmd_pose, True, MovementMethod.StrafeThenForward)
+            return PoseObj(cmd_pose, True)
 
         if self.go_to_pose_client.at_pose():
             self.state = self.State.Done
@@ -620,7 +528,7 @@ class GateTask(BaseTask):
         """
         Finish state machine.
 
-        Calls the service to save information to /pontus/gate_side_information.
+        Calls the service to save information to /pontus/gate_information.
         This is temporary and realistically should go into mapping. This will also complete
         the future to move onto the next task.
 
@@ -635,9 +543,12 @@ class GateTask(BaseTask):
         None
 
         """
-        request = GateSideInformation.Request()
-        request.set = True
-        request.entered_left_side = True
+        request = GateInformation.Request()
+        request.set.data = True
+        request.entered_left_side.data = False
+        request.gate_location.x = self.current_pose.position.x
+        request.gate_location.y = self.current_pose.position.y
+        request.gate_location.z = self.current_pose.position.z
         future = self.gate_information_client.call_async(request)
         rclpy.spin_until_future_complete(self, future, timeout_sec=1.0)
         if future.result() is not None:

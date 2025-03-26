@@ -77,7 +77,7 @@ class YOLONode(Node):
             label = f"{results.names[int(class_id)]}: {conf_score}"
             cv2.rectangle(bgr, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 4)
             cv2.putText(bgr, label, (int(x1), int(y1 - 10)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1.3, (0, 255, 0), 3, cv2.LINE_AA)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
 
             r = YOLOResult()
             r.x1 = x1

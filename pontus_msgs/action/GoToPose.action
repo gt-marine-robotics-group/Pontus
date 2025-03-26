@@ -1,6 +1,7 @@
 # Request
 geometry_msgs/Pose desired_pose
 bool skip_orientation
+int32 movement_method
 ---
 # Result
 bool completed 

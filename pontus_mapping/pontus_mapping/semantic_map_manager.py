@@ -1,27 +1,29 @@
-import pandas as pd
-from pandas import Series
 from enum import Enum
 import numpy as np
-from typing import Optional, List
+from pandas import DataFrame, Series
+from typing import List, Optional
 
+from geometry_msgs.msg import Point, Polygon, Pose, PoseStamped, Twist
+from nav_msgs.msg import Odometry
+import rclpy
+from rclpy.node import Node
 import tf2_ros
 from tf2_geometry_msgs import do_transform_pose
 import tf_transformations
-import rclpy
-from rclpy.node import Node
-from pontus_msgs.srv import AddSemanticObject
-from visualization_msgs.msg import MarkerArray
-from visualization_msgs.msg import Marker
-from geometry_msgs.msg import PoseStamped
-from pontus_msgs.srv import GetGateLocation
-from geometry_msgs.msg import Pose
-from nav_msgs.msg import Odometry
-from geometry_msgs.msg import Point
-from pontus_msgs.srv import GetVerticalMarkerLocation
-from geometry_msgs.msg import Twist
-from geometry_msgs.msg import Polygon
+from visualization_msgs.msg import Marker, MarkerArray
 
 from pontus_mapping.helpers import get_fov_polygon, polygon_contained
+from pontus_msgs.srv import (AddSemanticObject,
+                             GateSideInformation,
+                             GetGateLocation,
+                             GetVerticalMarkerLocation)
+
+
+"""
+TODO List:
+handle_get_gate_detection()
+remove_duplicates()
+"""
 
 
 # These will correlate to YOLO
@@ -39,10 +41,16 @@ class SemanticMapManager(Node):
     def __init__(self):
         super().__init__('semantic_map_manager')
 
+        # Map Services
         self.add_service = self.create_service(
             AddSemanticObject,
             '/pontus/add_semantic_object',
             self.handle_add_semantic_object,
+        )
+        self.gate_side_information_service = self.create_service(
+            GateSideInformation,
+            '/pontus/gate_side_information',
+            self.handle_gate_side_information
         )
 
         self.semantic_map_manager_pub = self.create_publisher(
@@ -72,22 +80,41 @@ class SemanticMapManager(Node):
             10,
         )
 
-        self.semantic_map = pd.DataFrame(columns=['type',
-                                                  'x_loc',
-                                                  'y_loc',
-                                                  'z_loc',
-                                                  'yaw_orien',
-                                                  'num_detected',
-                                                  'num_expected',
-                                                  'confidence',
-                                                  'last_updated'])
+        self.semantic_map = DataFrame(columns=['type',
+                                               'x_loc', 'y_loc', 'z_loc', 'yaw_orien',
+                                               'num_detected', 'num_expected', 'confidence',
+                                               'last_updated'])
         self.object_seen_order = 0
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
         self.current_odom = Odometry()
         self.iteration_updated = 0
+        self.entered_left_side = None
 
     # Callbacks
+    def handle_gate_side_information(self,
+                                     request: GateSideInformation.Request,
+                                     response: GateSideInformation.Response) -> None:
+        """
+        Handle add semantic object to the map.
+
+        Args:
+        ----
+        request (GateSideInformation.Request): request containing which side we entered
+        response (GateSideInformation.Response): response for service
+
+        Return:
+        ------
+        None
+
+        """
+        if request.set:
+            self.entered_left_side = request.entered_left_side
+        else:
+            response.entered_left_side = self.entered_left_side
+            response.fish_on_left_side = self.determine_fish_left()
+        return response
+
     def handle_get_gate_detection(self,
                                   request: GetGateLocation.Request,
                                   response: GetGateLocation.Response) -> None:
@@ -97,6 +124,8 @@ class SemanticMapManager(Node):
         Handler to handle getting the gate detection. If either gate is not found,
         it will set the respective left_valid/right_valid True/False. This will resolve
         ties by taking the detection that we have seen the most.
+
+        TODO: Handle the case where there are multiple gate_sides at the same location
 
         Args:
         ----
@@ -182,6 +211,72 @@ class SemanticMapManager(Node):
             response.found = True
         return response
 
+    def handle_add_semantic_object(self,
+                                   request: AddSemanticObject.Request,
+                                   response: AddSemanticObject.Response) -> None:
+        """
+        Handle add semantic object to the map.
+
+        Args:
+        ----
+        request (AddSemanticObject.Request): request containing semantic object to be added
+        response (AddSemanticObject.Response): response for service
+
+        Return:
+        ------
+        None
+
+        """
+        if self.moving(self.current_odom.twist.twist):
+            response.added = False
+            self.get_logger().info('Moving, skipping add to semantic map')
+            return response
+        if self.not_submerged(self.current_odom.pose.pose):
+            response.added = False
+            self.get_logger().info('Not submerged, skipping add to semantic map')
+            return response
+        # Calculate current FOV polygon
+        # This will be used to make sure faulty detections are not included
+        # This will also be used to adjust confidences
+        fov_polygon = get_fov_polygon(self.current_odom)
+
+        # TODO:
+        # See if there is a way to see if the self.tf_buffer is valid
+        for class_id, detection_pose in zip(request.ids, request.positions):
+            map_position = self.convert_to_map_frame(detection_pose, self.tf_buffer)
+            if not map_position:
+                self.get_logger().warn('Unable to find map transform, skipping add')
+                return response
+            # Test to see if this is within our FOV
+            if not polygon_contained(fov_polygon,
+                                     (map_position.position.x, map_position.position.y)):
+                self.get_logger().info(
+                    f'Detection {class_id} {detection_pose} fell outside of fov, ignoring'
+                )
+                continue
+            current_object = SemanticObject(class_id)
+            quat = [map_position.orientation.x,
+                    map_position.orientation.y,
+                    map_position.orientation.z,
+                    map_position.orientation.w]
+            _, _, yaw = tf_transformations.euler_from_quaternion(quat)
+            new_entry = {'type': current_object,
+                         'x_loc': map_position.position.x,
+                         'y_loc': map_position.position.y,
+                         'z_loc': map_position.position.z,
+                         'yaw_orien': yaw,
+                         'num_detected': 1,
+                         'num_expected': 1.0,
+                         'confidence': 1.0,
+                         'last_updated': 0}
+            self.semantic_map.loc[len(self.semantic_map)] = new_entry
+            self.remove_duplicates(current_object, map_position, 1.5, yaw, self.iteration_updated)
+        self.update_confidences(fov_polygon, self.iteration_updated)
+        self.publish_semantic_map()
+        response.added = True
+        self.iteration_updated += 1
+        return response
+
     def odom_callback(self, msg: Odometry) -> None:
         """
         Handle odom callback.
@@ -197,6 +292,7 @@ class SemanticMapManager(Node):
         """
         self.current_odom = msg
 
+    # Helpers
     def convert_to_map_frame(self, position: PoseStamped, tf_buffer: tf2_ros.buffer) -> Pose:
         """
         Convert a point in relation to the body frame to the map frame.
@@ -232,6 +328,8 @@ class SemanticMapManager(Node):
                           iteration_number: int) -> None:
         """
         Remove all duplicate detections within a min distance.
+
+        TODO: Handle removing incorrect gate locations
 
         Args:
         ----
@@ -354,72 +452,6 @@ class SemanticMapManager(Node):
             row['last_updated'] = update_iteration
         return
 
-    def handle_add_semantic_object(self,
-                                   request: AddSemanticObject.Request,
-                                   response: AddSemanticObject.Response) -> None:
-        """
-        Handle add semantic object to the map.
-
-        Args:
-        ----
-        request (AddSemanticObject.Request): request containing semantic object to be added
-        response (AddSemanticObject.Response): response for service
-
-        Return:
-        ------
-        None
-
-        """
-        if self.moving(self.current_odom.twist.twist):
-            response.added = False
-            self.get_logger().info('Moving, skipping add to semantic map')
-            return response
-        if self.not_submerged(self.current_odom.pose.pose):
-            response.added = False
-            self.get_logger().info('Not submerged, skipping add to semantic map')
-            return response
-        # Calculate current FOV polygon
-        # This will be used to make sure faulty detections are not included
-        # This will also be used to adjust confidences
-        fov_polygon = get_fov_polygon(self.current_odom)
-
-        # TODO:
-        # See if there is a way to see if the self.tf_buffer is valid
-        for class_id, detection_pose in zip(request.ids, request.positions):
-            map_position = self.convert_to_map_frame(detection_pose, self.tf_buffer)
-            if not map_position:
-                self.get_logger().warn('Unable to find map transform, skipping add')
-                return response
-            # Test to see if this is within our FOV
-            if not polygon_contained(fov_polygon,
-                                     (map_position.position.x, map_position.position.y)):
-                self.get_logger().info(
-                    f'Detection {class_id} {detection_pose} fell outside of fov, ignoring'
-                )
-                continue
-            current_object = SemanticObject(class_id)
-            quat = [map_position.orientation.x,
-                    map_position.orientation.y,
-                    map_position.orientation.z,
-                    map_position.orientation.w]
-            _, _, yaw = tf_transformations.euler_from_quaternion(quat)
-            new_entry = {'type': current_object,
-                         'x_loc': map_position.position.x,
-                         'y_loc': map_position.position.y,
-                         'z_loc': map_position.position.z,
-                         'yaw_orien': yaw,
-                         'num_detected': 1,
-                         'num_expected': 1.0,
-                         'confidence': 1.0,
-                         'last_updated': 0}
-            self.semantic_map.loc[len(self.semantic_map)] = new_entry
-            self.remove_duplicates(current_object, map_position, 1.5, yaw, self.iteration_updated)
-        self.update_confidences(fov_polygon, self.iteration_updated)
-        self.publish_semantic_map()
-        response.added = True
-        self.iteration_updated += 1
-        return response
-
     def marker_hash(self, row: Series) -> int:
         """
         Convert a given marker row to an int value to represent in the semantic map.
@@ -528,6 +560,68 @@ class SemanticMapManager(Node):
 
         return
 
+    def determine_fish_left(self) -> bool:
+        """
+        Return if the fish sign is on the left side of the gate.
+
+        This will look through the semantic map and try to find it.
+        Cases:
+            1. Both found -> compare with respect to each other
+            2. One found but not the other -> compare to side gates
+            3. Neither found -> return True
+
+        Args:
+        ----
+        None
+
+        Return:
+        ------
+        bool: if the fish sign is on the left side of the gate
+
+        """
+        gate_fish = None
+        gate_shark = None
+        left_gate = None
+        right_gate = None
+        for _, row in self.semantic_map.iterrows():
+            if row['type'] == SemanticObject.GateFish:
+                gate_fish = row
+            if row['type'] == SemanticObject.GateShark:
+                gate_shark = row
+            if row['type'] == SemanticObject.LeftGate:
+                left_gate = row
+            if row['type'] == SemanticObject.RightGate:
+                right_gate = row
+
+        # Case 1
+        if gate_fish is not None and gate_shark is not None:
+            return gate_fish['y_loc'] > gate_shark['y_loc']
+        # Case 2
+        if gate_fish is None and gate_shark is not None:
+            # Determine which side the shark is closer to
+            diff_to_left = np.array([gate_shark['x_loc'] - left_gate['x_loc'],
+                                     gate_shark['y_loc'] - left_gate['y_loc']])
+            distance_to_left = np.linalg.norm(diff_to_left)
+            diff_to_right = np.array([gate_shark['x_loc'] - right_gate['x_loc'],
+                                      gate_shark['y_loc'] - right_gate['y_loc']])
+            distance_to_right = np.linalg.norm(diff_to_right)
+            # If the shark sign is further away from the left, then the fish is probably
+            # on the right hand side
+            return distance_to_right < distance_to_left
+        if gate_fish is not None and gate_shark is None:
+            # Determine which side the fish is closer to
+            diff_to_left = np.array([gate_fish['x_loc'] - left_gate['x_loc'],
+                                     gate_fish['y_loc'] - left_gate['y_loc']])
+            distance_to_left = np.linalg.norm(diff_to_left)
+            diff_to_right = np.array([gate_fish['x_loc'] - right_gate['x_loc'],
+                                      gate_fish['y_loc'] - right_gate['y_loc']])
+            distance_to_right = np.linalg.norm(diff_to_right)
+            # If the fish sign is closer to the left side, then the fish sign is on the left
+            return distance_to_right > distance_to_left
+        # Case 3
+        return True
+
+    # Debug
     def publish_semantic_map(self) -> None:
         """
         Publish the semantic map to the topic /pontus/semantic_map_visual.

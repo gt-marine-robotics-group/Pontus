@@ -18,7 +18,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/YOLOResultArray.msg"
   "srv/GetGateLocation.srv"
   "srv/GetVerticalMarkerLocation.srv"
-  "srv/GateInformation.srv"
+  "srv/GateSideInformation.srv"
   "srv/AddSemanticObject.srv"
   "action/GoToPose.action"
   "action/SearchRegion.action"

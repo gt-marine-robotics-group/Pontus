@@ -11,12 +11,17 @@ from geometry_msgs.msg import Pose
 from pontus_msgs.action import GoToPose
 from pontus_controller.position_controller import PositionControllerState
 from pontus_autonomy.base_run import BaseTask
+from pontus_controller.position_controller import MovementMethod
 
 
 class PoseObj:
-    def __init__(self, cmd_pose: Pose, skip: bool):
+    def __init__(self,
+                 cmd_pose: Pose,
+                 skip_orientation: bool = False,
+                 movement_method: MovementMethod = MovementMethod.TurnThenForward):
         self.cmd_pose = cmd_pose
-        self.skip = skip
+        self.skip_orientation = skip_orientation
+        self.movement_method = movement_method
 
 
 class GoToPoseClient:
@@ -34,14 +39,13 @@ class GoToPoseClient:
         self.is_in_progress = False
 
     # Ros architecture
-    def go_to_pose(self, goal_pose: Pose, skip_orientation: bool = False) -> None:
+    def go_to_pose(self, pose_obj: PoseObj) -> None:
         """
         Start Action client to go to pose.
 
         Args:
         ----
-        goal_pose (Pose): the desired pose
-        skip_orientation (bool): whether to skip fixing the orientation at the end
+        pose_obj (PoseObj): the desired input for the controller
 
         Return:
         ------
@@ -51,8 +55,9 @@ class GoToPoseClient:
         self.completed = False
         self.is_in_progress = True
         goal_msg = GoToPose.Goal()
-        goal_msg.desired_pose = goal_pose
-        goal_msg.skip_orientation = skip_orientation
+        goal_msg.desired_pose = pose_obj.cmd_pose
+        goal_msg.skip_orientation = pose_obj.skip_orientation
+        goal_msg.movement_method = pose_obj.movement_method.value
         self.send_goal_future = self.action_client.send_goal_async(
             goal_msg,
             feedback_callback=self.feedback_callback

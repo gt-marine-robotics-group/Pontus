@@ -1392,7 +1392,14 @@
     <include>
       <uri>Gate</uri>
       <!-- <pose>3.7 0.5 -1.8 1.8 0 1.57</pose> -->
-      <pose>4.0 -3.0 -1.5 0.0 3.14 1.0</pose>
+      <!-- Right side -->
+      <!-- <pose>4.0 -3.0 -1.5 0.0 3.14 1.0</pose> -->
+      <!-- Right side Weird angle-->
+      <!-- <pose>4.0 -3.0 -1.5 0.0 3.14 1.4</pose> -->
+      <!-- Extreme right side-->
+      <!-- <pose>2.0 -5.0 -1.5 0.0 3.14 0.9</pose> -->
+      <!-- Left Side -->
+      <pose>3.6 3.3 -1.5 0.0 3.14 1.65</pose>
     </include>
 
   </world>
