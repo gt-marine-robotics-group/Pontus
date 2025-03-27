@@ -15,9 +15,9 @@ from sensor_msgs.msg import CameraInfo
 from pontus_autonomy.tasks.base_task import BaseTask
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
 from pontus_msgs.srv import GetGateLocation
-from pontus_msgs.srv import GateInformation
 from pontus_msgs.msg import YOLOResultArray
 from pontus_mapping.semantic_map_manager import SemanticObject
+from pontus_controller.position_controller import MovementMethod
 
 
 class GateTaskPrequal(BaseTask):
@@ -54,15 +54,6 @@ class GateTaskPrequal(BaseTask):
         )
         while not self.gate_detection_client.wait_for_service(timeout_sec=3.0):
             self.get_logger().info("Waiting for get gate location service")
-
-        # Service to keep track of where the gate is, and which side we went through
-        self.gate_information_client = self.create_client(
-            GateInformation,
-            '/pontus/gate_information',
-            callback_group=self.service_callback_group
-        )
-        while not self.gate_information_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info("Waiting to connect to /pontus/gate_information service")
 
         self.yolo_subscription = self.create_subscription(
             YOLOResultArray,
@@ -301,7 +292,7 @@ class GateTaskPrequal(BaseTask):
                 self.get_logger().info("Unrecognized state")
 
         if cmd_pose:
-            self.go_to_pose_client.go_to_pose(cmd_pose.cmd_pose, cmd_pose.skip)
+            self.go_to_pose_client.go_to_pose(cmd_pose)
 
     def search(self) -> Optional[PoseObj]:
         """
@@ -411,7 +402,7 @@ class GateTaskPrequal(BaseTask):
             cmd_pose.orientation.z = quat[2]
             cmd_pose.orientation.w = quat[3]
             self.sent = True
-            return PoseObj(cmd_pose, False)
+            return PoseObj(cmd_pose, False, MovementMethod.TurnThenForward)
         # Case 6
         elif not left_gate and right_gate and not self.sent:
             self.get_logger().info("Case #6")
@@ -424,7 +415,7 @@ class GateTaskPrequal(BaseTask):
             cmd_pose.orientation.z = quat[2]
             cmd_pose.orientation.w = quat[3]
             self.sent = True
-            return PoseObj(cmd_pose, False)
+            return PoseObj(cmd_pose, False, MovementMethod.TurnThenForward)
         # Case 7
         # TODO: Handle this
         elif not left_gate and right_gate and abs(end - self.current_yaw) < 0.05:
@@ -443,7 +434,7 @@ class GateTaskPrequal(BaseTask):
             cmd_pose.orientation.z = quat[2]
             cmd_pose.orientation.w = quat[3]
             self.sent = True
-            return PoseObj(cmd_pose, False)
+            return PoseObj(cmd_pose, False, MovementMethod.TurnThenForward)
         # Case 9
         elif left_gate and not right_gate and abs(end - self.current_yaw) < 0.05:
             self.get_logger().info("Case #9")
@@ -488,7 +479,7 @@ class GateTaskPrequal(BaseTask):
             cmd_pose.orientation.z = quat[2]
             cmd_pose.orientation.w = quat[3]
             self.sent = True
-            return PoseObj(cmd_pose, False)
+            return PoseObj(cmd_pose, False, MovementMethod.TurnThenForward)
 
         if self.go_to_pose_client.at_pose():
             # Wait to allow detection
@@ -518,7 +509,7 @@ class GateTaskPrequal(BaseTask):
             cmd_pose.position.y = (left_gate.y + right_gate.y)/2
             cmd_pose.position.z = self.desired_depth
             self.sent = True
-            return PoseObj(cmd_pose, True)
+            return PoseObj(cmd_pose, True, MovementMethod.TurnThenForward)
 
         if self.go_to_pose_client.at_pose():
             self.state = self.State.Done
@@ -527,12 +518,6 @@ class GateTaskPrequal(BaseTask):
     def done(self) -> None:
         """
         Finish state machine.
-
-        Calls the service to save information to /pontus/gate_information.
-        This is temporary and realistically should go into mapping. This will also complete
-        the future to move onto the next task.
-
-        TODO: Move this over to the semantic map
 
         Args:
         ----
@@ -543,15 +528,5 @@ class GateTaskPrequal(BaseTask):
         None
 
         """
-        request = GateInformation.Request()
-        request.set.data = True
-        request.entered_left_side.data = False
-        request.gate_location.x = self.current_pose.position.x
-        request.gate_location.y = self.current_pose.position.y
-        request.gate_location.z = self.current_pose.position.z
-        future = self.gate_information_client.call_async(request)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=1.0)
-        if future.result() is not None:
-            self.get_logger().info("Successfully sent information to service")
-            self.complete(True)
+        self.complete(True)
         return None

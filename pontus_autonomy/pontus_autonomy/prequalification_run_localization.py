@@ -9,8 +9,7 @@ from pontus_autonomy.tasks.localization.submerge import Submerge
 from pontus_autonomy.tasks.localization.gate_task_prequal import GateTaskPrequal
 from pontus_autonomy.tasks.localization.gate_to_vertical import GateToVertical
 from pontus_autonomy.tasks.localization.vertical_marker_task import VerticalMarkerTask
-from pontus_autonomy.tasks.localization.vertical_to_gate import VerticalToGate
-from pontus_autonomy.tasks.localization.exit_gate import ExitGate
+from pontus_autonomy.tasks.localization.prequal_return import PrequalReturn
 
 
 class PrequalificationRun(BaseRun):
@@ -36,16 +35,8 @@ class PrequalificationRun(BaseRun):
         self.get_logger().info(f"Vertical Marker Task {result}")
 
         # Vertical to Gate
-        result = self.run_task(VerticalToGate)
-        self.get_logger().info(f"Vertical to gate: {result}")
-
-        # Return Gate Task
-        result = self.run_task(GateTaskPrequal)
-        self.get_logger().info(f"Return gate task: {result}")
-
-        # Exit Gate
-        result = self.run_task(ExitGate)
-        self.get_logger().info(f"Exit gate task: {result}")
+        result = self.run_task(PrequalReturn)
+        self.get_logger().info(f"Prequal return: {result}")
 
 
 def main(args: Optional[List[str]] = None) -> None:

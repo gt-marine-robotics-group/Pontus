@@ -484,7 +484,7 @@ class PositionNode(Node):
         current_orientation = np.array([r, p, y])
         angular_err = self.calculate_angular_error(self.goal_angle, current_orientation)
         transition_thresh = self.transition_threshold[PositionControllerState.Strafe]
-        if linear_err[1] < transition_thresh:
+        if abs(linear_err[1]) < transition_thresh:
             self.state = self.get_next_state(self.state,
                                              self.skip_orientation,
                                              self.movement_method)
