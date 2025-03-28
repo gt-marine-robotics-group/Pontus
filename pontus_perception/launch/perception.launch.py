@@ -65,10 +65,10 @@ def generate_launch_description():
                 'left_namespace': '/pontus/camera_2',
                 'right_namespace': '/pontus/camera_3',
                 'num_disparities' : '32',
-                'window_size' : '3',
+                'window_size' : '5',
                 'prefilter_cap' : '27',
-                'texture_threshold' : '75',
-                'uniqueness_ratio' : '7',
+                'texture_threshold' : '3',
+                'uniqueness_ratio' : '5',
                 'speckle_window_size' : '200',
                 'speckle_range' : '32',
             }.items()
