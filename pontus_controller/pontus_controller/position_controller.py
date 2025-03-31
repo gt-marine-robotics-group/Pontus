@@ -40,7 +40,7 @@ class PositionNode(Node):
         self.transition_threshold[PositionControllerState.Direction_correction] = 0.1
         self.transition_threshold[PositionControllerState.Linear_correction] = 0.1
         self.transition_threshold[PositionControllerState.Strafe] = 0.05
-        self.transition_threshold[PositionControllerState.Angular_correction] = 0.1
+        self.transition_threshold[PositionControllerState.Angular_correction] = 0.10
 
         self.deadzone = 0.2
         self.linear_deadzone = 0.5
@@ -78,15 +78,15 @@ class PositionNode(Node):
             self.pid_linear = [
                 PID(1.0, 0, 0),
                 PID(0.5, 0, 0),
-                PID(2.5, 0, 0, 0.12)
+                PID(0.5, 0, 0)
             ]
 
             self.pid_angular = [
                 PID(0.1, 0, 0),
                 PID(0.1, 0, 0),
-                PID(0.1, 0.0, 0.0)
+                PID(0.15, 0.01, 0.000001, windup_max=10)
             ]
-
+        # PID(0.15, 0.001, 0.000001, 5)
         self.thresh = 0.2
         self.angular_thresh = 0.1
         self.hold_point = False
@@ -595,7 +595,7 @@ class PositionNode(Node):
         current_orientation = np.array([r, p, y])
         angular_err = self.calculate_angular_error(self.cmd_angular, current_orientation)
         transition_thresh = self.transition_threshold[PositionControllerState.Angular_correction]
-        if np.linalg.norm(angular_err) < transition_thresh:
+        if abs(angular_err[2]) < transition_thresh:
             self.goal_angle = self.cmd_angular
             self.state = self.get_next_state(self.state,
                                              self.skip_orientation,

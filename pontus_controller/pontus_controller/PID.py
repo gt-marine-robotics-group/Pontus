@@ -4,9 +4,9 @@ from numpy import sign
 
 
 MASS = 34.02
-VOLUME = 0.043
+VOLUME = 0.0405
 # X, Y, Z, ROLL, PITCH, YAW
-DRAG = [0.0, 0.0, 0.0, 0.0, 200.0, 7.0]
+DRAG = [0.0, 0.0, 0.0, 0.0, 0.0, 4.0]
 WATER_DENSITY = 1000.0
 GRAVITY = 9.8
 
@@ -95,6 +95,7 @@ class PID:
         ff = -acceleration_bouyancy + f_drag
 
         u = fb + ff
+        # u = ff
 
         self.prev_err = err
 

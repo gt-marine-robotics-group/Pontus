@@ -27,7 +27,7 @@ class VelocityNode(Node):
         self.pid_angular = [
           PID(1, 0, 0, degree_of_freedom=DegreeOfFreedom.ROLL),  # R
           PID(1, 0, 0, degree_of_freedom=DegreeOfFreedom.PITCH),  # P
-          PID(0.1, 0, 0, degree_of_freedom=DegreeOfFreedom.YAW)  # Y
+          PID(0.01, 0, 0.0000001, degree_of_freedom=DegreeOfFreedom.YAW)  # Y
         ]
 
         # Sim PID values
@@ -99,8 +99,8 @@ class VelocityNode(Node):
         msg.linear.x = self.pid_linear[0](linear_err[0], dt)
         msg.linear.y = self.pid_linear[1](linear_err[1], dt)
         msg.linear.z = self.pid_linear[2](linear_err[2], dt)
-        msg.angular.x = self.pid_angular[0](angular_err[0], dt, self.cmd_angular[0])
-        msg.angular.y = self.pid_angular[1](angular_err[1], dt, self.cmd_angular[1])
+        # msg.angular.x = self.pid_angular[0](angular_err[0], dt, self.cmd_angular[0])
+        # msg.angular.y = self.pid_angular[1](angular_err[1], dt, self.cmd_angular[1])
         msg.angular.z = self.pid_angular[2](angular_err[2], dt, self.cmd_angular[2])
         self.prev_time = self.get_clock().now()
 

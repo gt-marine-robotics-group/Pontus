@@ -244,7 +244,7 @@ class SemanticMapManager(Node):
         # Calculate current FOV polygon
         # This will be used to make sure faulty detections are not included
         # This will also be used to adjust confidences
-        fov_polygon = get_fov_polygon(self.current_odom)
+        # fov_polygon = get_fov_polygon(self.current_odom)
 
         # TODO:
         # See if there is a way to see if the self.tf_buffer is valid
@@ -254,12 +254,12 @@ class SemanticMapManager(Node):
                 self.get_logger().warn('Unable to find map transform, skipping add')
                 return response
             # Test to see if this is within our FOV
-            if not polygon_contained(fov_polygon,
-                                     (map_position.position.x, map_position.position.y)):
-                self.get_logger().info(
-                    f'Detection {class_id} {detection_pose} fell outside of fov, ignoring'
-                )
-                continue
+            # if not polygon_contained(fov_polygon,
+            #                          (map_position.position.x, map_position.position.y)):
+            #     self.get_logger().info(
+            #         f'Detection {class_id} {detection_pose} fell outside of fov, ignoring'
+            #     )
+            #     continue
             current_object = SemanticObject(class_id)
             quat = [map_position.orientation.x,
                     map_position.orientation.y,
@@ -277,7 +277,7 @@ class SemanticMapManager(Node):
                          'last_updated': 0}
             self.semantic_map.loc[len(self.semantic_map)] = new_entry
             self.remove_duplicates(current_object, map_position, 1.5, yaw, self.iteration_updated)
-        self.update_confidences(fov_polygon, self.iteration_updated)
+        # self.update_confidences(fov_polygon, self.iteration_updated)
         self.publish_semantic_map()
         response.added = True
         self.iteration_updated += 1
