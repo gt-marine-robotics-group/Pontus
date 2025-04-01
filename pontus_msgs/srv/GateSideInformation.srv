@@ -1,0 +1,5 @@
+bool set
+bool entered_left_side
+---
+bool entered_left_side
+bool fish_on_left_side

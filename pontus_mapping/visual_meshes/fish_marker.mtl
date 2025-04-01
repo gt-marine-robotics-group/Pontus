@@ -1,0 +1,22 @@
+# Blender 4.2.2 LTS MTL File: 'None'
+# www.blender.org
+
+newmtl ID9
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.913725 0.913725 0.913725
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+
+newmtl sawfish
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 2
+map_Kd sawfish.png
+map_d sawfish.png

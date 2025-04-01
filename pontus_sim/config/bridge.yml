@@ -1,8 +1,41 @@
 # Sensors
 
-# Camera Forward
-- ros_topic_name: "/pontus/camera_0/image_raw"
-  gz_topic_name: "/pontus/camera_0/image_raw"
+# Camera Forward Left
+- ros_topic_name: "/pontus/camera_2/image_raw"
+  gz_topic_name: "/pontus/camera_2/image_raw"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/pontus/camera_2/camera_info"
+  gz_topic_name: "/pontus/camera_2/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/pontus/camera_3/camera_info"
+  gz_topic_name: "/pontus/camera_3/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
+# Camera Forward Right
+- ros_topic_name: "/pontus/camera_3/image_raw"
+  gz_topic_name: "/pontus/camera_3/image_raw"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+# Camera Side Left
+- ros_topic_name: "/pontus/camera_4/image_raw"
+  gz_topic_name: "/pontus/camera_4/image_raw"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+# Camera Side Right
+- ros_topic_name: "/pontus/camera_5/image_raw"
+  gz_topic_name: "/pontus/camera_5/image_raw"
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS
@@ -15,18 +48,18 @@
   direction: GZ_TO_ROS
 
 # Sonar Forward
-- ros_topic_name: "/pontus/sonar_0"
-  gz_topic_name: "/pontus/sonar_0"
-  ros_type_name: "sensor_msgs/msg/LaserScan"
-  gz_type_name: "gz.msgs.LaserScan"
-  direction: GZ_TO_ROS
+# - ros_topic_name: "/pontus/sonar_0"
+#   gz_topic_name: "/pontus/sonar_0"
+#   ros_type_name: "sensor_msgs/msg/LaserScan"
+#   gz_type_name: "gz.msgs.LaserScan"
+#   direction: GZ_TO_ROS
 
 # Sonar Top 360
-- ros_topic_name: "/pontus/sonar_1"
-  gz_topic_name: "/pontus/sonar_1"
-  ros_type_name: "sensor_msgs/msg/LaserScan"
-  gz_type_name: "gz.msgs.LaserScan"
-  direction: GZ_TO_ROS
+# - ros_topic_name: "/pontus/sonar_1"
+#   gz_topic_name: "/pontus/sonar_1"
+#   ros_type_name: "sensor_msgs/msg/LaserScan"
+#   gz_type_name: "gz.msgs.LaserScan"
+#   direction: GZ_TO_ROS
 
 # IMU
 - ros_topic_name: "/pontus/imu_0"
