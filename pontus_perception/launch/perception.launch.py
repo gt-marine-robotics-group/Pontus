@@ -35,7 +35,8 @@ def generate_launch_description():
             remappings=[
                 ('input', '/pontus/camera_2/image_rect_color'),
                 ('results', '/pontus/camera_2/yolo_results'),
-                ('yolo_debug', '/pontus/camera_2/yolo_debug')
+                ('yolo_debug', '/pontus/camera_2/yolo_debug'),
+                ('yolo_debug/compressed', '/pontus/camera_2/yolo_debug/compressed')
             ]
         ),
         # Not needed if using disparity map
@@ -50,7 +51,8 @@ def generate_launch_description():
             remappings=[
                 ('input', '/pontus/camera_3/image_rect_color'),
                 ('results', '/pontus/camera_3/yolo_results'),
-                ('yolo_debug', '/pontus/camera_3/yolo_debug')
+                ('yolo_debug', '/pontus/camera_3/yolo_debug'),
+                ('yolo_debug/compressed', '/pontus/camera_3/yolo_debug/compressed')
             ]
         ),
         Node(
