@@ -88,7 +88,7 @@ class YOLONode(Node):
             r.label = results.names[int(class_id)]
             r.confidence = conf
             result_array.results.append(r)
-
+        result_array.header = msg.header
         self.results_pub.publish(result_array)
         ros_image = self.cv_bridge.cv2_to_imgmsg(bgr, encoding='bgr8')
         self.image_pub.publish(ros_image)
