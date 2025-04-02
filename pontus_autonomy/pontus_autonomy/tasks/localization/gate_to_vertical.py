@@ -70,7 +70,7 @@ class GateToVertical(BaseTask):
             cmd_pose.position.x = self.current_pose.position.x + self.forward_distance
             cmd_pose.position.y = self.current_pose.position.y
             cmd_pose.position.z = self.current_pose.position.z
-            self.go_to_pose_client.go_to_pose(PoseObj(cmd_pose, True))
+            self.go_to_pose_client.go_to_pose(PoseObj(cmd_pose=cmd_pose, skip_orientation=True))
             self.cmd_sent = True
         elif self.cmd_sent and self.go_to_pose_client.at_pose():
             self.complete(True)

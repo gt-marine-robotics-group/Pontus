@@ -43,7 +43,9 @@ class Submerge(BaseTask):
         if not self.cmd_sent:
             lower_pose = Pose()
             lower_pose.position.z = self.desired_depth
-            pose_obj = PoseObj(lower_pose, False, MovementMethod.TurnThenForward)
+            pose_obj = PoseObj(cmd_pose=lower_pose,
+                               skip_orientation=False,
+                               movement_method=MovementMethod.TurnThenForward)
             self.go_to_pose_client.go_to_pose(pose_obj)
             self.cmd_sent = True
         if self.go_to_pose_client.at_pose():

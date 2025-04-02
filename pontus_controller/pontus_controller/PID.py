@@ -1,20 +1,24 @@
 from rclpy.time import Duration
 from enum import Enum
-from numpy import sign
+from numpy import sign, pi
 
 
 MASS = 34.02
 VOLUME = 0.0405
-# X, Y, Z, ROLL, PITCH, YAW
-DRAG = [0.0, 0.0, 0.0, 0.0, 0.0, 4.0]
+DIAMETER = 0.2159
+LENGTH = 0.6096
+AREA = [pi * (DIAMETER / 2) ** 2, LENGTH * DIAMETER, LENGTH * DIAMETER]
+# SURGE, SWAY, HEAVE, ROLL, PITCH, YAW
+# Values taken from: https://phys.libretexts.org/Bookshelves/Classical_Mechanics/Classical_Mechanics_(Dourmashkin)/08%3A_Applications_of_Newtons_Second_Law/8.06%3A_Drag_Forces_in_Fluids  # noqa: E501
+C = [0.47, 0.82, 0.82, 0.0, 0.0, 4.0]
 WATER_DENSITY = 1000.0
 GRAVITY = 9.8
 
 
 class DegreeOfFreedom(Enum):
-    X = 0
-    Y = 1
-    Z = 2
+    SURGE = 0
+    SWAY = 1
+    HEAVE = 2
     ROLL = 3
     PITCH = 4
     YAW = 5
@@ -78,17 +82,21 @@ class PID:
         f_drag = 0.0
 
         # Calculate bouyancy force if controlling z
-        if self.degree_of_freedom == DegreeOfFreedom.Z:
+        if self.degree_of_freedom == DegreeOfFreedom.HEAVE:
             # F = pVg
             f_bouyancy = WATER_DENSITY * VOLUME * GRAVITY
             # F = mg
             f_gravity = MASS * GRAVITY
             f_net = f_bouyancy - f_gravity
             acceleration_bouyancy = f_net / MASS
-
-        if self.degree_of_freedom and desired_velocity:
-            # F = 1/2 CpAv^2
-            f_drag_abs = DRAG[self.degree_of_freedom.value] * desired_velocity ** 2
+        # Linear Drag: F = 1/2 CpAv^2
+        # Approximated as a cylinder
+        if self.degree_of_freedom and 0 <= self.degree_of_freedom.value <= 2 and desired_velocity:
+            f_drag_abs = 1/2 * C[self.degree_of_freedom.value] * WATER_DENSITY * AREA[self.degree_of_freedom.value] * desired_velocity ** 2  # noqa: E501
+            f_drag = sign(desired_velocity) * f_drag_abs
+        # Rotational Drag: TODO: Estimate this
+        if self.degree_of_freedom and 3 <= self.degree_of_freedom.value and desired_velocity:
+            f_drag_abs = C[self.degree_of_freedom.value] * desired_velocity ** 2
             f_drag = sign(desired_velocity) * f_drag_abs
 
         # feed forward
