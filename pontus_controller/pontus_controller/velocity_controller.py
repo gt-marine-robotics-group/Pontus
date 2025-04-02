@@ -19,9 +19,9 @@ class VelocityNode(Node):
 
         # TODO: Tune these
         self.pid_linear = [
-          PID(20, 0, 0, degree_of_freedom=DegreeOfFreedom.X),  # X
-          PID(20, 0, 0, degree_of_freedom=DegreeOfFreedom.Y),  # Y
-          PID(10, 0, 0, degree_of_freedom=DegreeOfFreedom.Z)  # Z
+          PID(20, 0, 0, degree_of_freedom=DegreeOfFreedom.SURGE),  # X
+          PID(20, 0, 0, degree_of_freedom=DegreeOfFreedom.SWAY),  # Y
+          PID(10, 0, 0, degree_of_freedom=DegreeOfFreedom.HEAVE)  # Z
         ]
 
         self.pid_angular = [

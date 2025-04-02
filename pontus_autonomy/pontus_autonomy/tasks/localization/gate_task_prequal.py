@@ -402,7 +402,9 @@ class GateTaskPrequal(BaseTask):
             cmd_pose.orientation.z = quat[2]
             cmd_pose.orientation.w = quat[3]
             self.sent = True
-            return PoseObj(cmd_pose, False, MovementMethod.TurnThenForward)
+            return PoseObj(cmd_pose=cmd_pose,
+                           skip_orientation=False,
+                           movement_method=MovementMethod.TurnThenForward)
         # Case 6
         elif not left_gate and right_gate and not self.sent:
             self.get_logger().info("Case #6")
@@ -415,7 +417,9 @@ class GateTaskPrequal(BaseTask):
             cmd_pose.orientation.z = quat[2]
             cmd_pose.orientation.w = quat[3]
             self.sent = True
-            return PoseObj(cmd_pose, False, MovementMethod.TurnThenForward)
+            return PoseObj(cmd_pose=cmd_pose,
+                           skip_orientation=False,
+                           movement_method=MovementMethod.TurnThenForward)
         # Case 7
         # TODO: Handle this
         elif not left_gate and right_gate and abs(end - self.current_yaw) < 0.05:
@@ -434,7 +438,9 @@ class GateTaskPrequal(BaseTask):
             cmd_pose.orientation.z = quat[2]
             cmd_pose.orientation.w = quat[3]
             self.sent = True
-            return PoseObj(cmd_pose, False, MovementMethod.TurnThenForward)
+            return PoseObj(cmd_pose=cmd_pose,
+                           skip_orientation=False,
+                           movement_method=MovementMethod.TurnThenForward)
         # Case 9
         elif left_gate and not right_gate and abs(end - self.current_yaw) < 0.05:
             self.get_logger().info("Case #9")
@@ -479,7 +485,9 @@ class GateTaskPrequal(BaseTask):
             cmd_pose.orientation.z = quat[2]
             cmd_pose.orientation.w = quat[3]
             self.sent = True
-            return PoseObj(cmd_pose, False, MovementMethod.TurnThenForward)
+            return PoseObj(cmd_pose=cmd_pose,
+                           skip_orientation=False,
+                           movement_method=MovementMethod.TurnThenForward)
 
         if self.go_to_pose_client.at_pose():
             # Wait to allow detection
@@ -509,7 +517,9 @@ class GateTaskPrequal(BaseTask):
             cmd_pose.position.y = (left_gate.y + right_gate.y)/2
             cmd_pose.position.z = self.desired_depth
             self.sent = True
-            return PoseObj(cmd_pose, True, MovementMethod.TurnThenForward)
+            return PoseObj(cmd_pose=cmd_pose,
+                           skip_orientation=True,
+                           movement_method=MovementMethod.TurnThenForward)
 
         if self.go_to_pose_client.at_pose():
             self.state = self.State.Done

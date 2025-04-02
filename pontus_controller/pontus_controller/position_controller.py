@@ -23,11 +23,15 @@ class PositionControllerState(Enum):
     Direction_correction = 4
     Linear_correction = 5
     Angular_correction = 6
+    Velocity_pass_through = 7
+    Velocity_maintain_depth = 8
 
 
 class MovementMethod(Enum):
     TurnThenForward = 1
     StrafeThenForward = 2
+    Velocity = 3
+    VelocityMaintainDepth = 4
 
 
 class PositionNode(Node):
@@ -93,7 +97,10 @@ class PositionNode(Node):
 
         self.goal_pose = np.zeros(3)
         self.goal_angle = np.zeros(3)
+        self.goal_twist = None
         self.skip_orientation = False
+        self.desired_depth = 0
+        self.current_pose = None
         self.movement_method = MovementMethod.TurnThenForward
         # ROS infrastructure
         self.cmd_pos_sub = self.create_subscription(
@@ -150,15 +157,23 @@ class PositionNode(Node):
         self.cmd_pos_callback(request.desired_pose)
         self.skip_orientation = request.skip_orientation
         self.movement_method = MovementMethod(request.movement_method)
-        feedback_msg = GoToPose.Feedback()
-        while True:
-            if self.state == PositionControllerState.Maintain_position:
-                break
-            current_state = self.state.value
-            feedback_msg.current_state = current_state
-            goal_handle.publish_feedback(feedback_msg)
-            # Yield control back to the executor loop
-            await asyncio.sleep(0)
+        if self.movement_method == MovementMethod.Velocity:
+            self.goal_twist = request.desired_twist
+            self.state = PositionControllerState.Velocity_pass_through
+        if self.movement_method == MovementMethod.VelocityMaintainDepth:
+            self.goal_twist = request.desired_twist
+            self.desired_depth = request.desired_depth
+            self.state = PositionControllerState.Velocity_maintain_depth
+        else:
+            feedback_msg = GoToPose.Feedback()
+            while True:
+                if self.state == PositionControllerState.Maintain_position:
+                    break
+                current_state = self.state.value
+                feedback_msg.current_state = current_state
+                goal_handle.publish_feedback(feedback_msg)
+                # Yield control back to the executor loop
+                await asyncio.sleep(0)
 
         goal_handle.succeed()
         result = GoToPose.Result()
@@ -302,6 +317,7 @@ class PositionNode(Node):
 
         """
         self.state_debugger()
+        self.current_pose = msg.pose.pose
         # # Get the current positions from odometry
         quat = msg.pose.pose.orientation
         quat = [quat.x, quat.y, quat.z, quat.w]
@@ -330,25 +346,73 @@ class PositionNode(Node):
                 linear_err, angular_err = self.go_to_point(current_position, quat)
             case PositionControllerState.Angular_correction:
                 linear_err, angular_err = self.correct_orientation(current_position, quat)
+            case PositionControllerState.Velocity_pass_through:
+                linear_err = np.zeros(3)
+                angular_err = np.zeros(3)
+            case PositionControllerState.Velocity_maintain_depth:
+                z_error = self.maintain_z(self.desired_depth, current_position)
             case _:
                 linear_err = np.zeros(3)
                 angular_err = np.zeros(3)
 
         dt = self.get_clock().now() - self.prev_time
         msg: Twist = Twist()
-        msg.linear.x = self.pid_linear[0](linear_err[0], dt)
-        msg.linear.y = self.pid_linear[1](linear_err[1], dt)
-        msg.linear.z = self.pid_linear[2](linear_err[2], dt)
+        if self.state == PositionControllerState.Velocity_pass_through:
+            msg = self.goal_twist
+        elif self.state == PositionControllerState.Velocity_maintain_depth:
+            msg = self.goal_twist
+            msg.linear.z = self.pid_linear[2](z_error, dt)
+        else:
+            msg.linear.x = self.pid_linear[0](linear_err[0], dt)
+            msg.linear.y = self.pid_linear[1](linear_err[1], dt)
+            msg.linear.z = self.pid_linear[2](linear_err[2], dt)
 
-        msg.angular.x = self.pid_angular[0](angular_err[0], dt)
-        msg.angular.y = self.pid_angular[1](angular_err[1], dt)
-        msg.angular.z = self.pid_angular[2](angular_err[2], dt)
+            msg.angular.x = self.pid_angular[0](angular_err[0], dt)
+            msg.angular.y = self.pid_angular[1](angular_err[1], dt)
+            msg.angular.z = self.pid_angular[2](angular_err[2], dt)
+
         self.prev_time = self.get_clock().now()
-
+        msg = self.clamp_velocity(msg)
         # If we are in controller mode, we are publishing command velociites from the rc controller
         if not self.controller_mode:
             self.cmd_vel_pub.publish(msg)
             self.hold_point_pub.publish(Bool(data=self.hold_point))
+
+    def clamp_velocity(self, msg: Twist) -> Twist:
+        """
+        Clamp the veloctiy to ensure our sub does not over actuate.
+
+        Args:
+        ----
+        msg (TWist): the desired twist
+
+        Return:
+        ------
+        Twist: the clamped twist
+
+        """
+        # Roughly 30 degrees / s
+        if abs(msg.angular.z) > 0.3:
+            msg.angular.z = np.sign(msg.angular.z) * 0.3
+        return msg
+
+    def maintain_z(self,
+                   desired_depth: float,
+                   current_position: np.ndarray) -> float:
+        """
+        Calculate the error to maintain our depth.
+
+        Args:
+        ----
+        desired_depth (float): the desired depth we want to maintain
+        current_position (np.ndarray): our current position
+
+        Return:
+        ------
+        float: z error
+
+        """
+        return desired_depth - current_position[2]
 
     def calculate_angular_error(self,
                                 desired_angle: np.ndarray,

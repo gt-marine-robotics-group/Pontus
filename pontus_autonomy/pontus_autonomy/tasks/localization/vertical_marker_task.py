@@ -211,7 +211,7 @@ class VerticalMarkerTask(BaseTask):
             cmd_pose.position.y = vertical_marker.y
             cmd_pose.position.z = self.desired_depth
             self.detected = True
-            return PoseObj(cmd_pose, True)
+            return PoseObj(cmd_pose=cmd_pose, skip_orientation=True)
 
         elif self.detected and self.go_to_pose_client.at_pose():
             self.state = self.State.Circumnavigate
@@ -261,9 +261,13 @@ class VerticalMarkerTask(BaseTask):
             cmd_pose = desired_positions[self.current_desired_position]
             self.command_sent = True
             if self.current_desired_position == 1 or self.current_desired_position == 3:
-                return PoseObj(cmd_pose, True, MovementMethod.TurnThenForward)
+                return PoseObj(cmd_pose=cmd_pose,
+                               skip_orientation=True,
+                               movement_method=MovementMethod.TurnThenForward)
             else:
-                return PoseObj(cmd_pose, True, MovementMethod.StrafeThenForward)
+                return PoseObj(cmd_pose=cmd_pose,
+                               skip_orientation=True,
+                               movement_method=MovementMethod.StrafeThenForward)
 
         elif self.go_to_pose_client.at_pose():
             self.current_desired_position += 1

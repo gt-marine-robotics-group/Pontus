@@ -7,6 +7,7 @@
 from rclpy.action import ActionClient
 from rclpy.task import Future
 from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Twist
 
 from pontus_msgs.action import GoToPose
 from pontus_controller.position_controller import PositionControllerState
@@ -16,12 +17,16 @@ from pontus_controller.position_controller import MovementMethod
 
 class PoseObj:
     def __init__(self,
-                 cmd_pose: Pose,
+                 cmd_pose: Pose = None,
                  skip_orientation: bool = False,
+                 cmd_twist: Twist = None,
+                 desired_depth: float = None,
                  movement_method: MovementMethod = MovementMethod.TurnThenForward):
         self.cmd_pose = cmd_pose
         self.skip_orientation = skip_orientation
         self.movement_method = movement_method
+        self.cmd_twist = cmd_twist
+        self.desired_depth = desired_depth
 
 
 class GoToPoseClient:
@@ -55,8 +60,13 @@ class GoToPoseClient:
         self.completed = False
         self.is_in_progress = True
         goal_msg = GoToPose.Goal()
-        goal_msg.desired_pose = pose_obj.cmd_pose
-        goal_msg.skip_orientation = pose_obj.skip_orientation
+        if pose_obj.cmd_pose is not None:
+            goal_msg.desired_pose = pose_obj.cmd_pose
+            goal_msg.skip_orientation = pose_obj.skip_orientation
+        if pose_obj.cmd_twist is not None:
+            goal_msg.desired_twist = pose_obj.cmd_twist
+        if pose_obj.desired_depth is not None:
+            goal_msg.desired_depth = pose_obj.desired_depth
         goal_msg.movement_method = pose_obj.movement_method.value
         self.send_goal_future = self.action_client.send_goal_async(
             goal_msg,

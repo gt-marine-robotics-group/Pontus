@@ -56,7 +56,7 @@ class PrequalReturn(BaseTask):
         if not self.cmd_sent and self.current_pose:
             cmd_pose = Pose()
             cmd_pose.position.z = self.current_pose.position.z
-            self.go_to_pose_client.go_to_pose(PoseObj(cmd_pose, True))
+            self.go_to_pose_client.go_to_pose(PoseObj(cmd_pose=cmd_pose, skip_orientation=True))
             self.cmd_sent = True
 
         elif self.cmd_sent and self.go_to_pose_client.at_pose():
