@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage
 from pontus_msgs.msg import YOLOResultArray, YOLOResult
 import cv2
 from cv_bridge import CvBridge
@@ -40,6 +40,11 @@ class YOLONode(Node):
         self.image_pub = self.create_publisher(
             Image,
             'yolo_debug',
+            10
+        )
+        self.image_pub_compressed = self.create_publisher(
+            CompressedImage,
+            'yolo_debug/compressed',
             10
         )
         self.results_pub = self.create_publisher(
@@ -91,7 +96,9 @@ class YOLONode(Node):
         result_array.header = msg.header
         self.results_pub.publish(result_array)
         ros_image = self.cv_bridge.cv2_to_imgmsg(bgr, encoding='bgr8')
+        compressed_image = self.cv_bridge.cv2_to_compressed_imgmsg(bgr)
         self.image_pub.publish(ros_image)
+        self.image_pub_compressed.publish(compressed_image)
 
 
 def main(args: Optional[List[str]] = None) -> None:
