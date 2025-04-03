@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge
 import cv2
 import requests
@@ -41,9 +41,13 @@ class SonoptixDriver(Node):
             '/pontus/sonar_0/image_debug',
             qos_profile=qos_profile
         )
+        self.pub_compressed = self.create_publisher(
+            CompressedImage,
+            '/pontus/sonar_0/image_debug/compressed',
+            qos_profile=qos_profile
+        )
 
         self.cv_bridge = CvBridge()
-        # self.timer = self.create_timer(0.1, self.timer_callback)
 
         rtsp_url = f'rtsp://{self.ip_address}:8554/raw'
         api_url = f'http://{self.ip_address}:8000/api/v1'
@@ -93,7 +97,9 @@ class SonoptixDriver(Node):
                 preprocessed_image = self.preprocess_frame(frame)
                 # preprocessed_image = frame
                 ros_image = self.cv_bridge.cv2_to_imgmsg(preprocessed_image, encoding="bgr8")
+                ros_image_compressed = self.cv_bridge.cv2_to_compressed_imgmsg(preprocessed_image)
                 self.pub.publish(ros_image)
+                self.pub_compressed.publish(ros_image_compressed)
             else:
                 self.get_logger().warn("Failed to read frame")
 
