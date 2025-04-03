@@ -20,7 +20,7 @@ from pontus_mapping.semantic_map_manager import SemanticObject
 from pontus_controller.position_controller import MovementMethod
 
 
-class GateTaskPrequal(BaseTask):
+class GateTaskPrequalPose(BaseTask):
     class State(Enum):
         Searching = 0
         Passing_Through = 1

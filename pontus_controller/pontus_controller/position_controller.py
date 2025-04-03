@@ -25,6 +25,7 @@ class PositionControllerState(Enum):
     Angular_correction = 6
     Velocity_pass_through = 7
     Velocity_maintain_depth = 8
+    Velocity_maintain_depth_heading = 9
 
 
 class MovementMethod(Enum):
@@ -32,6 +33,7 @@ class MovementMethod(Enum):
     StrafeThenForward = 2
     Velocity = 3
     VelocityMaintainDepth = 4
+    VelocityMaintainDepthHeading = 5
 
 
 class PositionNode(Node):
@@ -100,6 +102,7 @@ class PositionNode(Node):
         self.goal_twist = None
         self.skip_orientation = False
         self.desired_depth = 0
+        self.desired_heading = 0
         self.current_pose = None
         self.movement_method = MovementMethod.TurnThenForward
         # ROS infrastructure
@@ -164,6 +167,11 @@ class PositionNode(Node):
             self.goal_twist = request.desired_twist
             self.desired_depth = request.desired_depth
             self.state = PositionControllerState.Velocity_maintain_depth
+        if self.movement_method == MovementMethod.VelocityMaintainDepthHeading:
+            self.goal_twist = request.desired_twist
+            self.desired_depth = request.desired_depth
+            self.desired_heading = request.desired_heading
+            self.state = PositionControllerState.Velocity_maintain_depth_heading
         else:
             feedback_msg = GoToPose.Feedback()
             while True:
@@ -347,10 +355,15 @@ class PositionNode(Node):
             case PositionControllerState.Angular_correction:
                 linear_err, angular_err = self.correct_orientation(current_position, quat)
             case PositionControllerState.Velocity_pass_through:
-                linear_err = np.zeros(3)
-                angular_err = np.zeros(3)
+                linear_err, angular_err = np.zeros(3), np.zeros(3)
             case PositionControllerState.Velocity_maintain_depth:
                 z_error = self.maintain_z(self.desired_depth, current_position)
+            case PositionControllerState.Velocity_maintain_depth_heading:
+                z_error = self.maintain_z(self.desired_depth, current_position)
+                current_angle = euler_from_quaternion(quat)
+                angle_error = self.calculate_angular_error(
+                    np.array([0, 0, self.desired_heading]),
+                    current_angle)[2]
             case _:
                 linear_err = np.zeros(3)
                 angular_err = np.zeros(3)
@@ -362,6 +375,10 @@ class PositionNode(Node):
         elif self.state == PositionControllerState.Velocity_maintain_depth:
             msg = self.goal_twist
             msg.linear.z = self.pid_linear[2](z_error, dt)
+        elif self.state == PositionControllerState.Velocity_maintain_depth_heading:
+            msg = self.goal_twist
+            msg.linear.z = self.pid_linear[2](z_error, dt)
+            msg.angular.z = self.pid_angular[2](angle_error, dt)
         else:
             msg.linear.x = self.pid_linear[0](linear_err[0], dt)
             msg.linear.y = self.pid_linear[1](linear_err[1], dt)

@@ -28,20 +28,20 @@ remove_duplicates()
 
 
 # These will correlate to YOLO
-# class SemanticObject(Enum):
-#     GateFish = 0
-#     GateShark = 1
-#     LeftGate = 2
-#     RightGate = 3
-#     SlalomRed = 4
-#     SlalomWhite = 5
-#     VerticalMarker = 6
-
-
 class SemanticObject(Enum):
-    LeftGate = 0
-    RightGate = 1
-    VerticalMarker = 2
+    GateFish = 0
+    GateShark = 1
+    LeftGate = 2
+    RightGate = 3
+    SlalomRed = 4
+    SlalomWhite = 5
+    VerticalMarker = 6
+
+
+# class SemanticObject(Enum):
+#     LeftGate = 0
+#     RightGate = 1
+#     VerticalMarker = 2
 
 
 class SemanticMapManager(Node):
