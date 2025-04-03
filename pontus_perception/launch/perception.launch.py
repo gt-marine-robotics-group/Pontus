@@ -39,28 +39,34 @@ def generate_launch_description():
                 ('yolo_debug/compressed', '/pontus/camera_2/yolo_debug/compressed')
             ]
         ),
+        Node(
+            package='pontus_perception',
+            executable='cylinder_shape_detection',
+            name='cylinder_shape_detection',
+            output='screen'
+        ),
         # Not needed if using disparity map
-        Node(
-            package='pontus_perception',
-            executable='yolo',
-            name='camera_3_yolo',
-            parameters=[{
-                'auv': auv_config_str,
-                'model_path' : os.path.join(pkg_share, 'yolo', auv_config_str, front_right_camera_model)
-            }],
-            remappings=[
-                ('input', '/pontus/camera_3/image_rect_color'),
-                ('results', '/pontus/camera_3/yolo_results'),
-                ('yolo_debug', '/pontus/camera_3/yolo_debug'),
-                ('yolo_debug/compressed', '/pontus/camera_3/yolo_debug/compressed')
-            ]
-        ),
-        Node(
-            package='pontus_perception',
-            executable='yolo_pose_detection',
-            name='yolo_pose_detection',
-            output='screen',
-        ),
+        # Node(
+        #     package='pontus_perception',
+        #     executable='yolo',
+        #     name='camera_3_yolo',
+        #     parameters=[{
+        #         'auv': auv_config_str,
+        #         'model_path' : os.path.join(pkg_share, 'yolo', auv_config_str, front_right_camera_model)
+        #     }],
+        #     remappings=[
+        #         ('input', '/pontus/camera_3/image_rect_color'),
+        #         ('results', '/pontus/camera_3/yolo_results'),
+        #         ('yolo_debug', '/pontus/camera_3/yolo_debug'),
+        #         ('yolo_debug/compressed', '/pontus/camera_3/yolo_debug/compressed')
+        #     ]
+        # ),
+        # Node(
+        #     package='pontus_perception',
+        #     executable='yolo_pose_detection',
+        #     name='yolo_pose_detection',
+        #     output='screen',
+        # ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(_PONTUS_ROS_STEREO_IMAGE_PROC_LAUNCH_FILE),
             launch_arguments={

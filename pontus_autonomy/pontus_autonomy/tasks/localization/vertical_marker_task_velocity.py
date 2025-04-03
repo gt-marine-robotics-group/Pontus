@@ -1,7 +1,7 @@
 from enum import Enum
 import numpy as np
 
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, Pose
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import CameraInfo
 import tf_transformations
@@ -9,7 +9,7 @@ import tf_transformations
 from pontus_autonomy.tasks.base_task import BaseTask
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
 from pontus_controller.position_controller import MovementMethod
-from pontus_msgs.msg import YOLOResultArray
+from pontus_msgs.msg import YOLOResultArray, YOLOResultArrayPose
 from pontus_mapping.semantic_map_manager import SemanticObject
 
 
@@ -43,7 +43,15 @@ class VerticalMarkerTaskVelocity(BaseTask):
             10
         )
 
+        self.create_subscription(
+            YOLOResultArrayPose,
+            '/pontus/camera_2/yolo_results_pose',
+            self.yolo_results_pose_callback,
+            10
+        )
+
         self.current_detections = None
+        self.current_detections_pose = None
 
         self.create_timer(
             0.2,
@@ -60,6 +68,24 @@ class VerticalMarkerTaskVelocity(BaseTask):
         self.fx = None
         self.desired_depth = None
         self.sent = False
+        self.previous_state = None
+
+    def state_debugger(self) -> None:
+        """
+        Display state changes in the state machine.
+
+        Args:
+        ----
+        None
+
+        Return:
+        ------
+        None
+
+        """
+        if self.previous_state != self.state:
+            self.get_logger().info(f"Now at: {self.state.name}")
+            self.previous_state = self.state
 
     def odometry_callback(self, msg: Odometry) -> None:
         """
@@ -109,6 +135,21 @@ class VerticalMarkerTaskVelocity(BaseTask):
         self.cx = msg.k[2]
         self.fx = msg.k[0]
 
+    def yolo_results_pose_callback(self, msg: YOLOResultArrayPose) -> None:
+        """
+        Handle yolo results pose callback.
+
+        Args:
+        ----
+        msg (YOLOResultArrayPose): the yolo result array pose
+
+        Return:
+        ------
+        None
+
+        """
+        self.current_detections_pose = msg
+
     def yolo_contains(self, obj: SemanticObject) -> bool:
         """
         Return if yolo sees the polled yolo object.
@@ -148,6 +189,44 @@ class VerticalMarkerTaskVelocity(BaseTask):
                 return angle
         return None
 
+    def yolo_pose_contains(self, obj: SemanticObject) -> bool:
+        """
+        Return if there exists the obj in the yolo detection.
+
+        Args:
+        ----
+        obj (SemanticObject): the object we are looking for
+
+        Return:
+        ------
+        bool: if we see the object or not
+
+        """
+        for detection, _ in zip(self.current_detections_pose.results,
+                                self.current_detections_pose.distances):
+            if detection.class_id == obj.value:
+                return True
+        return False
+
+    def get_object_pose(self, obj: SemanticObject) -> Pose:
+        """
+        Return the pose of an object from the yolo detection.
+
+        Args:
+        ----
+        obj (SemanticObject): the object we want to find
+
+        Return:
+        ------
+        Pose: the pose of the object
+
+        """
+        for detection, pose in zip(self.current_detections_pose.results,
+                                   self.current_detections_pose.distances):
+            if detection.class_id == obj.value:
+                return pose
+        return None
+
     def autonomy(self) -> None:
         """
         Run autonomy state machine.
@@ -173,6 +252,10 @@ class VerticalMarkerTaskVelocity(BaseTask):
             self.get_logger().warn("Have not received camera info message, skipping")
             return
 
+        if self.current_detections_pose is None:
+            self.get_logger().warn("Have not received yolo detections pose yet, skipping")
+            return
+        self.state_debugger()
         pose_obj = None
         match self.state:
             case self.State.VerticalApproach:
@@ -187,6 +270,9 @@ class VerticalMarkerTaskVelocity(BaseTask):
         """
         Approach the vertical marker.
 
+        This will keep on going forward till we see a certain width of the gate. Then
+        we will move on to the circumnavigate task.
+
         Args:
         ----
         None
@@ -197,7 +283,14 @@ class VerticalMarkerTaskVelocity(BaseTask):
 
         """
         twist = Twist()
-        # Turn left until we see the gate
+        if self.yolo_pose_contains(SemanticObject.VerticalMarker):
+            pose = self.get_object_pose(SemanticObject.VerticalMarker)
+            self.get_logger().info(f"{pose.position.x}")
+            if pose.position.x < 1.0 and pose.position.x != -1.0:
+                self.state = self.State.VerticalCircumnavigate
+                return PoseObj(cmd_twist=twist,
+                               desired_depth=self.desired_depth,
+                               movement_method=MovementMethod.VelocityMaintainDepth)
         twist.linear.x = 0.5
         if self.yolo_contains(SemanticObject.VerticalMarker):
             quat = [self.current_odometry.orientation.x,

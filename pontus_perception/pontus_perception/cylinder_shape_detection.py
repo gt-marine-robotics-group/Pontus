@@ -232,6 +232,7 @@ class CylinderShapeDetection(Node):
             size = self.get_size(clustered_lines)
             if size is None:
                 return pose
+            # TODO: Make a smart way to do this
             distance = 42 * 3 / size
             pose.position.x = distance
             self.get_logger().info(f"Distance: {distance}")

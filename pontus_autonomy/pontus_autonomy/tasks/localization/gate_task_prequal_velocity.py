@@ -61,6 +61,24 @@ class GateTaskPrequalVelocity(BaseTask):
         self.fx = None
         self.desired_depth = None
         self.sent = False
+        self.previous_state = None
+
+    def state_debugger(self) -> None:
+        """
+        Display state changes in the state machine.
+
+        Args:
+        ----
+        None
+
+        Return:
+        ------
+        None
+
+        """
+        if self.previous_state != self.state:
+            self.get_logger().info(f"Now at: {self.state.name}")
+            self.previous_state = self.state
 
     def odometry_callback(self, msg: Odometry) -> None:
         """
@@ -173,7 +191,7 @@ class GateTaskPrequalVelocity(BaseTask):
         if self.fx is None or self.cx is None:
             self.get_logger().warn("Have not received camera info message, skipping")
             return
-
+        self.state_debugger()
         pose_obj = None
         match self.state:
             case self.State.GateSearchLeft:
