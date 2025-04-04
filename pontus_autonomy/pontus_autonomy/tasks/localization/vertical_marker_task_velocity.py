@@ -69,6 +69,9 @@ class VerticalMarkerTaskVelocity(BaseTask):
         self.desired_depth = None
         self.sent = False
         self.previous_state = None
+        self.starting_pose = None
+        self.command_sent = False
+        self.current_desired_position = 0
 
     def state_debugger(self) -> None:
         """
@@ -227,6 +230,48 @@ class VerticalMarkerTaskVelocity(BaseTask):
                 return pose
         return None
 
+    def copy_pose(self, pose: Pose) -> Pose:
+        """
+        Deep copies the given pose.
+
+        Args:
+        ----
+        pose (Pose): the pose we want to copy
+
+        Return:
+        ------
+        Pose: the copied pose
+
+        """
+        new_pose = Pose()
+        new_pose.position.x = pose.position.x
+        new_pose.position.y = pose.position.y
+        new_pose.position.z = pose.position.z
+        new_pose.orientation.x = pose.orientation.x
+        new_pose.orientation.y = pose.orientation.y
+        new_pose.orientation.z = pose.orientation.z
+        new_pose.orientation.w = pose.orientation.w
+        return new_pose
+
+    def transform_body_to_odom(self, x: float, y: float, yaw: float) -> tuple[float, float]:
+        """
+        Rotate a point in body frame into odom frame.
+
+        Args:
+        ----
+        x (float): x coordinate of point
+        y (float): y coordinate of point
+        yaw (float): current yaw
+
+        Return:
+        ------
+        tuple[float, float]: x and y in body frame
+
+        """
+        new_x = x * np.cos(yaw) - y * np.sin(yaw)
+        new_y = x * np.sin(yaw) + y * np.cos(yaw)
+        return new_x, new_y
+
     def autonomy(self) -> None:
         """
         Run autonomy state machine.
@@ -260,6 +305,10 @@ class VerticalMarkerTaskVelocity(BaseTask):
         match self.state:
             case self.State.VerticalApproach:
                 pose_obj = self.approach_vertical()
+            case self.State.VerticalCircumnavigate:
+                pose_obj = self.circumnavigate_vertical()
+            case self.State.VerticalDone:
+                self.complete(True)
             case _:
                 pass
 
@@ -288,6 +337,7 @@ class VerticalMarkerTaskVelocity(BaseTask):
             self.get_logger().info(f"{pose.position.x}")
             if pose.position.x < 1.0 and pose.position.x != -1.0:
                 self.state = self.State.VerticalCircumnavigate
+                self.starting_pose = self.current_odometry
                 return PoseObj(cmd_twist=twist,
                                desired_depth=self.desired_depth,
                                movement_method=MovementMethod.VelocityMaintainDepth)
@@ -307,3 +357,70 @@ class VerticalMarkerTaskVelocity(BaseTask):
         return PoseObj(cmd_twist=twist,
                        desired_depth=self.desired_depth,
                        movement_method=MovementMethod.VelocityMaintainDepth)
+
+    def circumnavigate_vertical(self) -> PoseObj:
+        """
+        Circumnavigate around the vertical marker.
+
+        Args:
+        ----
+        None
+
+        Return:
+        ------
+        PoseObj: object representing how we should move
+
+        """
+        cmd_pose = Pose()
+        quat = [self.starting_pose.orientation.x,
+                self.starting_pose.orientation.y,
+                self.starting_pose.orientation.z,
+                self.starting_pose.orientation.w]
+        _, _, starting_yaw = tf_transformations.euler_from_quaternion(quat)
+        # First pose
+        first_pose = self.copy_pose(self.starting_pose)
+        new_x, new_y = self.transform_body_to_odom(0.0, 0.9, starting_yaw)
+        first_pose.position.x += new_x
+        first_pose.position.y += new_y
+
+        # Second pose
+        second_pose = self.copy_pose(self.starting_pose)
+        new_x, new_y = self.transform_body_to_odom(2.3, 0.9, starting_yaw)
+        second_pose.position.x += new_x
+        second_pose.position.y += new_y
+
+        # Third Pose
+        third_pose = self.copy_pose(self.starting_pose)
+        new_x, new_y = self.transform_body_to_odom(2.3, -0.9, starting_yaw)
+        third_pose.position.x += new_x
+        third_pose.position.y += new_y
+
+        # Fourth Pose
+        fourth_pose = self.copy_pose(self.starting_pose)
+        new_x, new_y = self.transform_body_to_odom(0.0, -0.9, starting_yaw)
+
+        fourth_pose.position.x += new_x
+        fourth_pose.position.y += new_y
+
+        desired_positions = [first_pose, second_pose, third_pose, fourth_pose, self.starting_pose]
+
+        if not self.command_sent:
+            cmd_pose = desired_positions[self.current_desired_position]
+            self.command_sent = True
+            if self.current_desired_position == 1 or self.current_desired_position == 3:
+                return PoseObj(cmd_pose=cmd_pose,
+                               skip_orientation=True,
+                               movement_method=MovementMethod.TurnThenForward)
+            else:
+                return PoseObj(cmd_pose=cmd_pose,
+                               skip_orientation=True,
+                               movement_method=MovementMethod.StrafeThenForward)
+
+        elif self.go_to_pose_client.at_pose():
+            self.current_desired_position += 1
+            self.command_sent = False
+
+        if self.current_desired_position == len(desired_positions):
+            self.state = self.State.VerticalDone
+
+        return None
