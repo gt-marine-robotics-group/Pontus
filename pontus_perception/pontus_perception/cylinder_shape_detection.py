@@ -29,6 +29,7 @@ REAL_SIZE = {}
 REAL_SIZE[SemanticObject.VerticalMarker] = 0.2
 # REAL_SIZE[SemanticObject.SlalomWhite] = 0.1
 
+
 class CylinderShapeDetection(Node):
     def __init__(self):
         super().__init__('cylinder_shape_detection')
@@ -58,7 +59,7 @@ class CylinderShapeDetection(Node):
         self.ts.registerCallback(self.callback)
         self.bridge = CvBridge()
         self.fx = None
-    
+
     def camera_info_callback(self, msg: CameraInfo) -> None:
         """
         Handle getting focal length from camera info.
@@ -70,6 +71,7 @@ class CylinderShapeDetection(Node):
         Return:
         ------
         None
+
         """
         self.fx = msg.k[0]
 
@@ -143,7 +145,7 @@ class CylinderShapeDetection(Node):
                 continue
 
             cluster_lines = lines[labels == label]
-            
+
             avg_rho = np.mean(cluster_lines[:, 0])
             # avg_theta = np.mean(cluster_lines[:, 1])
             avg_x = np.mean(np.cos(cluster_lines[:, 1]))
@@ -255,7 +257,7 @@ class CylinderShapeDetection(Node):
         # blurred = cv2.bilateralFilter(detection_slice, d=9, sigmaColor=75, sigmaSpace=75)
         # Detect lines
         edges = cv2.Canny(detection_slice, threshold1=25, threshold2=200)
-        
+
         bound_height = y2 - y1 + 10
         # Have lenient threshold and let clustering fix multiple lines
         threshold = int(0.3 * bound_height)
