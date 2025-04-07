@@ -2,7 +2,6 @@ import cv2
 from cv_bridge import CvBridge
 from typing import List, Optional
 import numpy as np
-from sklearn.cluster import DBSCAN
 
 import rclpy
 from rclpy.node import Node
@@ -184,7 +183,6 @@ class CylinderShapeDetection(Node):
             return None
 
         # self.get_logger().info(f"Angle diff: {self.angle_diff(lines[0][1], lines[1][1])}")
-        
         rho_0, theta_0 = self.segment_to_rho_theta(lines[0])
         rho_1, theta_1 = self.segment_to_rho_theta(lines[1])
 
@@ -248,7 +246,8 @@ class CylinderShapeDetection(Node):
         threshold = int(0.3 * bound_height)
         max_line_gap = int(0.7 * bound_height)
         minLineLength = int(0.3 * bound_height)
-        lines_p = cv2.HoughLinesP(edges, 0.5, np.pi/720, threshold, minLineLength=minLineLength, maxLineGap=max_line_gap)
+        lines_p = cv2.HoughLinesP(edges, 0.5, np.pi/720,
+                                  threshold, minLineLength=minLineLength, maxLineGap=max_line_gap)
 
         color_detection_raw = detection_slice.copy()
         color_detection_clustered = detection_slice.copy()
