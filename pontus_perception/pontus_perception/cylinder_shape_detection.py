@@ -2,11 +2,10 @@ import cv2
 from cv_bridge import CvBridge
 from typing import List, Optional
 import numpy as np
-from sklearn.cluster import DBSCAN
 
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import CameraInfo, Image
 from geometry_msgs.msg import Pose
 from message_filters import Subscriber, ApproximateTimeSynchronizer
 
@@ -25,6 +24,10 @@ NOTE: This should not be used for actual pose detection, but will give a rough e
 far the object is from the current sub.
 """
 
+REAL_SIZE = {}
+REAL_SIZE[SemanticObject.VerticalMarker] = 0.2
+# REAL_SIZE[SemanticObject.SlalomWhite] = 0.1
+
 
 class CylinderShapeDetection(Node):
     def __init__(self):
@@ -40,6 +43,12 @@ class CylinderShapeDetection(Node):
             Image,
             '/pontus/camera_2/image_rect_color',
         )
+        self.camera_info_topic_sub = self.create_subscription(
+            CameraInfo,
+            '/pontus/camera_2/camera_info',
+            self.camera_info_callback,
+            10
+        )
         self.yolo_result_array_distances_pub = self.create_publisher(
             YOLOResultArrayPose,
             '/pontus/camera_2/yolo_results_pose',
@@ -48,6 +57,24 @@ class CylinderShapeDetection(Node):
         self.ts = ApproximateTimeSynchronizer([yolo_sub, image_rect_sub], 10, 0.1)
         self.ts.registerCallback(self.callback)
         self.bridge = CvBridge()
+        self.fx = None
+        self.cx = None
+
+    def camera_info_callback(self, msg: CameraInfo) -> None:
+        """
+        Handle getting focal length from camera info.
+
+        Args:
+        ----
+        msg (CameraInfo): the camera info message
+
+        Return:
+        ------
+        None
+
+        """
+        self.fx = msg.k[0]
+        self.cx = msg.k[2]
 
     def callback(self, msg: YOLOResultArray, image_msg: Image) -> None:
         """
@@ -63,10 +90,13 @@ class CylinderShapeDetection(Node):
         None
 
         """
+        if self.fx is None or self.cx is None:
+            self.get_logger().warn("Waiting for camera info, skipping")
+            return
         pub_msg = YOLOResultArrayPose()
-        # TODO: Test this for other cylinder objects such as slalom and gate
         for yolo_result in msg.results:
-            if yolo_result.class_id == SemanticObject.VerticalMarker.value:
+            # If the key is defined within REAL_SIZE, we know to attempt to calculate its size
+            if SemanticObject(yolo_result.class_id) in REAL_SIZE:
                 pose = self.get_pose(yolo_result, image_msg)
                 pub_msg.results.append(yolo_result)
                 self.get_logger().info(f"publishing: {pose}")
@@ -95,34 +125,6 @@ class CylinderShapeDetection(Node):
         center_points = np.column_stack((x_center, y_center))
         return center_points
 
-    def cluster_lines(self, lines: np.ndarray) -> np.ndarray:
-        """
-        Cluster the lines to remove duplicate detections.
-
-        Args:
-        ----
-        lines (np.ndarray): array of lines from hough line transform
-
-        Return:
-        ------
-        np.ndarray: clustered array of lines
-
-        """
-        points = self.get_line_center(lines)
-        db = DBSCAN(eps=8, min_samples=1, metric='euclidean').fit(points)
-        labels = db.labels_
-        new_lines = []
-        for label in set(labels):
-            # Skip invalid cluster
-            if label == -1:
-                continue
-
-            cluster_lines = lines[labels == label]
-            avg_rho = np.mean(cluster_lines[:, 0])
-            avg_theta = np.mean(cluster_lines[:, 1])
-            new_lines.append((avg_rho, avg_theta))
-        return np.array(new_lines)
-
     def angle_diff(self, angle1: float, angle2: float) -> float:
         """
         Calculate the difference between two angles.
@@ -145,6 +147,24 @@ class CylinderShapeDetection(Node):
 
         return angle_diff
 
+    def segment_to_rho_theta(self, line: np.ndarray) -> tuple:
+        """
+        Convert a line segment to rho and theta.
+
+        Args:
+        ----
+        line (np.ndarray): line segment
+
+        Return:
+        ------
+        tuple: rho and theta of the line segment
+
+        """
+        x1, y1, x2, y2 = line
+        theta = np.arctan2(y2 - y1, x2 - x1) + np.pi / 2
+        rho = x1 * np.cos(theta) + y1 * np.sin(theta)
+        return rho, theta
+
     def get_size(self, lines: np.ndarray) -> float:
         """
         Return the size between two lines.
@@ -163,11 +183,16 @@ class CylinderShapeDetection(Node):
             return None
 
         # self.get_logger().info(f"Angle diff: {self.angle_diff(lines[0][1], lines[1][1])}")
-        if self.angle_diff(lines[0][1], lines[1][1]) > 0.3:
+        rho_0, theta_0 = self.segment_to_rho_theta(lines[0])
+        rho_1, theta_1 = self.segment_to_rho_theta(lines[1])
+
+        hough_lines = np.array([[rho_0, theta_0], [rho_1, theta_1]])
+
+        if self.angle_diff(hough_lines[0][1], hough_lines[1][1]) > 0.2:
             self.get_logger().info("Skipping line detection, lines not rougthly parralel")
             return None
 
-        points = self.get_line_center(lines)
+        points = self.get_line_center(hough_lines)
         distance = np.linalg.norm(points[0] - points[1])
         return distance
 
@@ -185,16 +210,7 @@ class CylinderShapeDetection(Node):
         None
 
         """
-        for line in lines:
-            rho, theta = line
-            a = np.cos(theta)
-            b = np.sin(theta)
-            x0 = a * rho
-            y0 = b * rho
-            x1 = int(x0 + 1000 * (-b))
-            y1 = int(y0 + 1000 * (a))
-            x2 = int(x0 - 1000 * (-b))
-            y2 = int(y0 - 1000 * (a))
+        for x1, y1, x2, y2 in lines:
             cv2.line(color_detection, (x1, y1), (x2, y2), (0, 0, 255), 2)
 
     def get_pose(self, yolo_result: YOLOResult, current_image: Image) -> Pose:
@@ -224,19 +240,29 @@ class CylinderShapeDetection(Node):
         # blurred = cv2.bilateralFilter(detection_slice, d=9, sigmaColor=75, sigmaSpace=75)
         # Detect lines
         edges = cv2.Canny(detection_slice, threshold1=25, threshold2=200)
-        lines = cv2.HoughLines(edges, 1, np.pi / 180, threshold=100)
-        color_detection = detection_slice.copy()
-        if lines is not None:
-            lines = np.array([line[0] for line in lines])
-            clustered_lines = self.cluster_lines(lines)
-            size = self.get_size(clustered_lines)
-            if size is None:
-                return pose
-            # TODO: Make a smart way to do this
-            distance = 42 * 3 / size
+
+        bound_height = y2 - y1 + 10
+        # Have lenient threshold and let clustering fix multiple lines
+        threshold = int(0.3 * bound_height)
+        max_line_gap = int(0.7 * bound_height)
+        minLineLength = int(0.3 * bound_height)
+        lines_p = cv2.HoughLinesP(edges, 0.5, np.pi/720,
+                                  threshold, minLineLength=minLineLength, maxLineGap=max_line_gap)
+
+        color_detection_raw = detection_slice.copy()
+        color_detection_clustered = detection_slice.copy()
+        size = None
+        if lines_p is not None:
+            lines = np.array([line[0] for line in lines_p])
+            size = self.get_size(lines)
+            self.draw_lines(lines, color_detection_raw)
+        if size is not None:
+            distance = REAL_SIZE[SemanticObject(yolo_result.class_id)] * self.fx / size
+            self.get_logger().info(f"{(x1 + x2 / 2)} {self.cx}")
+            y = ((self.cx - (x1 + x2) / 2) * distance) / self.fx
             pose.position.x = distance
-            self.get_logger().info(f"Distance: {distance}")
-            self.draw_lines(lines, color_detection)
+            pose.position.y = y
+            self.get_logger().info(f"Pose: {pose}")
 
         # cv2.imshow("detection_slice", detection_slice)
         # cv2.imshow("detection_slice_lines", color_detection)
