@@ -4,7 +4,7 @@ from numpy import sign, pi
 
 
 MASS = 34.02
-VOLUME = 0.0405
+VOLUME = 0.0413
 DIAMETER = 0.2159
 LENGTH = 0.6096
 AREA = [pi * (DIAMETER / 2) ** 2, LENGTH * DIAMETER, LENGTH * DIAMETER]
@@ -91,9 +91,9 @@ class PID:
             acceleration_bouyancy = f_net / MASS
         # Linear Drag: F = 1/2 CpAv^2
         # Approximated as a cylinder
-        if self.degree_of_freedom and 0 <= self.degree_of_freedom.value <= 2 and desired_velocity:
-            f_drag_abs = 1/2 * C[self.degree_of_freedom.value] * WATER_DENSITY * AREA[self.degree_of_freedom.value] * desired_velocity ** 2  # noqa: E501
-            f_drag = sign(desired_velocity) * f_drag_abs
+        # if self.degree_of_freedom and 0 <= self.degree_of_freedom.value <= 2 and desired_velocity:
+        #     f_drag_abs = 1/2 * C[self.degree_of_freedom.value] * WATER_DENSITY * AREA[self.degree_of_freedom.value] * desired_velocity ** 2  # noqa: E501
+        #     f_drag = sign(desired_velocity) * f_drag_abs
         # Rotational Drag: TODO: Estimate this
         if self.degree_of_freedom and 3 <= self.degree_of_freedom.value and desired_velocity:
             f_drag_abs = C[self.degree_of_freedom.value] * desired_velocity ** 2

@@ -89,7 +89,7 @@ class PositionNode(Node):
 
             self.pid_angular = [
                 PID(0.1, 0, 0),
-                PID(0.1, 0, 0),
+                PID(0.5, 0, 0),
                 PID(0.15, 0.01, 0.000001, windup_max=10)
             ]
         # PID(0.15, 0.001, 0.000001, 5)
@@ -409,8 +409,12 @@ class PositionNode(Node):
 
         """
         # Roughly 30 degrees / s
-        if abs(msg.angular.z) > 0.3:
-            msg.angular.z = np.sign(msg.angular.z) * 0.3
+        if abs(msg.angular.z) > 0.18:
+            msg.angular.z = np.sign(msg.angular.z) * 0.18
+        if abs(msg.linear.x) > 0.25:
+            msg.linear.x = np.sign(msg.linear.x) * 0.25
+        if abs(msg.linear.y) > 0.25:
+            msg.linear.y = np.sign(msg.linear.y) * 0.25
         return msg
 
     def maintain_z(self,

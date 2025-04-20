@@ -238,9 +238,9 @@ class CylinderShapeDetection(Node):
             self.get_logger().info(f"Distance: {distance}")
             self.draw_lines(lines, color_detection)
 
-        cv2.imshow("detection_slice", detection_slice)
-        cv2.imshow("detection_slice_lines", color_detection)
-        cv2.imshow('edges', edges)
+        # cv2.imshow("detection_slice", detection_slice)
+        # cv2.imshow("detection_slice_lines", color_detection)
+        # cv2.imshow('edges', edges)
         cv2.waitKey(1)
         return pose
 

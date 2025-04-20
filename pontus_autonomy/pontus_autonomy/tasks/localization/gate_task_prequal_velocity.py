@@ -1,10 +1,12 @@
 from enum import Enum
 import numpy as np
 
+from rclpy.duration import Duration
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import CameraInfo
 import tf_transformations
+import time
 
 from pontus_autonomy.tasks.base_task import BaseTask
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
@@ -62,6 +64,7 @@ class GateTaskPrequalVelocity(BaseTask):
         self.desired_depth = None
         self.sent = False
         self.previous_state = None
+        self.previous_time = self.get_clock().now()
 
     def state_debugger(self) -> None:
         """
@@ -167,6 +170,15 @@ class GateTaskPrequalVelocity(BaseTask):
                 return angle
         return None
 
+    def get_gate_angle(self):
+        left = self.get_object_angle(SemanticObject.LeftGate)
+        right = self.get_object_angle(SemanticObject.RightGate)
+        quat = [self.current_odometry.orientation.x, self.current_odometry.orientation.y, self.current_odometry.orientation.z, self.current_odometry.orientation.w]
+        _, _, y = tf_transformations.euler_from_quaternion(quat)
+        if left is not None and right is not None:
+            return y + (left + right) / 2
+        return None
+
     def autonomy(self) -> None:
         """
         Run autonomy state machine.
@@ -236,7 +248,7 @@ class GateTaskPrequalVelocity(BaseTask):
             return PoseObj(cmd_twist=twist,
                            desired_depth=self.desired_depth,
                            movement_method=MovementMethod.VelocityMaintainDepth)
-        twist.angular.z = 0.3
+        twist.angular.z = 0.2
         return PoseObj(cmd_twist=twist,
                        desired_depth=self.desired_depth,
                        movement_method=MovementMethod.VelocityMaintainDepth)
@@ -266,11 +278,13 @@ class GateTaskPrequalVelocity(BaseTask):
             self.right_angle = current_angle + object_angle
             self.get_logger().info(f"Right_angle: {self.right_angle}")
             self.get_logger().info(f"{current_angle} {object_angle}")
+            self.previous_time = self.get_clock().now()
+            self.previous_angle = (self.left_angle + self.right_angle) / 2
             self.state = self.State.GatePassThrough
             return PoseObj(cmd_twist=twist,
                            desired_depth=self.desired_depth,
                            movement_method=MovementMethod.VelocityMaintainDepth)
-        twist.angular.z = -0.3
+        twist.angular.z = -0.2
         return PoseObj(cmd_twist=twist,
                        desired_depth=self.desired_depth,
                        movement_method=MovementMethod.VelocityMaintainDepth)
@@ -289,14 +303,23 @@ class GateTaskPrequalVelocity(BaseTask):
 
         """
         twist = Twist()
+        if self.yolo_contains(SemanticObject.LeftGate) \
+                or self.yolo_contains(SemanticObject.RightGate):
+                self.previous_time = self.get_clock().now()
+        time_diff = self.get_clock().now() - self.previous_time
         if not self.yolo_contains(SemanticObject.LeftGate) \
-                and not self.yolo_contains(SemanticObject.RightGate):
+                and not self.yolo_contains(SemanticObject.RightGate) \
+                and time_diff > Duration(seconds=10.0):
             self.state = self.State.GateDone
             return PoseObj(cmd_twist=twist,
                            desired_depth=self.desired_depth,
                            movement_method=MovementMethod.VelocityMaintainDepth)
         twist.linear.x = 0.5
+        angle = self.get_gate_angle()
+        if angle is not None:
+            self.previous_angle = angle
+        self.previous_angle = 0.0
         return PoseObj(cmd_twist=twist,
                        desired_depth=self.desired_depth,
-                       desired_heading=(self.left_angle + self.right_angle) / 2,
+                       desired_heading=self.previous_angle,
                        movement_method=MovementMethod.VelocityMaintainDepthHeading)

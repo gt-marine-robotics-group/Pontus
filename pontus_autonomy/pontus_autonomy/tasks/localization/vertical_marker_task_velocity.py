@@ -217,7 +217,7 @@ class VerticalMarkerTaskVelocity(BaseTask):
 
         Args:
         ----
-        obj (SemanticObject): the object we want to find
+        obj (SemanticObject): the get_gaget_gate_angle`te_angle we want to find
 
         Return:
         ------
@@ -335,7 +335,7 @@ class VerticalMarkerTaskVelocity(BaseTask):
         if self.yolo_pose_contains(SemanticObject.VerticalMarker):
             pose = self.get_object_pose(SemanticObject.VerticalMarker)
             self.get_logger().info(f"{pose.position.x}")
-            if pose.position.x < 1.0 and pose.position.x != -1.0:
+            if pose.position.x < 2.0 and pose.position.x != -1.0:
                 self.state = self.State.VerticalCircumnavigate
                 self.starting_pose = self.current_odometry
                 return PoseObj(cmd_twist=twist,
@@ -350,6 +350,7 @@ class VerticalMarkerTaskVelocity(BaseTask):
             _, _, current_angle = tf_transformations.euler_from_quaternion(quat)
             object_angle = self.get_object_angle(SemanticObject.VerticalMarker)
             self.vertical_angle = current_angle + object_angle
+            self.get_logger().info(f"{current_angle}")
             return PoseObj(cmd_twist=twist,
                            desired_depth=self.desired_depth,
                            desired_heading=self.vertical_angle,
