@@ -163,17 +163,18 @@ class PositionNode(Node):
         if self.movement_method == MovementMethod.Velocity:
             self.goal_twist = request.desired_twist
             self.state = PositionControllerState.Velocity_pass_through
-        if self.movement_method == MovementMethod.VelocityMaintainDepth:
+        elif self.movement_method == MovementMethod.VelocityMaintainDepth:
             self.goal_twist = request.desired_twist
             self.desired_depth = request.desired_depth
             self.state = PositionControllerState.Velocity_maintain_depth
-        if self.movement_method == MovementMethod.VelocityMaintainDepthHeading:
+        elif self.movement_method == MovementMethod.VelocityMaintainDepthHeading:
             self.goal_twist = request.desired_twist
             self.desired_depth = request.desired_depth
             self.desired_heading = request.desired_heading
             self.state = PositionControllerState.Velocity_maintain_depth_heading
         else:
             feedback_msg = GoToPose.Feedback()
+            self.state = PositionControllerState.Z_correction
             while True:
                 if self.state == PositionControllerState.Maintain_position:
                     break
@@ -411,10 +412,10 @@ class PositionNode(Node):
         # Roughly 30 degrees / s
         if abs(msg.angular.z) > 0.18:
             msg.angular.z = np.sign(msg.angular.z) * 0.18
-        if abs(msg.linear.x) > 0.25:
-            msg.linear.x = np.sign(msg.linear.x) * 0.25
-        if abs(msg.linear.y) > 0.25:
-            msg.linear.y = np.sign(msg.linear.y) * 0.25
+        if abs(msg.linear.x) > 0.3:
+            msg.linear.x = np.sign(msg.linear.x) * 0.3
+        if abs(msg.linear.y) > 0.3:
+            msg.linear.y = np.sign(msg.linear.y) * 0.3
         return msg
 
     def maintain_z(self,

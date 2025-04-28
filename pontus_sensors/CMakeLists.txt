@@ -50,6 +50,7 @@ install(PROGRAMS
   pontus_sensors/sonoptix_driver.py
   pontus_sensors/dvl_republish.py
   pontus_sensors/dvl_republish_sim.py
+  pontus_sensors/camera_driver.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

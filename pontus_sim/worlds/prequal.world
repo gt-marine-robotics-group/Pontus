@@ -1392,7 +1392,7 @@
     <include>
       <uri>Gate</uri>
       <!-- <pose>3.1 0.5 -1.8 1.57 0 1.57</pose> -->
-      <pose>4 0 -1.8 0 3.14 1.57</pose>
+      <pose>4 0.0 -1.8 0 3.14 1.57</pose>
     </include>
 
     <model name='prequal_marker'>

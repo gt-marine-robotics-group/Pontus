@@ -196,6 +196,7 @@
         <kPabsP>-0.1916</kPabsP>
         <mQabsQ>-63</mQabsQ>
         <nRabsR>-500</nRabsR>
+        <!-- <default_current>-0.05 -0.7 0.0</default_current> -->
       </plugin>
 
     <!-- Publishes perfect odometry data for testing controllers -->
