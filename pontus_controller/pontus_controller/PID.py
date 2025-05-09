@@ -4,7 +4,7 @@ from numpy import sign, pi
 
 
 MASS = 34.02
-VOLUME = 0.0413
+VOLUME = 0.0405
 DIAMETER = 0.2159
 LENGTH = 0.6096
 AREA = [pi * (DIAMETER / 2) ** 2, LENGTH * DIAMETER, LENGTH * DIAMETER]

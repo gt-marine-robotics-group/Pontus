@@ -53,20 +53,19 @@ class SonoptixDriver(Node):
             "sonar_range": self.range,
         })
 
-        # TODO: Make sure that these are correct
-        requests.patch(api_url + '/config', json={
-            "contrast": 0,
-            "gain": self.gain,
-            "mirror_image": True,
-            "autodetect_orientation": 0
-        })
-
         # Puts the stream into RTSP
         requests.put(api_url + '/streamtype', json={
             "value": 2,
         })
+        # TODO: Make sure that these are correct
+        requests.patch(api_url + '/config', json={
+            "contrast": 0,
+            "gain": 20.0,
+            "mirror_image": True,
+            "autodetect_orientation": 0
+        })
 
-        self.cap = cv2.VideoCapture(rtsp_url)
+        self.cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self.get_sonoptix()
 
@@ -90,9 +89,10 @@ class SonoptixDriver(Node):
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord('q'):
                     break
+                print(frame)
                 preprocessed_image = self.preprocess_frame(frame)
                 # preprocessed_image = frame
-                ros_image = self.cv_bridge.cv2_to_imgmsg(preprocessed_image, encoding="bgr8")
+                ros_image = self.cv_bridge.cv2_to_imgmsg(frame, encoding="bgr8")
                 self.pub.publish(ros_image)
             else:
                 self.get_logger().warn("Failed to read frame")
@@ -111,10 +111,10 @@ class SonoptixDriver(Node):
 
         """
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        masked = cv2.inRange(gray, 3, 255)
+        # masked = cv2.inRange(gray, 3, 255)
         # masked = cv2.inRange(gray, self.intensity_threshold, 255)
-        color = cv2.cvtColor(masked, cv2.COLOR_GRAY2BGR)
-        return color
+        # color = cv2.cvtColor(masked, cv2.COLOR_GRAY2BGR)
+        # return gray
 
 
 def main(args: Optional[List[str]] = None) -> None:

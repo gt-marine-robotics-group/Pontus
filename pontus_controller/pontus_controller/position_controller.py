@@ -60,7 +60,7 @@ class PositionNode(Node):
         self.declare_parameter('sim_mode', False)
         sim_mode = self.get_parameter('sim_mode').get_parameter_value().bool_value
         # If this is true, stop the position controller from publishing command velocities
-        self.controller_mode = True
+        self.controller_mode = False
 
         # If we are in sim, there are no RC so automatically turn position controller on
         if sim_mode:
@@ -71,8 +71,8 @@ class PositionNode(Node):
         if sim_mode:
             self.pid_linear = [
                 PID(1, 0, 0.7),
-                PID(1, 0, 0.5),
-                PID(2, 0, 2)
+                PID(0.5, 0, 0.5),
+                PID(3, 0, 2)
             ]
             self.pid_angular = [
                 PID(0.5, 0, 0),
@@ -83,7 +83,7 @@ class PositionNode(Node):
         else:
             self.pid_linear = [
                 PID(1.0, 0, 0),
-                PID(0.5, 0, 0),
+                PID(0.275, 0, 0.00001),
                 PID(0.5, 0, 0)
             ]
 
@@ -389,6 +389,8 @@ class PositionNode(Node):
             msg.angular.z = self.pid_angular[2](angular_err[2], dt)
 
         self.prev_time = self.get_clock().now()
+        self.get_logger().info(f"{self.cmd_linear}")
+        self.get_logger().info(f"{current_position}")
         msg = self.clamp_velocity(msg)
         # If we are in controller mode, we are publishing command velociites from the rc controller
         if not self.controller_mode:
@@ -413,8 +415,8 @@ class PositionNode(Node):
             msg.angular.z = np.sign(msg.angular.z) * 0.18
         if abs(msg.linear.x) > 0.25:
             msg.linear.x = np.sign(msg.linear.x) * 0.25
-        if abs(msg.linear.y) > 0.25:
-            msg.linear.y = np.sign(msg.linear.y) * 0.25
+        if abs(msg.linear.y) > 0.3:
+            msg.linear.y = np.sign(msg.linear.y) * 0.3
         return msg
 
     def maintain_z(self,
@@ -639,6 +641,7 @@ class PositionNode(Node):
         linear_difference = self.cmd_linear - current_position
         (r, p, y) = euler_from_quaternion(quat)
         current_orientation = np.array([r, p, y])
+        self.get_logger().info(f"{current_orientation}")
         goal_orientation = np.array([0, 0, np.arctan2(linear_difference[1], linear_difference[0])])
         angular_err = self.calculate_angular_error(goal_orientation, current_orientation)
 
@@ -653,7 +656,9 @@ class PositionNode(Node):
             (r, p, y) = euler_from_quaternion(quat)
             current_orientation = np.array([0.0, 0.0, y])
             self.goal_angle = current_orientation
-
+        self.get_logger().info(f"linear error {linear_err}")
+        linear_err[2] = self.cmd_linear[2] - current_position[2]
+        self.get_logger().info(f"fixed linear_error {linear_err}")
         return linear_err, angular_err
 
     def correct_orientation(self,

@@ -50,8 +50,8 @@ class VerticalMarkerTaskVelocity(BaseTask):
             10
         )
 
-        self.current_detections = None
-        self.current_detections_pose = None
+        self.current_detections = YOLOResultArray()
+        self.current_detections_pose = YOLOResultArrayPose()
 
         self.create_timer(
             0.2,
@@ -66,7 +66,7 @@ class VerticalMarkerTaskVelocity(BaseTask):
         self.right_angle = None
         self.cx = None
         self.fx = None
-        self.desired_depth = None
+        self.desired_depth = -1.0
         self.sent = False
         self.previous_state = None
         self.starting_pose = None
@@ -103,8 +103,8 @@ class VerticalMarkerTaskVelocity(BaseTask):
         None
 
         """
-        if self.current_odometry is None:
-            self.desired_depth = msg.pose.pose.position.z
+        # if self.current_odometry is None:
+            # self.desired_depth = msg.pose.pose.position.z
         self.current_odometry = msg.pose.pose
 
     def yolo_callback(self, msg: YOLOResultArray) -> None:
@@ -297,9 +297,6 @@ class VerticalMarkerTaskVelocity(BaseTask):
             self.get_logger().warn("Have not received camera info message, skipping")
             return
 
-        if self.current_detections_pose is None:
-            self.get_logger().warn("Have not received yolo detections pose yet, skipping")
-            return
         self.state_debugger()
         pose_obj = None
         match self.state:
@@ -335,7 +332,7 @@ class VerticalMarkerTaskVelocity(BaseTask):
         if self.yolo_pose_contains(SemanticObject.VerticalMarker):
             pose = self.get_object_pose(SemanticObject.VerticalMarker)
             self.get_logger().info(f"{pose.position.x}")
-            if pose.position.x < 2.0 and pose.position.x != -1.0:
+            if pose.position.x < 2.5 and pose.position.x != -1.0:
                 self.state = self.State.VerticalCircumnavigate
                 self.starting_pose = self.current_odometry
                 return PoseObj(cmd_twist=twist,

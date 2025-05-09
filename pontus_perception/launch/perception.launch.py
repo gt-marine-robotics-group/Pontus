@@ -39,12 +39,12 @@ def generate_launch_description():
                 ('yolo_debug/compressed', '/pontus/camera_2/yolo_debug/compressed')
             ]
         ),
-        # Node(
-        #     package='pontus_perception',
-        #     executable='cylinder_shape_detection',
-        #     name='cylinder_shape_detection',
-        #     output='screen'
-        # ),
+        Node(
+            package='pontus_perception',
+            executable='cylinder_shape_detection',
+            name='cylinder_shape_detection',
+            output='screen'
+        ),
         # Not needed if using disparity map
         # Node(
         #     package='pontus_perception',
