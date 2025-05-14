@@ -20,14 +20,14 @@ class VelocityNode(Node):
         # TODO: Tune these
         self.pid_linear = [
           PID(20, 0, 0, degree_of_freedom=DegreeOfFreedom.SURGE),  # X
-          PID(20, 0, 0, degree_of_freedom=DegreeOfFreedom.SWAY),  # Y
+          PID(20, 1, 0.000001, degree_of_freedom=DegreeOfFreedom.SWAY, windup_max=10),  # Y
           PID(10, 0, 0, degree_of_freedom=DegreeOfFreedom.HEAVE)  # Z
         ]
 
         self.pid_angular = [
           PID(1, 0, 0, degree_of_freedom=DegreeOfFreedom.ROLL),  # R
           PID(0.01, 0, 0, degree_of_freedom=DegreeOfFreedom.PITCH),  # P
-          PID(0.01, 0, 0.0000001, degree_of_freedom=DegreeOfFreedom.YAW)  # Y
+          PID(0.01, 0, 0.00001, degree_of_freedom=DegreeOfFreedom.YAW, windup_max=1)  # Y
         ]
 
         # Sim PID values

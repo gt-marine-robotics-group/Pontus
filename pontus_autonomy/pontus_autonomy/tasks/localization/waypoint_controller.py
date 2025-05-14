@@ -122,6 +122,8 @@ class WaypointContoller(BaseTask):
 
         """
         # 14.5 0.5
+        vm_x = 14.5
+        vm_y = 0.0
         desired_positions = []
         pose_0 = Pose()
         pose_0.position.x = 0.0
@@ -129,25 +131,30 @@ class WaypointContoller(BaseTask):
         pose_0.position.z = -1.5
         desired_positions.append(pose_0)
         pose_1 = Pose()
-        pose_1.position.x = 13.0
-        pose_1.position.y = 0.0
+        pose_1.position.x = vm_x - 1.0
+        pose_1.position.y = vm_y
         pose_1.position.z = -1.5
         desired_positions.append(pose_1)
         pose_2 = Pose()
-        pose_2.position.x = 13.0
-        pose_2.position.y = 1.0
+        pose_2.position.x = vm_x - 1.0
+        pose_2.position.y = vm_y + 1.0
         pose_2.position.z = -1.5
         desired_positions.append(pose_2)
         pose_3 = Pose()
-        pose_3.position.x = 16.0
-        pose_3.position.y = 1.0
+        pose_3.position.x = vm_x + 1.0
+        pose_3.position.y = vm_y + 1.0
         pose_3.position.z = -1.5
         desired_positions.append(pose_3)
         pose_4 = Pose()
-        pose_4.position.x = 16.0
-        pose_4.position.y = -1.0
+        pose_4.position.x = vm_x + 1.0
+        pose_4.position.y = vm_y - 1.0
         pose_4.position.z = -1.5
         desired_positions.append(pose_4)
+        pose_5 = Pose()
+        pose_5.position.x = vm_x - 1.0
+        pose_5.position.y = vm_y - 1.0
+        pose_5.position.z = -1.5
+        desired_positions.append(pose_5)
         pose_6 = Pose()
         pose_6.position.x = 0.0
         pose_6.position.y = 0.0

@@ -83,7 +83,7 @@ class PositionNode(Node):
         else:
             self.pid_linear = [
                 PID(1.0, 0, 0),
-                PID(0.275, 0, 0.00001),
+                PID(0.275, 0.1, 0.00001, windup_max=10),
                 PID(0.5, 0, 0)
             ]
 

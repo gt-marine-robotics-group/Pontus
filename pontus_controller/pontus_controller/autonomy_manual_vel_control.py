@@ -14,7 +14,7 @@ class AutonomyManualVelControl(Node):
             self.autonomy_mode_callback,
             10
         )
-        self.autonomy_mode_selected = False
+        self.autonomy_mode_selected = True
         self.autonomy_vel_sub = self.create_subscription(
             Twist,
             '/cmd_vel_autonomy',
