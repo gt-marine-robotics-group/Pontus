@@ -122,43 +122,44 @@ class WaypointContoller(BaseTask):
 
         """
         # 14.5 0.5
-        vm_x = 14.5
+        vm_x = 13.5
         vm_y = 0.0
+        default_z = -1.4
         desired_positions = []
         pose_0 = Pose()
         pose_0.position.x = 0.0
         pose_0.position.y = 0.0
-        pose_0.position.z = -1.5
+        pose_0.position.z = default_z
         desired_positions.append(pose_0)
         pose_1 = Pose()
         pose_1.position.x = vm_x - 1.0
         pose_1.position.y = vm_y
-        pose_1.position.z = -1.5
+        pose_1.position.z = default_z
         desired_positions.append(pose_1)
         pose_2 = Pose()
         pose_2.position.x = vm_x - 1.0
-        pose_2.position.y = vm_y + 1.0
-        pose_2.position.z = -1.5
+        pose_2.position.y = vm_y + 0.7
+        pose_2.position.z = default_z
         desired_positions.append(pose_2)
         pose_3 = Pose()
         pose_3.position.x = vm_x + 1.0
-        pose_3.position.y = vm_y + 1.0
-        pose_3.position.z = -1.5
+        pose_3.position.y = vm_y + 0.7
+        pose_3.position.z = default_z
         desired_positions.append(pose_3)
         pose_4 = Pose()
         pose_4.position.x = vm_x + 1.0
         pose_4.position.y = vm_y - 1.0
-        pose_4.position.z = -1.5
+        pose_4.position.z = default_z
         desired_positions.append(pose_4)
         pose_5 = Pose()
         pose_5.position.x = vm_x - 1.0
         pose_5.position.y = vm_y - 1.0
-        pose_5.position.z = -1.5
+        pose_5.position.z = default_z
         desired_positions.append(pose_5)
         pose_6 = Pose()
         pose_6.position.x = 0.0
         pose_6.position.y = 0.0
-        pose_6.position.z = -1.5
+        pose_6.position.z = default_z
         desired_positions.append(pose_6)
 
         if not self.command_sent:

@@ -56,7 +56,7 @@ class LOSController(Node):
         self.pid_angular = [
             PID(0.1, 0, 0),
             PID(0.5, 0, 0),
-            PID(0.15, 0.01, 0.000001, windup_max=2)
+            PID(0.15, 0.0, 0.000001, windup_max=2)
         ]
 
         self.cmd_linear = None
@@ -149,12 +149,12 @@ class LOSController(Node):
 
     def clamp_velocity(self, msg: Twist) -> Twist:
         # Roughly 30 degrees / s
-        if abs(msg.angular.z) > 0.18:
-            msg.angular.z = np.sign(msg.angular.z) * 0.18
-        if abs(msg.linear.x) > 0.25:
-            msg.linear.x = np.sign(msg.linear.x) * 0.25
-        if abs(msg.linear.y) > 0.3:
-            msg.linear.y = np.sign(msg.linear.y) * 0.3
+        if abs(msg.angular.z) > 0.13:
+            msg.angular.z = np.sign(msg.angular.z) * 0.13
+        if abs(msg.linear.x) > 0.2:
+            msg.linear.x = np.sign(msg.linear.x) * 0.2
+        if abs(msg.linear.y) > 0.25:
+            msg.linear.y = np.sign(msg.linear.y) * 0.25
         return msg
 
     def calculate_angular_error(self,
@@ -286,7 +286,7 @@ class LOSController(Node):
             self.sequence = PositionControllerSequence.MaintainPosition
             self.goal_pose = self.cmd_linear
             linear_err, angular_err = np.zeros(3), np.zeros(3)
-        elif np.linalg.norm(self.cmd_linear[:2] - current_position[:2]) < 1.0:
+        elif np.linalg.norm(self.cmd_linear[:2] - current_position[:2]) < 2.0:
             linear_err = self.calculate_linear_error(self.cmd_linear, current_position, quat)
             angular_err = self.calculate_angular_error(self.goal_angle, current_orientation)
         else:
@@ -296,11 +296,15 @@ class LOSController(Node):
             trajectory_unit = trajectory_vector / np.linalg.norm(trajectory_vector)
             vec = current_position[:2] - self.start_pose[:2]
             proj_length = np.dot(vec, trajectory_unit)
+            trajectory_length = np.linalg.norm(trajectory_vector)
+            proj_length = max(0.0, min(proj_length, trajectory_length - lookhead_distance))
             projected_point = self.start_pose[:2] + proj_length * trajectory_unit
             target_point = projected_point + lookhead_distance * trajectory_unit
             target_point = [target_point[0], target_point[1], self.cmd_linear[2]]
             linear_err = self.calculate_linear_error(target_point, current_position, quat)
-            angular_err = self.calculate_angular_error(self.goal_angle, current_orientation)
+            linear_difference = target_point - current_position
+            goal_orientation = np.array([0, 0, np.arctan2(linear_difference[1], linear_difference[0])])
+            angular_err = self.calculate_angular_error(goal_orientation, current_orientation)
         return linear_err, angular_err
 
 
