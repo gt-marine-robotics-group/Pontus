@@ -1393,16 +1393,19 @@
       <uri>Slalom</uri>
       <name>Slalom_1</name>
       <pose>3.5 0.0 -1.3716 0 0 1.57</pose>
+      <ambient>1 1 1 1</ambient>
     </include>
     <include>
       <uri>Slalom</uri>
       <name>Slalom_2</name>
       <pose>5.5 1.0 -1.3716 0 0 1.57</pose>
+      <ambient>1 1 1 1</ambient>
     </include>
     <include>
       <uri>Slalom</uri>
       <name>Slalom_3</name>
       <pose>7.5 2.0 -1.3716 0 0 1.57</pose>
+      <ambient>1 1 1 1</ambient>
     </include>
   </world>
 </sdf>

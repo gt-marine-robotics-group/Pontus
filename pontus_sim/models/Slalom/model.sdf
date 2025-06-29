@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <sdf version="1.10">
-    <model name="Slalom">
+    <model name="Slalom_Red">
         <cast_shadows>false</cast_shadows>
         <link name="link">
             <cast_shadows>false</cast_shadows>

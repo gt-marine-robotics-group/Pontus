@@ -16,6 +16,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Blueviewping.msg"
   "msg/YOLOResult.msg"
   "msg/YOLOResultArray.msg"
+  "msg/SlalomDetectorResults.msg"
   "srv/GetGateLocation.srv"
   "srv/GetVerticalMarkerLocation.srv"
   "srv/GateSideInformation.srv"
