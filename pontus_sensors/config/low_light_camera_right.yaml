@@ -1,6 +1,6 @@
 /**:
     ros__parameters:
-      video_device: "/dev/video4"
+      video_device: "/dev/video12"
       frame_id: "camera_3"
       pixel_format: "mjpeg2rgb"  # see usb_cam/supported_formats for list of supported formats
       av_device_format: "YUV422P"

@@ -3,14 +3,15 @@ import rclpy
 from typing import Optional, List
 
 from pontus_autonomy.base_run import BaseRun
+import time
 
 # Tasks
 from pontus_autonomy.tasks.localization.submerge import Submerge
-from pontus_autonomy.tasks.localization.gate_task_prequal import GateTaskPrequal
-from pontus_autonomy.tasks.localization.gate_to_vertical import GateToVertical
-from pontus_autonomy.tasks.localization.vertical_marker_task import VerticalMarkerTask
-from pontus_autonomy.tasks.localization.prequal_return import PrequalReturn
-
+from pontus_autonomy.tasks.localization.gate_task_prequal_velocity import GateTaskPrequalVelocity
+from pontus_autonomy.tasks.localization.vertical_marker_task_velocity import VerticalMarkerTaskVelocity  # noqa E501
+from pontus_autonomy.tasks.localization.waypoint_controller import WaypointContoller
+from pontus_autonomy.tasks.localization.wait_for_enable import WaitForEnable
+import subprocess
 
 class PrequalificationRun(BaseRun):
     def __init__(self):
@@ -18,25 +19,14 @@ class PrequalificationRun(BaseRun):
 
         self.get_logger().info("Starting Prequalification Run")
 
+        result = self.run_task(WaitForEnable)
+        self.get_logger().info(f"Wait for enable: {result}")
+
+        process = subprocess.Popen(['ros2', 'launch', 'pontus_bringup', 'auv.launch.py', 'auv:=auv'])
+        time.sleep(5)
         # Submerge Task
-        result = self.run_task(Submerge)
-        self.get_logger().info(f"Submerge: {result}")
-
-        # Gate Task
-        result = self.run_task(GateTaskPrequal)
-        self.get_logger().info(f"Gate Task: {result}")
-
-        # Navigate to next task
-        result = self.run_task(GateToVertical)
-        self.get_logger().info(f"Gate to vertical: {result}")
-
-        # Vertical Marker Task
-        result = self.run_task(VerticalMarkerTask)
-        self.get_logger().info(f"Vertical Marker Task {result}")
-
-        # Vertical to Gate
-        result = self.run_task(PrequalReturn)
-        self.get_logger().info(f"Prequal return: {result}")
+        result = self.run_task(WaypointContoller)
+        self.get_logger().info(f"WaypointContoller: {result}")
 
 
 def main(args: Optional[List[str]] = None) -> None:
