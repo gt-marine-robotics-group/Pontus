@@ -29,7 +29,8 @@ setup(
             'prequal_run = pontus_autonomy.prequalification_run_localization:main',
             'semi_run = pontus_autonomy.semi_run_localization:main',
             'search_region_test = pontus_autonomy.helpers.SearchRegionClient:main',
-            'submerge_and_stay_run = pontus_autonomy.submerge_and_stay_run_localization:main'
+            'submerge_and_stay_run = pontus_autonomy.submerge_and_stay_run_localization:main',
+            'slalom_run = pontus_autonomy.slalom_run:main',
         ],
     },
 )

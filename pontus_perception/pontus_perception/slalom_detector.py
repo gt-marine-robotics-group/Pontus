@@ -67,8 +67,8 @@ class SlalomPair:
 # Slalom Color Thresholds
 
 # White Threshold
-WHITE_THRESHOLD = ColorThreshold(lower_bound=np.array([0, 0, 180]),
-                                 upper_bound=np.array([200, 140, 255]))
+WHITE_THRESHOLD = ColorThreshold(lower_bound=np.array([0, 0, 200]),
+                                 upper_bound=np.array([200, 100, 255]))
 
 # Red Threshold (Need two due to wrapping effect with red in HSV)
 RED_THRESHOLDS = [
@@ -97,6 +97,7 @@ def select_target_slaloms(
         return None
 
     red_slalom = max(red_slaloms, key=operator.attrgetter('w'))
+    red_slalom_area = red_slalom.area
 
     if not white_slaloms:
         return None
@@ -107,8 +108,13 @@ def select_target_slaloms(
     else:
         white_candidates = [b for b in white_slaloms if b.x < red_slalom.x]
 
-    white_slalom = max(white_candidates, key=operator.attrgetter('w'), 
-                       default=None)
+    # Finding the slalom with the closest area to the red slalom
+    white_slalom = min(
+        white_candidates,
+        key=lambda sl: abs(red_slalom_area - sl.area),
+        default=None
+    )
+
     if white_slalom is None:
         return None
 
@@ -152,6 +158,12 @@ class SlalomDetector(Node):
             10
         )
 
+        self.slalom_pair_pub = self.create_publisher(
+            SlalomDetectorResults,
+            '/pontus/slalom_detector/results',
+            10
+        )
+
         self.debug_image_pub = self.create_publisher(
             Image,
             '/pontus/slalom_detector/debug',
@@ -161,12 +173,6 @@ class SlalomDetector(Node):
         self.debug_image_pub_compressed = self.create_publisher(
             CompressedImage,
             '/pontus/slalom_detector/debug/compressed',
-            10
-        )
-
-        self.slalom_pair_pub = self.create_publisher(
-            SlalomDetectorResults,
-            '/pontus/slalom_detector/results',
             10
         )
 
@@ -187,7 +193,6 @@ class SlalomDetector(Node):
         """
         self.enabled = request.data
 
-        request.success = True
         response.message = 'enabled' if self.enabled else 'disabled'
         self.get_logger().info(f"Slalom Detector {response.message}")
         return response

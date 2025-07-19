@@ -25,6 +25,10 @@ class BoundingBox:
     color_bgr: Tuple[int, int, int]
     thickness: int = 2
 
+    @property
+    def area(self):
+        return self.w * self.h
+
 
 def get_color_threshold_contours(
         hsv_image: np.ndarray, 
