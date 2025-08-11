@@ -1391,6 +1391,7 @@
     <!-- GATE TASK -->
     <include>
       <uri>Gate</uri>
+        <pose>3.3 -3.3 -1.5 0.0 3.14 -1.65</pose>
       <!-- <pose>3.7 0.5 -1.8 1.8 0 1.57</pose> -->
       <!-- Right side -->
       <!-- <pose>4.0 -3.0 -1.5 0.0 3.14 1.0</pose> -->
@@ -1399,7 +1400,30 @@
       <!-- Extreme right side-->
       <!-- <pose>2.0 -5.0 -1.5 0.0 3.14 0.9</pose> -->
       <!-- Left Side -->
-      <pose>3.6 3.3 -1.5 0.0 3.14 1.65</pose>
+      <!-- <pose>3.6 3.3 -1.5 0.0 3.14 1.65</pose> -->
+    </include>
+
+    <!-- Path Marker -->
+    <include>
+      <uri>PathMarker</uri>
+      <pose>4.5 -3.0 -1.9 0 0 0.4</pose>
+    </include>
+
+    <!-- SLALOM TASK -->
+    <include>
+      <uri>Slalom</uri>
+      <name>Slalom_1</name>
+      <pose>6.5 0.0 -1.3716 0 0 1.57</pose>
+    </include>
+    <include>
+      <uri>Slalom</uri>
+      <name>Slalom_2</name>
+      <pose>8.5 1.0 -1.3716 0 0 1.57</pose>
+    </include>
+    <include>
+      <uri>Slalom</uri>
+      <name>Slalom_3</name>
+      <pose>10.5 2.0 -1.3716 0 0 1.57</pose>
     </include>
 
   </world>
