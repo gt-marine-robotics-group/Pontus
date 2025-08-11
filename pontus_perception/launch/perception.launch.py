@@ -8,10 +8,10 @@ from launch.actions import IncludeLaunchDescription
 
 
 def generate_launch_description():
-    stereo_share = get_package_share_directory('pontus_ros_stereo_image_proc')
-    _PONTUS_ROS_STEREO_IMAGE_PROC_LAUNCH_FILE = os.path.join(stereo_share,
-                                                             'launch',
-                                                             'stereo_image_proc.launch.py')
+    # stereo_share = get_package_share_directory('pontus_ros_stereo_image_proc')
+    # _PONTUS_ROS_STEREO_IMAGE_PROC_LAUNCH_FILE = os.path.join(stereo_share,
+    #                                                          'launch',
+    #                                                          'stereo_image_proc.launch.py')
     pkg_share = get_package_share_directory('pontus_perception')
     front_left_camera_model = 'model.pt'
     front_right_camera_model = 'model.pt'
@@ -33,7 +33,7 @@ def generate_launch_description():
                                            front_left_camera_model)
             }],
             remappings=[
-                ('input', '/pontus/camera_2/image_rect_color'),
+                ('input', '/pontus/camera_2/image_raw'),
                 ('results', '/pontus/camera_2/yolo_results'),
                 ('yolo_debug', '/pontus/camera_2/yolo_debug'),
                 ('yolo_debug/compressed', '/pontus/camera_2/yolo_debug/compressed')
@@ -45,6 +45,7 @@ def generate_launch_description():
             name='cylinder_shape_detection',
             output='screen'
         ),
+
         # Not needed if using disparity map
         # Node(
         #     package='pontus_perception',
@@ -61,27 +62,29 @@ def generate_launch_description():
         #         ('yolo_debug/compressed', '/pontus/camera_3/yolo_debug/compressed')
         #     ]
         # ),
-        # Node(
-        #     package='pontus_perception',
-        #     executable='yolo_pose_detection',
-        #     name='yolo_pose_detection',
-        #     output='screen',
-        # ),
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(_PONTUS_ROS_STEREO_IMAGE_PROC_LAUNCH_FILE),
-            launch_arguments={
-                'left_namespace': '/pontus/camera_2',
-                'right_namespace': '/pontus/camera_3',
-                'num_disparities' : '32',
-                'window_size' : '5',
-                'prefilter_cap' : '27',
-                'texture_threshold' : '3',
-                'uniqueness_ratio' : '5',
-                'speckle_window_size' : '200',
-                'speckle_range' : '32',
-            }.items()
+        Node(
+            package='pontus_perception',
+            executable='yolo_pose_detection',
+            name='yolo_pose_detection',
+            output='screen',
         ),
+        # IncludeLaunchDescription(
+        #     PythonLaunchDescriptionSource(_PONTUS_ROS_STEREO_IMAGE_PROC_LAUNCH_FILE),
+        #     launch_arguments={
+        #         'left_namespace': '/pontus/camera_2',
+        #         'right_namespace': '/pontus/camera_3',
+        #         'num_disparities' : '32',
+        #         'window_size' : '5',
+        #         'prefilter_cap' : '27',
+        #         'texture_threshold' : '3',
+        #         'uniqueness_ratio' : '5',
+        #         'speckle_window_size' : '200',
+        #         'speckle_range' : '32',
+        #     }.items()
+        # ),
     ])
+
+
 """
 num_disparities (int) :
 * Higher value means less FOV but better detections further away
