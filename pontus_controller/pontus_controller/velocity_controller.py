@@ -101,7 +101,6 @@ class VelocityNode(Node):
         None
 
         """
-        print("kp: ", self.pid_linear[0].kp)
         # Get the current velocities from odometry
         v_linear = np.array([msg.twist.twist.linear.x,
                              msg.twist.twist.linear.y,
