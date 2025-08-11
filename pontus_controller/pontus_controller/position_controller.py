@@ -7,6 +7,7 @@ from typing import Any
 from rclpy.action import ActionServer
 from geometry_msgs.msg import Pose, Twist
 from nav_msgs.msg import Odometry
+from rcl_interfaces.msg import SetParametersResult
 from tf_transformations import euler_from_quaternion
 from std_msgs.msg import Bool
 import asyncio
@@ -66,6 +67,31 @@ class PositionNode(Node):
         if sim_mode:
             self.controller_mode = False
 
+        param_list = (
+            ('x_kp', 1.0),
+            ('x_ki', 0.0),
+            ('x_kd', 0.0),
+            ('y_kp', 0.275),
+            ('y_ki', 0.1),
+            ('y_kd', 0.00001),
+            ('z_kp', 0.5),
+            ('z_ki', 0.0),
+            ('z_kd', 0.0),
+            ('r_kp', 0.1),
+            ('r_ki', 0.0),
+            ('r_kd', 0.0),
+            ('p_kp', 0.5),
+            ('p_ki', 0.0),
+            ('p_kd', 0.0),
+            ('yaw_kp', 0.15),
+            ('yaw_ki', 0.01),
+            ('yaw_kd', 0.000001),
+        )
+
+        self.pids_created = False
+        self.add_on_set_parameters_callback(self.param_callback)
+        self.declare_parameters(namespace="pos", parameters=param_list)
+
         # TODO: Tune these
         # Sim PID values
         if sim_mode:
@@ -82,17 +108,19 @@ class PositionNode(Node):
         # Real values for sub
         else:
             self.pid_linear = [
-                PID(1.0, 0, 0),
-                PID(0.275, 0.1, 0.00001, windup_max=10),
-                PID(0.5, 0, 0)
+                PID(self.x_kp, self.x_ki, self.x_kd),
+                PID(self.y_kp, self.y_ki, self.y_kd, windup_max=10),
+                PID(self.z_kp, self.z_ki, self.z_kd)
             ]
 
             self.pid_angular = [
-                PID(0.1, 0, 0),
-                PID(0.5, 0, 0),
-                PID(0.15, 0.01, 0.000001, windup_max=10)
+                PID(self.r_kp, self.r_ki, self.r_kd),
+                PID(self.p_kp, self.p_ki, self.p_kd),
+                PID(self.yaw_kp, self.yaw_ki, self.yaw_kd, windup_max=10)
             ]
-        # PID(0.15, 0.001, 0.000001, 5)
+
+        self.pids_created = True
+
         self.thresh = 0.2
         self.angular_thresh = 0.1
         self.hold_point = False
@@ -692,6 +720,36 @@ class PositionNode(Node):
                                              self.movement_method)
         return linear_err, angular_err
 
+
+    def param_callback(self, params):
+      for param in params:
+        name = param.name.replace("pos.", "")
+        setattr(self, name, param.value)
+
+        if self.pids_created:
+          split = name.split("_")
+          dof = split[0]
+          gain = split[1]
+
+          pid_obj = None
+          match dof:
+            case "x":
+              pid_obj = self.pid_linear[0]
+            case "y":
+              pid_obj = self.pid_linear[1]
+            case "z":
+              pid_obj = self.pid_linear[2]
+            case "r":
+              pid_obj = self.pid_angular[0]
+            case "p":
+              pid_obj = self.pid_angular[1]
+            case "yaw":
+              pid_obj = self.pid_angular[2]
+
+          if (pid_obj is not None):
+            setattr(pid_obj, gain, param.value)
+
+      return SetParametersResult(successful=True)
 
 def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
