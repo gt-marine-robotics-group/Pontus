@@ -7,7 +7,7 @@ from typing import Optional, List
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 
-from .PID import PID
+from pontus_controller.PID import PID, DegreeOfFreedom
 
 
 class HybridControllerNode(Node):
@@ -19,17 +19,15 @@ class HybridControllerNode(Node):
 
         self.prev_time = self.get_clock().now()
 
-        # TODO: Tune these
         self.pid_linear = [
-          PID(2, 0, 0, 2),
-          PID(2, 0, 0, 2),
-          PID(20, 0.0, 0.0, 0.0)
+          PID(2, 0, 0, degree_of_freedom=DegreeOfFreedom.SURGE),
+          PID(2, 0.0, 0.0, degree_of_freedom=DegreeOfFreedom.SWAY, windup_max= 10),
+          PID(1, 0.0, 0.0, degree_of_freedom=DegreeOfFreedom.HEAVE)
         ]
-        # 32 0 35
         self.pid_angular = [
-          PID(0.5, 0, 0, 2),
-          PID(40, 0.0, 6, 1),
-          PID(2, 0, 0, 2)
+          PID(1.0, 0.0, 0.0, degree_of_freedom=DegreeOfFreedom.ROLL),
+          PID(0.01, 0.0, 0.0, degree_of_freedom=DegreeOfFreedom.PITCH),
+          PID(0.01, 0, 0.0, degree_of_freedom=DegreeOfFreedom.YAW, windup_max=1)
         ]
 
         # ROS infrastructure
@@ -122,7 +120,7 @@ class HybridControllerNode(Node):
         # Enable active roll/pitch control to 0
         # accel_msg.angular.x = self.pid_angular[0](-roll,
         #                                           self.get_clock().now() - self.prev_time)
-        accel_msg.angular.y = self.pid_angular[1](-pitch, self.get_clock().now() - self.prev_time)
+        # accel_msg.angular.y = self.pid_angular[1](-pitch, self.get_clock().now() - self.prev_time)
         # self.get_logger().info(str(accel_msg.angular.y))
 
         # Direct command yaw
