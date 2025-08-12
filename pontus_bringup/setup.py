@@ -29,4 +29,7 @@ setup(
         'console_scripts': [
         ],
     },
+    scripts = [
+        'scripts/record_all_topics.sh',
+    ],
 )
