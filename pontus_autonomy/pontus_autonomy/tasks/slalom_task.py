@@ -11,6 +11,7 @@ import rclpy.client
 import tf_transformations
 from geometry_msgs.msg import Point
 from sensor_msgs.msg import CameraInfo
+from pontus_msgs.msg import SlalomDetectorResults
 
 from pontus_autonomy.tasks.base_task import BaseTask
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
@@ -28,7 +29,7 @@ done()
 """
 
 
-class GateTask(BaseTask):
+class SlalomTask(BaseTask):
     class State(Enum):
         Searching = 0
         Approach = 1
@@ -42,42 +43,27 @@ class GateTask(BaseTask):
         Detect_Left = 2
         Detect_Right = 3
         Done = 4
+        
+    class SideSelection(Enum):
+        RIGHT = 1
+        LEFT = 2
 
     def __init__(self):
-        super().__init__("Gate_Task")
+        super().__init__("Slalom_Task")
 
         # Hyperparameters / hardcoded values
 
         # This represents how much the sub turns to identify the left / right gate
         self.search_angle = np.pi/4
 
-        # End
-
         # Need this to prevent deadlock issues
         self.service_callback_group = MutuallyExclusiveCallbackGroup()
 
-        # Service to detect gate
-        self.gate_detection_client = self.create_client(
-            GetGateLocation,
-            '/pontus/get_gate_detection',
-            callback_group=self.service_callback_group
-        )
-        while not self.gate_detection_client.wait_for_service(timeout_sec=3.0):
-            self.get_logger().info("Waiting for get gate location service")
-
-        # Service to keep track of where the gate is, and which side we went through
-        self.gate_information_client = self.create_client(
-            GateSideInformation,
-            '/pontus/gate_side_information',
-            callback_group=self.service_callback_group
-        )
-        while not self.gate_information_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info("Waiting to connect to /pontus/gate_information service")
-
-        self.yolo_subscription = self.create_subscription(
-            YOLOResultArray,
-            '/pontus/camera_2/yolo_results',
-            self.yolo_callback,
+        # Slalom pair detection subscription
+        self.slalom_detection_subscription = self.create_subscription(
+            SlalomDetectorResults,
+            '/pontus/slalom_detector/results',
+            self.slalom_detctor_callback,
             10
         )
 
@@ -109,13 +95,15 @@ class GateTask(BaseTask):
         self.detected = False
         self.current_pose = None
         self.sent = False
-        self.yolo_detections = None
+        self.slalom_detections = None
         self.Tx = None
         self.cx = None
         self.cy = None
         self.image_width = None
         self.previous_searching_state = self.SearchState.Turn_CCW
         self.current_yaw = 0.0
+        self.number_of_slaloms_completes = 0
+        self.slalom_side_choice = self.SideSelection.RIGHT
 
     def state_debugger(self) -> None:
         """
@@ -161,20 +149,20 @@ class GateTask(BaseTask):
                 self.current_pose.orientation.w]
         _, _, self.current_yaw = tf_transformations.euler_from_quaternion(quat)
 
-    def yolo_callback(self, msg: YOLOResultArray) -> None:
+    def slalom_detector_callback(self, msg: SlalomDetectorResults) -> None:
         """
-        Handle yolo callback.
+        Handle Slalom detection callback.
 
         Args:
         ----
-        msg (YOLOResultArray): the yolo detections
+        msg (SlalomDetectorResults): the slalom detections
 
         Return:
         ------
         None
 
         """
-        self.yolo_detections = msg
+        self.slalom_detections = msg
 
     def camera_info_callback_left(self, msg: CameraInfo) -> None:
         """
@@ -198,79 +186,7 @@ class GateTask(BaseTask):
         self.image_width = msg.width
 
     # Helpers
-    def get_gate_location(self,
-                          detection_client: rclpy.client.Client
-                          ) -> tuple[Optional[Point], Optional[Point]]:
-        """
-        Return the gate detection.
 
-        If the left/right detection is not detected, the respective value will be None.
-
-        Args:
-        ----
-        detection_client (rclpy.client.Client): the gate detection client
-
-        Return:
-        ------
-        tuple[Optional[Point], Optional[Point]]: a tuple containing the left and right gate
-                                                 detection if the resepctive gate is found
-
-        """
-        request = GetGateLocation.Request()
-        future = detection_client.call_async(request)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=1.0)
-        left_gate = None
-        right_gate = None
-        if future.result() is not None:
-            response = future.result()
-            if response.left_valid:
-                left_gate = response.left_location
-            if response.right_valid:
-                right_gate = response.right_location
-        return left_gate, right_gate
-
-    def side_in_view(self, left: bool) -> bool:
-        """
-        Return whether or not we have a yolo detection of the left gate in view.
-
-        Args:
-        ----
-        left (bool): if we want to see if the left or right side is in view
-
-        Return:
-        ------
-        bool: whether the left gate is currently detected
-
-        """
-        if self.yolo_detections is None:
-            return False
-        desired_id = SemanticObject.LeftGate.value if left else SemanticObject.RightGate.value
-        for detection in self.yolo_detections.results:
-            if detection.class_id == desired_id:
-                return True
-        return False
-
-    def get_angle(self, left_gate: bool) -> float:
-        """
-        Get the angle of a gate detection.
-
-        Args:
-        ----
-        left_gate (bool): whether to get the angle of the left gate or right gate
-                          if true, will return the left gate
-
-        Return:
-        ------
-        float: angle of the gate
-
-        """
-        desired_id = SemanticObject.LeftGate.value if left_gate else SemanticObject.RightGate.value
-        for detection in self.yolo_detections.results:
-            if detection.class_id == desired_id:
-                x = (detection.x1 + detection.x2) / 2
-                x_norm = (self.cx - x) / self.f
-                angle = np.arctan2(x_norm, 1)
-                return angle
 
     # Autonomy
     def state_machine(self) -> None:
@@ -307,14 +223,13 @@ class GateTask(BaseTask):
             case self.State.Align:
                 cmd_pose = self.align()
             case self.State.GoThroughLeft:
-                cmd_pose = self.go_through_left()
+                cmd_pose = self.navigate_through_slalom()
             case self.State.Done:
                 self.done()
             case _:
                 self.get_logger().info("Unrecognized state")
 
         if cmd_pose:
-            self.get_logger().info(f"cmd_pose send: {cmd_pose}")
             self.go_to_pose_client.go_to_pose(cmd_pose)
 
     def search(self) -> Optional[PoseObj]:
@@ -324,7 +239,7 @@ class GateTask(BaseTask):
         Logic:
             1. First turn to 0 degrees to start our search
             2. Continue to turn clockwise
-            3. If our yolo model detects a left or right gate, center ourselves with the detection
+            3. If our slalom detector detects a slalom pair, center ourselves with the detection
                and wait 2 seconds to allow the depth estimation
             4. Done
 
@@ -386,8 +301,7 @@ class GateTask(BaseTask):
         # TODO: Make these use the IMU
         start = np.pi / 3
         end = -np.pi / 3
-        left_gate, right_gate = self.get_gate_location(
-            self.gate_detection_client)
+        left_gate, right_gate = self.get_gate_location(self.gate_detection_client)
         self.get_logger().info(f"{left_gate} {right_gate}")
         # Case 1
         if left_gate and right_gate:
@@ -420,8 +334,7 @@ class GateTask(BaseTask):
             self.get_logger().info("Case #5")
             cmd_pose = Pose()
             desired_angle = start if self.searching_state == self.SearchState.Turn_CCW else end
-            quat = tf_transformations.quaternion_from_euler(
-                0, 0, desired_angle)
+            quat = tf_transformations.quaternion_from_euler(0, 0, desired_angle)
             cmd_pose.position.z = self.desired_depth
             cmd_pose.orientation.x = quat[0]
             cmd_pose.orientation.y = quat[1]
@@ -436,8 +349,7 @@ class GateTask(BaseTask):
             self.get_logger().info("Case #6")
             cmd_pose = Pose()
             desired_angle = start
-            quat = tf_transformations.quaternion_from_euler(
-                0, 0, desired_angle)
+            quat = tf_transformations.quaternion_from_euler(0, 0, desired_angle)
             cmd_pose.position.z = self.desired_depth
             cmd_pose.orientation.x = quat[0]
             cmd_pose.orientation.y = quat[1]
@@ -458,8 +370,7 @@ class GateTask(BaseTask):
             self.get_logger().info("Case #8")
             cmd_pose = Pose()
             desired_angle = end
-            quat = tf_transformations.quaternion_from_euler(
-                0, 0, desired_angle)
+            quat = tf_transformations.quaternion_from_euler(0, 0, desired_angle)
             cmd_pose.position.z = self.desired_depth
             cmd_pose.orientation.x = quat[0]
             cmd_pose.orientation.y = quat[1]
@@ -541,8 +452,7 @@ class GateTask(BaseTask):
 
         """
         if not self.sent:
-            left_gate, right_gate = self.get_gate_location(
-                self.gate_detection_client)
+            left_gate, right_gate = self.get_gate_location(self.gate_detection_client)
             cmd_pose = Pose()
             # Go to the point 1 meter away
             mid_point_x = (left_gate.x + right_gate.x)/2
@@ -550,8 +460,7 @@ class GateTask(BaseTask):
 
             perpendicular_vector = np.array([-right_gate.y + left_gate.y,
                                              right_gate.x - left_gate.x])
-            perpendicular_vector_norm = perpendicular_vector / \
-                np.linalg.norm(perpendicular_vector)
+            perpendicular_vector_norm = perpendicular_vector / np.linalg.norm(perpendicular_vector)
             cmd_pose.position.x = mid_point_x - perpendicular_vector_norm[0]
             cmd_pose.position.y = mid_point_y - perpendicular_vector_norm[1]
             cmd_pose.position.z = self.desired_depth
@@ -582,18 +491,15 @@ class GateTask(BaseTask):
 
         """
         if not self.sent:
-            left_gate, right_gate = self.get_gate_location(
-                self.gate_detection_client)
+            left_gate, right_gate = self.get_gate_location(self.gate_detection_client)
             cmd_pose = Pose()
             # Calculate gate angle
-            angle = np.arctan2(right_gate.y - left_gate.y,
-                               right_gate.x - left_gate.x)
+            angle = np.arctan2(right_gate.y - left_gate.y, right_gate.x - left_gate.x)
             desired_angle = angle + np.pi / 2
             cmd_pose.position.x = self.current_pose.position.x
             cmd_pose.position.y = self.current_pose.position.y
             cmd_pose.position.z = self.desired_depth
-            quat = tf_transformations.quaternion_from_euler(
-                0.0, 0.0, desired_angle)
+            quat = tf_transformations.quaternion_from_euler(0.0, 0.0, desired_angle)
             cmd_pose.orientation.x = quat[0]
             cmd_pose.orientation.y = quat[1]
             cmd_pose.orientation.z = quat[2]
@@ -622,8 +528,7 @@ class GateTask(BaseTask):
 
         """
         if not self.sent:
-            left_gate, right_gate = self.get_gate_location(
-                self.gate_detection_client)
+            left_gate, right_gate = self.get_gate_location(self.gate_detection_client)
             cmd_pose = Pose()
             # Go to the point 1 meter away
             quarter_point_x = 3/4 * left_gate.x + 1/4 * right_gate.x
