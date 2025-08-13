@@ -8,7 +8,7 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rcl_interfaces.msg import SetParametersResult
 
-from pontus_controller.PID import PID
+from pontus_controller.PID import PID, FeedForwardPID
 
 
 class HybridControllerNode(Node):
@@ -18,27 +18,31 @@ class HybridControllerNode(Node):
         self.cmd_linear = np.zeros(3)
         self.cmd_angular = np.zeros(3)
 
-        self.prev_time = self.get_clock().now()
+        self. ev_time = self.get_clock().now()
+
+        # estimated_z_offset = -9.8 * ((1000 * 0.0405) - (34.02)) / 34.02
+        estimated_z_offset = -2.5
 
         param_list = (
-            ('x_kp', 2.0),
+            ('x_kp', 10.0),
             ('x_ki', 0.0),
             ('x_kd', 0.0),
-            ('y_kp', 2.0),
+            ('y_kp', 1.0),
             ('y_ki', 0.0),
             ('y_kd', 0.0),
-            ('z_kp', 3.0),
+            ('z_kp', 3.8),
             ('z_ki', 0.0),
-            ('z_kd', 0.1),
-            ('r_kp', 1.0),
+            ('z_kd', 0.5),
+            ('r_kp', 0.0),
             ('r_ki', 0.0),
             ('r_kd', 0.0),
-            ('p_kp', 0.01),
+            ('p_kp', 0.0),
             ('p_ki', 0.0),
             ('p_kd', 0.0),
-            ('yaw_kp', 4.0),
+            ('yaw_kp', 0.1),
             ('yaw_ki', 0.0),
-            ('yaw_kd', 4.0),
+            ('yaw_kd', 0.0),
+            ('gravity_offset', estimated_z_offset)
         )
 
         self.pids_created = False
@@ -46,14 +50,14 @@ class HybridControllerNode(Node):
         self.declare_parameters(namespace="hybrid", parameters=param_list)
 
         self.pid_linear = [
-          PID(self.x_kp, self.x_ki, self.x_kd),
+          FeedForwardPID(self.x_kp, self.x_ki, self.x_kd),
           PID(self.y_kp, self.y_ki, self.y_kd, windup_max= 10),
-          PID(self.z_kp, self.z_ki, self.z_kd, windup_max = 1.0)
+          PID(self.z_kp, self.z_ki, self.z_kd, windup_max = 2.0)
         ]
         self.pid_angular = [
           PID(self.r_kp, self.r_ki, self.r_kd),
           PID(self.p_kp, self.p_ki, self.p_kd),
-          PID(self.yaw_kp, self.yaw_ki, self.yaw_kd, windup_max=1.0)
+          PID(self.yaw_kp, self.yaw_ki, self.yaw_kd, windup_max=2.0)
         ]
 
         self.pids_created = True
@@ -84,6 +88,9 @@ class HybridControllerNode(Node):
         # self.cmd_depth = None
         self.cmd_depth = -0.5
         self.depth_msg = Odometry()
+
+        self.prev_time = self.get_clock().now()
+
 
     def depth_callback(self, msg: Odometry) -> None:
         """
@@ -134,9 +141,8 @@ class HybridControllerNode(Node):
 
         """
         self.depth_msg = msg
+        self.get_logger().info("cmd depth: " + str(self.cmd_depth))
 
-        self.get_logger().info(f"pid yaw kp: {self.pid_angular[2].kp}")
-        self.get_logger().info(f"cmd_depth: {self.cmd_depth}")
 
         # Compute and publish the body accelerations
         accel_msg = Twist()
@@ -183,7 +189,7 @@ class HybridControllerNode(Node):
             accel_msg.linear.z = self.pid_linear[2](self.cmd_linear[2] - msg.twist.twist.linear.z, dt)
             # accel_msg.linear.z = 16.0 * self.cmd_linear[2]
 
-        accel_msg.linear.z -= 9.8 * ((1000 * 0.0405) - (34.02)) / 34.02 # TEMPORARY FEEDFORWARD
+        accel_msg.linear.z += self.gravity_offset # TEMPORARY FEEDFORWARD
         self.cmd_accel_pub.publish(accel_msg)
 
         self.prev_time = self.get_clock().now()
@@ -213,8 +219,11 @@ class HybridControllerNode(Node):
             case "yaw":
               pid_obj = self.pid_angular[2]
 
-          if (pid_obj is not None):
-            setattr(pid_obj, gain, param.value)
+          if pid_obj is not None:
+            if isinstance(pid_obj, FeedForwardPID):
+              setattr(pid_obj.pid, gain, param.value)
+            elif isinstance(pid_obj, PID):
+              setattr(pid_obj, gain, param.value)
 
       return SetParametersResult(successful=True)
 

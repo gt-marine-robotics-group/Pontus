@@ -115,7 +115,7 @@ class FeedForwardPID:
         # Rotational Drag: TODO: Estimate this
         if self.degree_of_freedom and 3 <= self.degree_of_freedom.value and desired_velocity:
             f_drag_abs = C[self.degree_of_freedom.value] * desired_velocity ** 2
-            f_drag = sign(desired_velocity) * f_drag_abs
+            f_drag = 0.12 * sign(desired_velocity) * f_drag_abs
 
         # feed forward
         ff = -acceleration_bouyancy + f_drag

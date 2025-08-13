@@ -19,10 +19,10 @@ class VelocityNode(Node):
         self.prev_time = self.get_clock().now()
 
         param_list = (
-            ('x_kp', 20.0),
+            ('x_kp', 10.0),
             ('x_ki', 0.0),
             ('x_kd', 0.0),
-            ('y_kp', 20.0),
+            ('y_kp', 10.0),
             ('y_ki', 1.0),
             ('y_kd', 0.000001),
             ('z_kp', 10.0),
@@ -34,9 +34,9 @@ class VelocityNode(Node):
             ('p_kp', 0.01),
             ('p_ki', 0.0),
             ('p_kd', 0.0),
-            ('yaw_kp', 0.01),
+            ('yaw_kp', 0.1),
             ('yaw_ki', 0.0),
-            ('yaw_kd', 0.00001),
+            ('yaw_kd', 0.0001),
         )
 
         self.pids_created = False
@@ -53,7 +53,7 @@ class VelocityNode(Node):
         self.pid_angular = [
           FeedForwardPID(self.r_kp, self.r_ki, self.r_kd, degree_of_freedom=DegreeOfFreedom.ROLL),  # R
           FeedForwardPID(self.p_kp, self.p_ki, self.p_kd, degree_of_freedom=DegreeOfFreedom.PITCH),  # P
-          FeedForwardPID(self.y_kp, self.y_ki, self.y_kd, degree_of_freedom=DegreeOfFreedom.YAW, windup_max=1)  # Y
+          FeedForwardPID(self.yaw_kp, self.yaw_ki, self.yaw_kd, degree_of_freedom=DegreeOfFreedom.YAW, windup_max=1)  # Y
         ]
         self.pids_created = True
 
@@ -151,8 +151,11 @@ class VelocityNode(Node):
             case "yaw":
               pid_obj = self.pid_angular[2]
 
-          if (pid_obj is not None):
-            setattr(pid_obj, gain, param.value)
+          if pid_obj is not None:
+            if isinstance(pid_obj, FeedForwardPID):
+              setattr(pid_obj.pid, gain, param.value)
+            elif isinstance(pid_obj, PID):
+              setattr(pid_obj, gain, param.value)
 
       return SetParametersResult(successful=True)
 

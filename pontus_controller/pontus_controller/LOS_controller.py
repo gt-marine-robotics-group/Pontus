@@ -30,7 +30,7 @@ class LOSController(Node):
             ('x_ki', 0.0),
             ('x_kd', 0.0),
             ('y_kp', 0.275),
-            ('y_ki', 1.0),
+            ('y_ki', 0.0),
             ('y_kd', 0.0),
             ('z_kp', 0.5),
             ('z_ki', 0.0),
@@ -92,7 +92,7 @@ class LOSController(Node):
         self.pids_created = True
 
         self.cmd_linear = None
-        self.cmd_angular = None
+        self.cmd_angular = np.zeros(3)
         self.goal_pose = np.zeros(3)
         self.goal_angle = np.zeros(3)
         self.start_pose = np.zeros(3)
