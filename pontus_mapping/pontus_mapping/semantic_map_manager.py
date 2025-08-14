@@ -38,10 +38,18 @@ remove_duplicates()
 #     VerticalMarker = 6
 
 
+# class SemanticObject(Enum):
+#     LeftGate = 0
+#     RightGate = 1
+#     VerticalMarker = 2
+
+
 class SemanticObject(Enum):
-    LeftGate = 0
-    RightGate = 1
-    VerticalMarker = 2
+    GateLeft = 0
+    GateRight = 1
+    Red_Slalom = 2
+    White_Slalom = 3
+    Octagon = 4
 
 
 class SemanticMapManager(Node):
