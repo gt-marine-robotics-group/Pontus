@@ -6,7 +6,7 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rcl_interfaces.msg import SetParametersResult
 from typing import Optional, List
-from pontus_controller.PID import PID, DegreeOfFreedom
+from pontus_controller.PID import PID, FeedForwardPID, DegreeOfFreedom
 
 
 class VelocityNode(Node):
@@ -45,15 +45,15 @@ class VelocityNode(Node):
 
         # TODO: Tune these
         self.pid_linear = [
-          PID(self.x_kp, self.x_ki, self.x_kd, degree_of_freedom=DegreeOfFreedom.SURGE),  # X
-          PID(self.y_kp, self.y_ki, self.y_kd, degree_of_freedom=DegreeOfFreedom.SWAY, windup_max=10),  # Y
-          PID(self.z_kp, self.z_ki, self.z_kd, degree_of_freedom=DegreeOfFreedom.HEAVE)  # Z
+          FeedForwardPID(self.x_kp, self.x_ki, self.x_kd, degree_of_freedom=DegreeOfFreedom.SURGE),  # X
+          FeedForwardPID(self.y_kp, self.y_ki, self.y_kd, degree_of_freedom=DegreeOfFreedom.SWAY, windup_max=10),  # Y
+          FeedForwardPID(self.z_kp, self.z_ki, self.z_kd, degree_of_freedom=DegreeOfFreedom.HEAVE)  # Z
         ]
 
         self.pid_angular = [
-          PID(self.r_kp, self.r_ki, self.r_kd, degree_of_freedom=DegreeOfFreedom.ROLL),  # R
-          PID(self.p_kp, self.p_ki, self.p_kd, degree_of_freedom=DegreeOfFreedom.PITCH),  # P
-          PID(self.y_kp, self.y_ki, self.y_kd, degree_of_freedom=DegreeOfFreedom.YAW, windup_max=1)  # Y
+          FeedForwardPID(self.r_kp, self.r_ki, self.r_kd, degree_of_freedom=DegreeOfFreedom.ROLL),  # R
+          FeedForwardPID(self.p_kp, self.p_ki, self.p_kd, degree_of_freedom=DegreeOfFreedom.PITCH),  # P
+          FeedForwardPID(self.y_kp, self.y_ki, self.y_kd, degree_of_freedom=DegreeOfFreedom.YAW, windup_max=1)  # Y
         ]
         self.pids_created = True
 

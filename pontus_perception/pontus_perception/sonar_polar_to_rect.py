@@ -44,7 +44,7 @@ class SonarPolarToRect(Node):
         for r in range(0, shape[0]):
             for c in range(0, shape[1]):
                 pixel = bgr[r][c]
-                
+
                 # average the channels
                 value = sum(pixel) / 3.0
 

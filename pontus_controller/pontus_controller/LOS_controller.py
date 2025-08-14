@@ -7,8 +7,9 @@ import numpy as np
 import tf_transformations
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist, Pose
-from pontus_controller.PID import PID
+from pontus_controller.PID import PID, FeedForwardPID
 from rclpy.action import ActionServer
+from rcl_interfaces.msg import SetParametersResult
 
 class PositionControllerSequence(Enum):
     MaintainPosition = 0
@@ -20,6 +21,31 @@ class LOSController(Node):
     def __init__(self):
         super().__init__('LOS_controller')
         self.sequence = PositionControllerSequence.MaintainPosition
+
+        param_list = (
+            ('yaw_vmax', 0.35),
+            ('x_vmax', 0.2),
+            ('y_vmax', 0.2),
+            ('x_kp', 1.0),
+            ('x_ki', 0.0),
+            ('x_kd', 0.0),
+            ('y_kp', 0.275),
+            ('y_ki', 1.0),
+            ('y_kd', 0.0),
+            ('z_kp', 0.5),
+            ('z_ki', 0.0),
+            ('z_kd', 0.0),
+            ('r_kp', 0.1),
+            ('r_ki', 0.0),
+            ('r_kd', 0.0),
+            ('p_kp', 0.5),
+            ('p_ki', 0.0),
+            ('p_kd', 0.0),
+            ('yaw_kp', 0.5),
+            ('yaw_ki', 0.0),
+            ('yaw_kd', 0.0),
+        )
+
         self.odom_sub = self.create_subscription(
             Odometry,
             '/pontus/odometry',
@@ -47,17 +73,23 @@ class LOSController(Node):
         self.prev_time = self.get_clock().now()
         self.controller_mode = False
 
+        self.pids_created = False
+        self.add_on_set_parameters_callback(self.param_callback)
+        self.declare_parameters(namespace="los", parameters=param_list)
+
         self.pid_linear = [
-            PID(1.0, 0, 0),
-            PID(0.275, 0.1, 0.00001, windup_max=10),
-            PID(0.5, 0, 0)
+            PID(self.x_kp, self.x_ki, self.x_kd),
+            PID(self.y_kp, self.y_ki, self.y_kd, windup_max=10.0),
+            PID(self.z_kp, self.z_ki, self.z_kd, windup_max =1.0)
         ]
 
         self.pid_angular = [
-            PID(0.1, 0, 0),
-            PID(0.5, 0, 0),
-            PID(0.15, 0.0, 0.000001, windup_max=2)
+            PID(self.r_kp, self.r_ki, self.r_kd),
+            PID(self.p_kp, self.p_ki, self.p_kd),
+            PID(self.yaw_kp, self.yaw_ki, self.yaw_kd, windup_max=2)
         ]
+
+        self.pids_created = True
 
         self.cmd_linear = None
         self.cmd_angular = None
@@ -149,12 +181,12 @@ class LOSController(Node):
 
     def clamp_velocity(self, msg: Twist) -> Twist:
         # Roughly 30 degrees / s
-        if abs(msg.angular.z) > 0.13:
-            msg.angular.z = np.sign(msg.angular.z) * 0.13
-        if abs(msg.linear.x) > 0.2:
-            msg.linear.x = np.sign(msg.linear.x) * 0.2
-        if abs(msg.linear.y) > 0.25:
-            msg.linear.y = np.sign(msg.linear.y) * 0.25
+        if abs(msg.angular.z) > self.yaw_vmax:
+            msg.angular.z = np.sign(msg.angular.z) * self.yaw_vmax
+        if abs(msg.linear.x) > self.x_vmax:
+            msg.linear.x = np.sign(msg.linear.x) * self.x_vmax
+        if abs(msg.linear.y) > self.y_vmax:
+            msg.linear.y = np.sign(msg.linear.y) * self.y_vmax
         return msg
 
     def calculate_angular_error(self,
@@ -231,7 +263,7 @@ class LOSController(Node):
         linear_err = self.calculate_linear_error(self.goal_pose, current_position, quat)
         (r, p, y) = tf_transformations.euler_from_quaternion(quat)
         current_orientation = np.array([r, p, y])
-        angular_err = self.calculate_angular_error(self.goal_angle, current_orientation)
+        angular_err = self.calculate_angular_error(self.cmd_angular, current_orientation)
 
         return linear_err, angular_err
     
@@ -307,6 +339,35 @@ class LOSController(Node):
             angular_err = self.calculate_angular_error(goal_orientation, current_orientation)
         return linear_err, angular_err
 
+    def param_callback(self, params):
+      for param in params:
+        name = param.name.replace("los.", "")
+        setattr(self, name, param.value)
+
+        if self.pids_created:
+          split = name.split("_")
+          dof = split[0]
+          gain = split[1]
+
+          pid_obj = None
+          match dof:
+            case "x":
+              pid_obj = self.pid_linear[0]
+            case "y":
+              pid_obj = self.pid_linear[1]
+            case "z":
+              pid_obj = self.pid_linear[2]
+            case "r":
+              pid_obj = self.pid_angular[0]
+            case "p":
+              pid_obj = self.pid_angular[1]
+            case "yaw":
+              pid_obj = self.pid_angular[2]
+
+          if (pid_obj is not None):
+            setattr(pid_obj, gain, param.value)
+
+      return SetParametersResult(successful=True)
 
 def main(args=None):
     rclpy.init(args=args)
