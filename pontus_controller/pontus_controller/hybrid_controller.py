@@ -27,9 +27,9 @@ class HybridControllerNode(Node):
             ('y_kp', 2.0),
             ('y_ki', 0.0),
             ('y_kd', 0.0),
-            ('z_kp', 1.0),
+            ('z_kp', 3.0),
             ('z_ki', 0.0),
-            ('z_kd', 0.0),
+            ('z_kd', 0.1),
             ('r_kp', 1.0),
             ('r_ki', 0.0),
             ('r_kd', 0.0),
@@ -38,7 +38,7 @@ class HybridControllerNode(Node):
             ('p_kd', 0.0),
             ('yaw_kp', 4.0),
             ('yaw_ki', 0.0),
-            ('yaw_kd', 0.0),
+            ('yaw_kd', 4.0),
         )
 
         self.pids_created = False
@@ -136,6 +136,7 @@ class HybridControllerNode(Node):
         self.depth_msg = msg
 
         self.get_logger().info(f"pid yaw kp: {self.pid_angular[2].kp}")
+        self.get_logger().info(f"cmd_depth: {self.cmd_depth}")
 
         # Compute and publish the body accelerations
         accel_msg = Twist()
@@ -182,7 +183,7 @@ class HybridControllerNode(Node):
             accel_msg.linear.z = self.pid_linear[2](self.cmd_linear[2] - msg.twist.twist.linear.z, dt)
             # accel_msg.linear.z = 16.0 * self.cmd_linear[2]
 
-        # accel_msg.linear.z -= 9.8 * ((1000 * 0.0405) - (34.02)) / 34.02 # TEMPORARY FEEDFORWARD
+        accel_msg.linear.z -= 9.8 * ((1000 * 0.0405) - (34.02)) / 34.02 # TEMPORARY FEEDFORWARD
         self.cmd_accel_pub.publish(accel_msg)
 
         self.prev_time = self.get_clock().now()
