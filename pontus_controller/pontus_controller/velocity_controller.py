@@ -23,8 +23,8 @@ class VelocityNode(Node):
             ('x_ki', 0.0),
             ('x_kd', 0.0),
             ('y_kp', 10.0),
-            ('y_ki', 1.0),
-            ('y_kd', 0.000001),
+            ('y_ki', 0.0),
+            ('y_kd', 0.0),
             ('z_kp', 10.0),
             ('z_ki', 0.0),
             ('z_kd', 0.0),
@@ -34,9 +34,9 @@ class VelocityNode(Node):
             ('p_kp', 0.01),
             ('p_ki', 0.0),
             ('p_kd', 0.0),
-            ('yaw_kp', 0.1),
+            ('yaw_kp', 0.2),
             ('yaw_ki', 0.0),
-            ('yaw_kd', 0.0001),
+            ('yaw_kd', 0.05),
         )
 
         self.pids_created = False

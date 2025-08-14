@@ -24,7 +24,7 @@ class LOSController(Node):
 
         param_list = (
             ('yaw_vmax', 0.35),
-            ('x_vmax', 0.2),
+            ('x_vmax', 0.4),
             ('y_vmax', 0.2),
             ('x_kp', 1.0),
             ('x_ki', 0.0),
