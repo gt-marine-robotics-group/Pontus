@@ -92,7 +92,7 @@ class LOSController(Node):
         self.pids_created = True
 
         self.cmd_linear = None
-        self.cmd_angular = None
+        self.cmd_angular = np.zeros(3)
         self.goal_pose = np.zeros(3)
         self.goal_angle = np.zeros(3)
         self.start_pose = np.zeros(3)
