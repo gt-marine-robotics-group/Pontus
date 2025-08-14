@@ -48,7 +48,7 @@ class SonarPolarToRect(Node):
                 # average the channels
                 value = sum(pixel) / 3.0
 
-                if value > 10:
+                if value > -1:
                     # convert to rectangular coords
 
                     sonar_res = 0.008

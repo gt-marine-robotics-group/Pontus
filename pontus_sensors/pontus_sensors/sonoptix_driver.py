@@ -60,8 +60,8 @@ class SonoptixDriver(Node):
         # TODO: Make sure that these are correct
         requests.patch(api_url + '/config', json={
             "contrast": 0,
-            "gain": 20.0,
-            "mirror_image": True,
+            "gain": -20,
+            "mirror_image": False,
             "autodetect_orientation": 0
         })
 
@@ -83,16 +83,14 @@ class SonoptixDriver(Node):
 
         """
         while self.cap.isOpened():
+            self.get_logger().warn("read frame")
             ret, frame = self.cap.read()
             if ret:
-                cv2.imshow("Frame", frame)
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord('q'):
-                    break
-                print(frame)
+                self.get_logger().warn("frame was valid")
                 preprocessed_image = self.preprocess_frame(frame)
                 # preprocessed_image = frame
-                ros_image = self.cv_bridge.cv2_to_imgmsg(frame, encoding="bgr8")
+                #ros_image = self.cv_bridge.cv2_to_imgmsg(frame, encoding="bgr8")
+                ros_image = self.cv_bridge.cv2_to_imgmsg(preprocessed_image, encoding="mono8")
                 self.pub.publish(ros_image)
             else:
                 self.get_logger().warn("Failed to read frame")
@@ -111,10 +109,15 @@ class SonoptixDriver(Node):
 
         """
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        # masked = cv2.inRange(gray, 3, 255)
-        # masked = cv2.inRange(gray, self.intensity_threshold, 255)
-        # color = cv2.cvtColor(masked, cv2.COLOR_GRAY2BGR)
-        # return gray
+        mx = np.max(gray)
+        mn = np.min(gray)
+        avg = np.average(gray[gray > 1.0])
+        #masked = cv2.inRange(gray, 3, 255)
+        #masked = cv2.inRange(gray, self.intensity_threshold, 255)
+        gray[gray > 2.0] = gray[gray > 2.0] * (255 / mx)
+        #color = cv2.cvtColor(masked, cv2.COLOR_GRAY2BGR)
+        self.get_logger().warn(f"Max: {mx}, Min: {mn}, Avg: {avg}")
+        return gray
 
 
 def main(args: Optional[List[str]] = None) -> None:
