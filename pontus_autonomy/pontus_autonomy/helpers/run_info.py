@@ -8,8 +8,8 @@ from pontus_autonomy.helpers.run_info_helpers import *
 # ------- Semantic Map Info -------
 
 # ------ Gate Task ------
-GATE_CENTER_X = -0.75
-GATE_CENTER_Y = -4.57
+GATE_CENTER_X = 0.0
+GATE_CENTER_Y = -4.0
 
 DEFAULT_GATE_DEPTH = POOL_DEPTH + 0.6 + 0.3
 
@@ -32,8 +32,8 @@ gate_right = SemanticMapObject(
 DEFAULT_SLALOM_DEPTH = POOL_DEPTH + 0.45 + 0.3
 
 # --- Slalom Set 1 ---
-RED_SLALOM_1_X = GATE_CENTER_X - 2.0
-RED_SLALOM_1_Y = GATE_CENTER_Y - 3.5
+RED_SLALOM_1_X = -2.73
+RED_SLALOM_1_Y = -8.23
 
 slalom_set_1 = SlalomSet(
     red_slalom=SemanticMapObject(
@@ -45,15 +45,15 @@ slalom_set_1 = SlalomSet(
 
     white_slalom_left=SemanticMapObject(
         label=SemanticObject.SlalomWhite,
-        x=RED_SLALOM_1_X + 1.2,
-        y=RED_SLALOM_1_Y - 0.3,
+        x=RED_SLALOM_1_X + 1.5,
+        y=RED_SLALOM_1_Y - 0.0,
         depth=DEFAULT_SLALOM_DEPTH
     ),
 
     white_slalom_right=SemanticMapObject(
         label=SemanticObject.SlalomWhite,
-        x=RED_SLALOM_1_X - 1.2,
-        y=RED_SLALOM_1_Y + 0.3,
+        x=RED_SLALOM_1_X - 1.5,
+        y=RED_SLALOM_1_Y + 0.0,
         depth=DEFAULT_SLALOM_DEPTH
     )
 )
@@ -61,7 +61,7 @@ slalom_set_1 = SlalomSet(
 
 # --- Slalom Set 2 ---
 RED_SLALOM_2_X = RED_SLALOM_1_X - 0.3
-RED_SLALOM_2_Y = RED_SLALOM_1_Y - 1.2
+RED_SLALOM_2_Y = RED_SLALOM_1_Y - 2.0
 
 slalom_set_2 = SlalomSet(
     red_slalom=SemanticMapObject(
@@ -73,15 +73,15 @@ slalom_set_2 = SlalomSet(
 
     white_slalom_left=SemanticMapObject(
         label=SemanticObject.SlalomWhite,
-        x=RED_SLALOM_2_X + 1.3,
-        y=RED_SLALOM_2_Y - 0.2,
+        x=RED_SLALOM_2_X + 1.5,
+        y=RED_SLALOM_2_Y - 0.0,
         depth=DEFAULT_SLALOM_DEPTH
     ),
 
     white_slalom_right=SemanticMapObject(
         label=SemanticObject.SlalomWhite,
-        x=RED_SLALOM_2_X - 1.3,
-        y=RED_SLALOM_2_Y + 0.2,
+        x=RED_SLALOM_2_X - 1.5,
+        y=RED_SLALOM_2_Y + 0.0,
         depth=DEFAULT_SLALOM_DEPTH
     )
 )
@@ -89,7 +89,7 @@ slalom_set_2 = SlalomSet(
 
 # --- Slalom Set 3 ---
 RED_SLALOM_3_X = RED_SLALOM_2_X - 0.3
-RED_SLALOM_3_Y = RED_SLALOM_2_Y - 1.0
+RED_SLALOM_3_Y = RED_SLALOM_2_Y - 2.0
 
 slalom_set_3 = SlalomSet(
     red_slalom=SemanticMapObject(
@@ -101,14 +101,14 @@ slalom_set_3 = SlalomSet(
 
     white_slalom_left=SemanticMapObject(
         label=SemanticObject.SlalomWhite,
-        x=RED_SLALOM_3_X + 1.2,
+        x=RED_SLALOM_3_X + 1.5,
         y=RED_SLALOM_3_Y - 0.3,
         depth=DEFAULT_SLALOM_DEPTH
     ),
 
     white_slalom_right=SemanticMapObject(
         label=SemanticObject.SlalomWhite,
-        x=RED_SLALOM_3_X - 1.2,
+        x=RED_SLALOM_3_X - 1.5,
         y=RED_SLALOM_3_Y + 0.3,
         depth=DEFAULT_SLALOM_DEPTH
     )
@@ -136,8 +136,8 @@ slalom_travel_2: XY = XY(
 # ------- Octagon ------
 octagon = SemanticMapObject(
     label=SemanticObject.Octagon,
-    x=GATE_CENTER_X - 1.5,
-    y=POOL_WIDTH - 3.5
+    x=(RED_SLALOM_3_X + 1.75),
+    y=-18.0
 )
 
 """
@@ -237,13 +237,17 @@ waypoints_list: list[PoseObj] = [
 
     # Exit Slalom
     # --------- VARIABLE --------
-    make_waypoint(slalom_midpoint_3.x - 1.5,
+    make_waypoint(slalom_midpoint_3.x + 0.0,
                   slalom_midpoint_3.y - 2.5),
 
-    make_waypoint(slalom_midpoint_3.x + 3.0,
-                  slalom_midpoint_3.y - 2.5),
+    # ------- Octagon ------
+
+    make_waypoint(octagon.x, octagon.y),
+    make_waypoint(octagon.x, octagon.y, depth=0.0),  # Surface
+    make_waypoint(octagon.x, octagon.y),
 
 
+    # ------- Return Home -------
     make_waypoint(GATE_CENTER_X + 0.5, GATE_CENTER_Y - 3.0),
 
 
