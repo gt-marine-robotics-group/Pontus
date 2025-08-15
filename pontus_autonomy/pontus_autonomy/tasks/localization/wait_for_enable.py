@@ -1,7 +1,8 @@
-from geometry_msgs.msg import Pose
 from std_msgs.msg import Bool
-import time
 from pontus_autonomy.tasks.base_task import BaseTask
+
+DEBOUNCE_THRESHOLD = 20
+
 
 class WaitForEnable(BaseTask):
     def __init__(self):
@@ -19,8 +20,15 @@ class WaitForEnable(BaseTask):
             10,
         )
 
+        self.debounce_counter = 0
+
     def auto_enable(self, msg):
         if msg.data:
+            self.debounce_counter += 1
+        else:
+            self.debounce_counter = 0
+
+        if self.debounce_counter >= DEBOUNCE_THRESHOLD:
             self.get_logger().info("Enable autonomy")
             self.complete(True)
             self.get_logger().info('Done waiting')

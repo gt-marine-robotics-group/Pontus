@@ -4,6 +4,7 @@ import numpy as np
 from geometry_msgs.msg import Twist, Pose
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import CameraInfo
+from std_msgs.msg import Bool
 import tf_transformations
 
 from pontus_autonomy.tasks.base_task import BaseTask
@@ -14,6 +15,8 @@ from pontus_mapping.semantic_map_manager import SemanticObject
 
 from pontus_autonomy.helpers.run_info import waypoints_list
 
+AUTONOMY_DEBOUNCE_THRESHOLD = 15
+
 
 class WaypointContoller(BaseTask):
     class State(Enum):
@@ -21,7 +24,7 @@ class WaypointContoller(BaseTask):
         Done = 1
 
     def __init__(self):
-        super().__init__('vertical_task_prequal_velocity')
+        super().__init__('waypoint_controller')
 
         self.create_subscription(
             Odometry,
@@ -29,6 +32,15 @@ class WaypointContoller(BaseTask):
             self.odometry_callback,
             10
         )
+
+        self.create_subscription(
+            Bool,
+            '/auto_enable',
+            self.auto_enable,
+            10
+        )
+
+        self.autonomy_switch_count = 0
 
         self.create_timer(
             0.2,
@@ -60,6 +72,15 @@ class WaypointContoller(BaseTask):
         # if self.current_odometry is None:
         # self.desired_depth = msg.pose.pose.position.z
         self.current_odometry = msg.pose.pose
+
+    def auto_enable(self, msg: Bool) -> None:
+        if msg.data:
+            self.autonomy_switch_count += 1
+        else:
+            self.autonomy_switch_count = 0
+
+        if self.autonomy_switch_count >= AUTONOMY_DEBOUNCE_THRESHOLD:
+            self.complete(False)
 
     def copy_pose(self, pose: Pose) -> Pose:
         """
@@ -130,20 +151,16 @@ class WaypointContoller(BaseTask):
             return None
 
         if not self.command_sent:
-
             cmd_pose = waypoints[self.current_desired_position]
             self.command_sent = True
 
             self.get_logger().info(
-                f"Waypoint #{self.current_desired_position}: {str(cmd_pose)}")
+                f"Waypoint #{self.current_desired_position}: {cmd_pose.cmd_pose.position.x}, {cmd_pose.cmd_pose.position.y}, {cmd_pose.cmd_pose.position.z}")
 
             return cmd_pose
 
         elif self.go_to_pose_client.at_pose():
             self.current_desired_position += 1
             self.command_sent = False
-
-        if self.current_desired_position == len(waypoints):
-            self.state = self.State.Done
 
         return None
