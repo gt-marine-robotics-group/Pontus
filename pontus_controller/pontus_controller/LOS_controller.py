@@ -16,6 +16,7 @@ class PositionControllerSequence(Enum):
     ZCorrection = 1
     Rotate = 2
     GoToPoint = 3
+    RotateToFinal = 4
 
 class LOSController(Node):
     def __init__(self):
@@ -164,6 +165,9 @@ class LOSController(Node):
                 linear_err, angular_err = self.rotate(current_position, quat)
             case PositionControllerSequence.GoToPoint:
                 linear_err, angular_err = self.go_to_point(current_position, quat)
+            case PositionControllerSequence.RotateToFinal:
+                 linear_err, angular_err = self.go_to_point(current_position, quat)
+
         dt = self.get_clock().now() - self.prev_time
         self.prev_time = self.get_clock().now()
         msg = Twist()
@@ -265,6 +269,11 @@ class LOSController(Node):
         current_orientation = np.array([r, p, y])
         angular_err = self.calculate_angular_error(self.cmd_angular, current_orientation)
 
+        if np.linalg.norm(linear_err[:2]) > 1.0:
+            self.sequence = PositionControllerSequence.GoToPoint
+            return np.zeros(3), np.zeros(3)
+
+
         return linear_err, angular_err
     
     def correct_z(self,
@@ -338,6 +347,35 @@ class LOSController(Node):
             goal_orientation = np.array([0, 0, np.arctan2(linear_difference[1], linear_difference[0])])
             angular_err = self.calculate_angular_error(goal_orientation, current_orientation)
         return linear_err, angular_err
+
+    def rotate_to_final(self,
+                          current_position: np.ndarray,
+                          quat: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Rotate to final angle.
+
+        Our orientation is needed to convert from odom frame to body frame for thrust vectors.
+
+        Args:
+        ----
+        current_position (np.ndarray): our current position
+        quat (np.ndarray): our current orientation
+
+        Return:
+        ------
+        tuple[np.ndarray, np.ndarray]: linear error, angular error
+
+        """
+        linear_err = self.calculate_linear_error(self.goal_pose, current_position, quat)
+        (r, p, y) = tf_transformations.euler_from_quaternion(quat)
+        current_orientation = np.array([r, p, y])
+        angular_err = self.calculate_angular_error(self.cmd_angular, current_orientation)
+        
+        if abs(angular_err[2] < 0.1):
+            self.sequence = PositionControllerSequence.MaintainPosition
+
+        return linear_err, angular_err
+
 
     def param_callback(self, params):
       for param in params:
