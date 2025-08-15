@@ -237,8 +237,21 @@ waypoints_list: list[PoseObj] = [
 
     # Exit Slalom
     # --------- VARIABLE --------
-    # make_waypoint(slalom_midpoint_3.x,
-    #               slalom_midpoint_3.y - ROBOT_LENGTH - 0.2),
+    make_waypoint(slalom_midpoint_3.x - 1.5,
+                  slalom_midpoint_3.y - 2.5),
+
+    make_waypoint(slalom_midpoint_3.x + 3.0,
+                  slalom_midpoint_3.y - 2.5),
+
+
+    make_waypoint(GATE_CENTER_X + 0.5, GATE_CENTER_Y - 3.0),
+
+
+    make_waypoint((gate_right.x + GATE_CENTER_X) / 2.0,
+                  GATE_CENTER_Y - 0.75),
+
+    make_waypoint((gate_right.x + GATE_CENTER_X) / 2.0,
+                  GATE_CENTER_Y + 1.75),
 
     # # --------- VARIABLE --------
     # make_waypoint(GATE_CENTER_X - 3.0, GATE_CENTER_Y + 4.0),
