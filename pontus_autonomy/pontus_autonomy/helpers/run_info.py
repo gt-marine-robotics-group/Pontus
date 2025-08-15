@@ -202,51 +202,60 @@ waypoints_list: list[PoseObj] = [
 
 """
 
+# waypoints_list: list[PoseObj] = [
+
+#     # Start Point
+#     make_waypoint(0.0, 0.0),
+
+#     # make_waypoint(GATE_CENTER_X, GATE_CENTER_Y - 1.0),
+#     make_waypoint((gate_right.x + GATE_CENTER_X) / 2.0,
+#                   GATE_CENTER_Y - 1.25),
+
+#     # Through the gate (slightly right of gate center)
+#     make_waypoint((gate_right.x + GATE_CENTER_X) / 2.0,
+#                   GATE_CENTER_Y + 0.75),
+
+#     # Slalom Task
+#     make_waypoint(slalom_enter_point.x + 0.0, slalom_enter_point.y + 0.0),
+
+#     make_waypoint(slalom_midpoint_1.x, slalom_midpoint_1.y),
+
+#     make_waypoint(slalom_travel_1.x + 0.0, slalom_travel_1.y + 0.0),
+
+#     make_waypoint(slalom_midpoint_2.x, slalom_midpoint_2.y),
+
+#     make_waypoint(slalom_travel_2.x + 0.0, slalom_travel_2.y + 0.0),
+
+#     make_waypoint(slalom_midpoint_3.x, slalom_midpoint_3.y),
+
+#     # Exit Slalom
+#     # --------- VARIABLE --------
+#     make_waypoint(slalom_midpoint_3.x,
+#                   slalom_midpoint_3.y + ROBOT_LENGTH + 0.2),
+
+#     # Octagon
+#     make_waypoint(octagon.x, octagon.y),
+#     make_waypoint(octagon.x, octagon.y, depth=0.0),  # Surface
+#     make_waypoint(octagon.x, octagon.y),
+
+#     # Return Home
+#     # --------- VARIABLE --------
+#     make_waypoint(GATE_CENTER_X + 3.0, GATE_CENTER_Y + 4.0),
+
+
+#     make_waypoint((gate_right.x + GATE_CENTER_X) / 2.0,
+#                   GATE_CENTER_Y + 0.75),
+
+#     make_waypoint((gate_right.x + GATE_CENTER_X) / 2.0,
+#                   GATE_CENTER_Y - 1.25),
+
+# ]
+
+
 waypoints_list: list[PoseObj] = [
-
-    # Start Point
-    make_waypoint(0.0, 0.0),
-
-    # make_waypoint(GATE_CENTER_X, GATE_CENTER_Y - 1.0),
-    make_waypoint((gate_right.x + GATE_CENTER_X) / 2.0,
-                  GATE_CENTER_Y - 1.25),
-
-    # Through the gate (slightly right of gate center)
-    make_waypoint((gate_right.x + GATE_CENTER_X) / 2.0,
-                  GATE_CENTER_Y + 0.75),
-
-    # Slalom Task
-    make_waypoint(slalom_enter_point.x + 0.0, slalom_enter_point.y + 0.0),
-
-    make_waypoint(slalom_midpoint_1.x, slalom_midpoint_1.y),
-
-    make_waypoint(slalom_travel_1.x + 0.0, slalom_travel_1.y + 0.0),
-
-    make_waypoint(slalom_midpoint_2.x, slalom_midpoint_2.y),
-
-    make_waypoint(slalom_travel_2.x + 0.0, slalom_travel_2.y + 0.0),
-
-    make_waypoint(slalom_midpoint_3.x, slalom_midpoint_3.y),
-
-    # Exit Slalom
-    # --------- VARIABLE --------
-    make_waypoint(slalom_midpoint_3.x,
-                  slalom_midpoint_3.y + ROBOT_LENGTH + 0.2),
-
-    # Octagon
-    make_waypoint(octagon.x, octagon.y),
-    make_waypoint(octagon.x, octagon.y, depth=0.0),  # Surface
-    make_waypoint(octagon.x, octagon.y),
-
-    # Return Home
-    # --------- VARIABLE --------
-    make_waypoint(GATE_CENTER_X + 3.0, GATE_CENTER_Y + 4.0),
-
-
-    make_waypoint((gate_right.x + GATE_CENTER_X) / 2.0,
-                  GATE_CENTER_Y + 0.75),
-
-    make_waypoint((gate_right.x + GATE_CENTER_X) / 2.0,
-                  GATE_CENTER_Y - 1.25),
-
+    make_waypoint(0, 0, yaw_degrees=0),
+    make_waypoint(0, 0, yaw_degrees=90),
+    make_waypoint(0, 0, yaw_degrees=180),
+    make_waypoint(0, 0, yaw_degrees=270),
+    make_waypoint(0, 0, yaw_degrees=360),
 ]

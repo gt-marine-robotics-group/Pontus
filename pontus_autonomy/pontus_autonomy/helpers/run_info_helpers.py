@@ -5,6 +5,10 @@ from pontus_autonomy.helpers.GoToPoseClient import PoseObj, MovementMethod
 from pontus_mapping.semantic_map_manager import SemanticObject
 from dataclasses import dataclass
 
+import numpy as np
+
+import tf_transformations
+
 DEFAULT_DEPTH_M = -1.2
 ROBOT_LENGTH = 0.5   # TODO: measure
 ROBOT_WIDTH = 0.3
@@ -53,6 +57,7 @@ def make_waypoint(
     x: float,
     y: float,
     depth: float = DEFAULT_DEPTH_M,
+    yaw_degrees: float = None,
     skip_orientation: bool = True,
     movement_method: MovementMethod = MovementMethod.TurnThenForward,
 ) -> PoseObj:
@@ -61,6 +66,15 @@ def make_waypoint(
     pose.position.x = float(x)
     pose.position.y = float(y)
     pose.position.z = float(depth)
+
+    if yaw_degrees is not None:
+        yaw_radians = yaw_degrees * (np.pi / 180)
+
+        quat = tf_transformations.quaternion_from_euler(0, 0, yaw_radians)
+        pose.orientation.x = quat[0]
+        pose.orientation.y = quat[1]
+        pose.orientation.z = quat[2]
+        pose.orientation.w = quat[3]
 
     return PoseObj(
         cmd_pose=pose,
