@@ -39,13 +39,13 @@ GATE_CENTER_X = 0.0
 GATE_CENTER_Y = 0.0
 
 gate_left = SemanticMapObject(
-    label=SemanticObject.GateLeft,
+    label=SemanticObject.LeftGate,
     x=GATE_CENTER_X - 1.0,
     y=GATE_CENTER_Y + 0.0
 )
 
 gate_right = SemanticMapObject(
-    label=SemanticObject.GateRight,  # FIX: use correct enum
+    label=SemanticObject.RightGate,  # FIX: use correct enum
     x=GATE_CENTER_X + 1.0,
     y=GATE_CENTER_Y + 0.0
 )
@@ -72,19 +72,19 @@ RED_SLALOM_1_Y = GATE_CENTER_Y + 3.0
 
 slalom_set_1 = SlalomSet(
     red_slalom=SemanticMapObject(
-        label=SemanticObject.Red_Slalom,
+        label=SemanticObject.SlalomRed,
         x=RED_SLALOM_1_X,
         y=RED_SLALOM_1_Y
     ),
 
     white_slalom_left=SemanticMapObject(
-        label=SemanticObject.White_Slalom,
+        label=SemanticObject.SlalomWhite,
         x=RED_SLALOM_1_X - 1.0,
         y=RED_SLALOM_1_Y + 0.0
     ),
 
     white_slalom_right=SemanticMapObject(
-        label=SemanticObject.White_Slalom,
+        label=SemanticObject.SlalomWhite,
         x=RED_SLALOM_1_X + 1.0,
         y=RED_SLALOM_1_Y + 0.0
     )
@@ -97,19 +97,19 @@ RED_SLALOM_2_Y = RED_SLALOM_1_Y + 2.0
 
 slalom_set_2 = SlalomSet(
     red_slalom=SemanticMapObject(
-        label=SemanticObject.Red_Slalom,
+        label=SemanticObject.SlalomRed,
         x=RED_SLALOM_2_X,
         y=RED_SLALOM_2_Y
     ),
 
     white_slalom_left=SemanticMapObject(
-        label=SemanticObject.White_Slalom,
+        label=SemanticObject.SlalomWhite,
         x=RED_SLALOM_2_X - 1.0,
         y=RED_SLALOM_2_Y + 0.0
     ),
 
     white_slalom_right=SemanticMapObject(
-        label=SemanticObject.White_Slalom,
+        label=SemanticObject.SlalomWhite,
         x=RED_SLALOM_2_X + 1.0,
         y=RED_SLALOM_2_Y + 0.0
     )
@@ -122,19 +122,19 @@ RED_SLALOM_3_Y = RED_SLALOM_2_Y + 2.0
 
 slalom_set_3 = SlalomSet(
     red_slalom=SemanticMapObject(
-        label=SemanticObject.Red_Slalom,
+        label=SemanticObject.SlalomRed,
         x=RED_SLALOM_3_X,
         y=RED_SLALOM_3_Y
     ),
 
     white_slalom_left=SemanticMapObject(
-        label=SemanticObject.White_Slalom,
+        label=SemanticObject.SlalomWhite,
         x=RED_SLALOM_3_X - 1.0,
         y=RED_SLALOM_3_Y + 0.0
     ),
 
     white_slalom_right=SemanticMapObject(
-        label=SemanticObject.White_Slalom,
+        label=SemanticObject.SlalomWhite,
         x=RED_SLALOM_3_X + 1.0,
         y=RED_SLALOM_3_Y + 0.0
     )
@@ -185,10 +185,11 @@ def make_waypoint(
 
 
 waypoints_list: list = [
-    make_waypoint(0, 0),
-    make_waypoint(1, 0),
-    make_waypoint(1, 1),
-    make_waypoint(1, 0),
+    make_waypoint(0, 0, movement_method=MovementMethod.StrafeThenForward),
+    make_waypoint(1, 0,
+                  movement_method=MovementMethod.VelocityMaintainDepthHeading),
+    make_waypoint(1, 1, movement_method=MovementMethod.VelocityMaintainDepth, skip_orientation=False),
+    make_waypoint(1, 0, movement_method=MovementMethod.Velocity),
     make_waypoint(0, 0, depth=0.0)
 ]
 
