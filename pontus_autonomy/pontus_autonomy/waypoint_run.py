@@ -17,14 +17,14 @@ class WaypointRun(BaseRun):
         self.run()
 
     def run(self):
-        self.get_logger().info("Starting Run")
+        self.get_logger().info("Starting Run, waiting for autonomy switch")
 
         result = self.run_task(WaitForEnable)
-        self.get_logger().info(f"Wait for enable: {result}")
+        self.get_logger().info(f"Autonomy switch enable: {result}")
 
         process = subprocess.Popen(
             ['ros2', 'launch', 'pontus_bringup', 'auv.launch.py', 'auv:=auv'])
-        time.sleep(30)
+        time.sleep(10)
         # Submerge Task
         result = self.run_task(WaypointContoller)
         self.get_logger().info(f"WaypointContoller: {result}")
@@ -32,7 +32,7 @@ class WaypointRun(BaseRun):
 
 def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
-    node = WaypointContoller()
+    node = WaypointRun()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()

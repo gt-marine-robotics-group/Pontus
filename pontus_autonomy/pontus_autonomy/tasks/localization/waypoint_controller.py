@@ -156,6 +156,8 @@ class WaypointContoller(BaseTask):
 
             self.get_logger().info(
                 f"Waypoint #{self.current_desired_position}: {cmd_pose.cmd_pose.position.x}, {cmd_pose.cmd_pose.position.y}, {cmd_pose.cmd_pose.position.z}")
+            self.get_logger().info(
+                f"Current pos: # {self.current_odometry.position.x}, {self.current_odometry.position.y}, {self.current_odometry.position.z}")
 
             return cmd_pose
 
