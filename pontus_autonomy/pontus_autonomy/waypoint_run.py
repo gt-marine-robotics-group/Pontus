@@ -14,7 +14,9 @@ import subprocess
 class WaypointRun(BaseRun):
     def __init__(self):
         super().__init__("waypoint_run")
+        self.run()
 
+    def run(self):
         self.get_logger().info("Starting Run")
 
         result = self.run_task(WaitForEnable)
