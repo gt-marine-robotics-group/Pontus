@@ -60,7 +60,7 @@ slalom_set_1 = SlalomSet(
 
 
 # --- Slalom Set 2 ---
-RED_SLALOM_2_X = RED_SLALOM_1_X - 0.3
+RED_SLALOM_2_X = RED_SLALOM_1_X
 RED_SLALOM_2_Y = RED_SLALOM_1_Y - 2.0
 
 slalom_set_2 = SlalomSet(
@@ -88,7 +88,7 @@ slalom_set_2 = SlalomSet(
 
 
 # --- Slalom Set 3 ---
-RED_SLALOM_3_X = RED_SLALOM_2_X - 0.3
+RED_SLALOM_3_X = RED_SLALOM_2_X
 RED_SLALOM_3_Y = RED_SLALOM_2_Y - 2.0
 
 slalom_set_3 = SlalomSet(
