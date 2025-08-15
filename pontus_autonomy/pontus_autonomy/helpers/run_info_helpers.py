@@ -6,8 +6,11 @@ from pontus_mapping.semantic_map_manager import SemanticObject
 from dataclasses import dataclass
 
 DEFAULT_DEPTH_M = -1.2
-ROBOT_LENGTH = 1.5   # TODO: measure
-ROBOT_WIDTH = 0.75
+ROBOT_LENGTH = 0.5   # TODO: measure
+ROBOT_WIDTH = 0.3
+
+POOL_WIDTH = 20
+POOL_DEPTH = -2.1
 
 
 @dataclass(frozen=True)
@@ -30,7 +33,6 @@ class SemanticMapObject:
         ps.pose.position.x = self.x
         ps.pose.position.y = self.y
         ps.pose.position.z = self.depth
-        # orientation left at zero; caller may set heading
         return ps
 
 
@@ -45,6 +47,7 @@ class SlalomSet:
             x=(self.red_slalom.x + self.white_slalom_right.x) / 2.0,
             y=(self.red_slalom.y + self.white_slalom_right.y) / 2.0,
         )
+
 
 def make_waypoint(
     x: float,

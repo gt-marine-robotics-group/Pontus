@@ -512,12 +512,15 @@ class SemanticMapManager(Node):
         marker.pose.position.y = float(row['y_loc'])
         marker.pose.position.z = float(row['z_loc'])
 
+        GATE_DIAMETER = 0.15
+        SLALOM_DIAMETER = 0.12
+
         match obj:
             case SemanticObject.LeftGate:
                 marker.type = Marker.CYLINDER
-                marker.scale.x = 0.08  # diameter (m)
-                marker.scale.y = 0.08
-                marker.scale.z = 1.00  # height
+                marker.scale.x = GATE_DIAMETER
+                marker.scale.y = GATE_DIAMETER
+                marker.scale.z = 1.20  # height
                 marker.color.r = 0.0
                 marker.color.g = 1.0
                 marker.color.b = 0.0
@@ -531,9 +534,9 @@ class SemanticMapManager(Node):
 
             case SemanticObject.RightGate:
                 marker.type = Marker.CYLINDER
-                marker.scale.x = 0.08  # diameter (m)
-                marker.scale.y = 0.08
-                marker.scale.z = 1.00  # height
+                marker.scale.x = GATE_DIAMETER
+                marker.scale.y = GATE_DIAMETER
+                marker.scale.z = 1.20  # height
                 marker.color.r = 0.0
                 marker.color.g = 1.0
                 marker.color.b = 0.0
@@ -582,9 +585,9 @@ class SemanticMapManager(Node):
 
             case SemanticObject.SlalomRed:
                 marker.type = Marker.CYLINDER
-                marker.scale.x = 0.08  # diameter (m)
-                marker.scale.y = 0.08
-                marker.scale.z = 1.00  # height
+                marker.scale.x = SLALOM_DIAMETER
+                marker.scale.y = SLALOM_DIAMETER
+                marker.scale.z = 0.90  # height
                 marker.color.r = 1.0
                 marker.color.g = 0.0
                 marker.color.b = 0.0
@@ -592,9 +595,9 @@ class SemanticMapManager(Node):
 
             case SemanticObject.SlalomWhite:
                 marker.type = Marker.CYLINDER
-                marker.scale.x = 0.08
-                marker.scale.y = 0.08
-                marker.scale.z = 1.00
+                marker.scale.x = SLALOM_DIAMETER
+                marker.scale.y = SLALOM_DIAMETER
+                marker.scale.z = 0.90
                 marker.color.r = 1.0
                 marker.color.g = 1.0
                 marker.color.b = 1.0
@@ -603,9 +606,9 @@ class SemanticMapManager(Node):
             case SemanticObject.Octagon:
                 # (use a cube for now; meshes can be flaky in Foxglove)
                 marker.type = Marker.CUBE
-                marker.scale.x = 0.80
-                marker.scale.y = 0.80
-                marker.scale.z = 0.20
+                marker.scale.x = 2.70
+                marker.scale.y = 2.70
+                marker.scale.z = 0.0254
                 marker.color.r = 0.9
                 marker.color.g = 0.7
                 marker.color.b = 0.1
