@@ -17,12 +17,12 @@ class WaypointRun(BaseRun):
 
         self.get_logger().info("Starting Run")
 
-        result = self.run_task(WaitForEnable)
-        self.get_logger().info(f"Wait for enable: {result}")
+        # result = self.run_task(WaitForEnable)
+        # self.get_logger().info(f"Wait for enable: {result}")
 
-        process = subprocess.Popen(
-            ['ros2', 'launch', 'pontus_bringup', 'auv.launch.py', 'auv:=auv'])
-        time.sleep(30)
+        # process = subprocess.Popen(
+        #     ['ros2', 'launch', 'pontus_bringup', 'auv.launch.py', 'auv:=auv'])
+        # time.sleep(30)
         # Submerge Task
         result = self.run_task(WaypointContoller)
         self.get_logger().info(f"WaypointContoller: {result}")
