@@ -16,7 +16,7 @@ def generate_launch_description():
         "map_yaml",
         default_value=PathJoinSubstitution([
             EnvironmentVariable("HOME"),
-            "pontus_ws", "pool_image_visualizer", "pool.yaml"
+			"mrg", "sub_ws", "pool_image_visualizer", "pool.yaml"
         ]),
         description="Path to the pool map YAML (image + resolution + origin).",
     )
