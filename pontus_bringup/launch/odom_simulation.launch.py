@@ -7,17 +7,18 @@ from launch.actions import DeclareLaunchArgument
 from launch_ros.actions import Node
 import os
 
+
 def generate_launch_description():
 
     world_arg = DeclareLaunchArgument(
         'world',
-        default_value = 'prequal.world'
+        default_value='prequal.world'
     )
     world = LaunchConfiguration('world')
 
     static_arg = DeclareLaunchArgument(
         'static',
-        default_value = 'false'
+        default_value='false'
     )
     static = LaunchConfiguration('static')
     localization_share = get_package_share_directory('pontus_localization')
@@ -30,7 +31,7 @@ def generate_launch_description():
                 'sim.launch.py'
             ])
         ),
-        launch_arguments = {'world': world}.items()
+        launch_arguments={'world': world}.items()
     )
 
     spawn_vehicle = launch.actions.IncludeLaunchDescription(
@@ -41,7 +42,7 @@ def generate_launch_description():
                 'spawn.launch.py'
             ])
         ),
-        launch_arguments = {'static': static}.items()
+        launch_arguments={'static': static}.items()
     )
 
     odom_bridge = launch.actions.IncludeLaunchDescription(
@@ -53,10 +54,11 @@ def generate_launch_description():
             ])
         )
     )
-    
+
     localization = launch.actions.IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(localization_share, 'launch', 'localization.launch.py')
+            os.path.join(localization_share, 'launch',
+                         'localization.launch.py')
         ),
         launch_arguments={'auv': 'sim'}.items()
     )
@@ -65,8 +67,8 @@ def generate_launch_description():
             PathJoinSubstitution([
                 get_package_share_directory('pontus_controller'),
                 'launch',
-                # 'los_control.launch.py'
-                'hybrid_control.launch.py'
+                'los_control.launch.py'
+                # 'hybrid_control.launch.py'
             ])
         ),
         launch_arguments={

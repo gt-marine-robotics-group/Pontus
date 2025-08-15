@@ -314,6 +314,7 @@ class GateTask(BaseTask):
                 self.get_logger().info("Unrecognized state")
 
         if cmd_pose:
+            self.get_logger().info(f"cmd_pose send: {cmd_pose}")
             self.go_to_pose_client.go_to_pose(cmd_pose)
 
     def search(self) -> Optional[PoseObj]:
@@ -385,7 +386,8 @@ class GateTask(BaseTask):
         # TODO: Make these use the IMU
         start = np.pi / 3
         end = -np.pi / 3
-        left_gate, right_gate = self.get_gate_location(self.gate_detection_client)
+        left_gate, right_gate = self.get_gate_location(
+            self.gate_detection_client)
         self.get_logger().info(f"{left_gate} {right_gate}")
         # Case 1
         if left_gate and right_gate:
@@ -418,7 +420,8 @@ class GateTask(BaseTask):
             self.get_logger().info("Case #5")
             cmd_pose = Pose()
             desired_angle = start if self.searching_state == self.SearchState.Turn_CCW else end
-            quat = tf_transformations.quaternion_from_euler(0, 0, desired_angle)
+            quat = tf_transformations.quaternion_from_euler(
+                0, 0, desired_angle)
             cmd_pose.position.z = self.desired_depth
             cmd_pose.orientation.x = quat[0]
             cmd_pose.orientation.y = quat[1]
@@ -433,7 +436,8 @@ class GateTask(BaseTask):
             self.get_logger().info("Case #6")
             cmd_pose = Pose()
             desired_angle = start
-            quat = tf_transformations.quaternion_from_euler(0, 0, desired_angle)
+            quat = tf_transformations.quaternion_from_euler(
+                0, 0, desired_angle)
             cmd_pose.position.z = self.desired_depth
             cmd_pose.orientation.x = quat[0]
             cmd_pose.orientation.y = quat[1]
@@ -454,7 +458,8 @@ class GateTask(BaseTask):
             self.get_logger().info("Case #8")
             cmd_pose = Pose()
             desired_angle = end
-            quat = tf_transformations.quaternion_from_euler(0, 0, desired_angle)
+            quat = tf_transformations.quaternion_from_euler(
+                0, 0, desired_angle)
             cmd_pose.position.z = self.desired_depth
             cmd_pose.orientation.x = quat[0]
             cmd_pose.orientation.y = quat[1]
@@ -536,7 +541,8 @@ class GateTask(BaseTask):
 
         """
         if not self.sent:
-            left_gate, right_gate = self.get_gate_location(self.gate_detection_client)
+            left_gate, right_gate = self.get_gate_location(
+                self.gate_detection_client)
             cmd_pose = Pose()
             # Go to the point 1 meter away
             mid_point_x = (left_gate.x + right_gate.x)/2
@@ -544,7 +550,8 @@ class GateTask(BaseTask):
 
             perpendicular_vector = np.array([-right_gate.y + left_gate.y,
                                              right_gate.x - left_gate.x])
-            perpendicular_vector_norm = perpendicular_vector / np.linalg.norm(perpendicular_vector)
+            perpendicular_vector_norm = perpendicular_vector / \
+                np.linalg.norm(perpendicular_vector)
             cmd_pose.position.x = mid_point_x - perpendicular_vector_norm[0]
             cmd_pose.position.y = mid_point_y - perpendicular_vector_norm[1]
             cmd_pose.position.z = self.desired_depth
@@ -575,15 +582,18 @@ class GateTask(BaseTask):
 
         """
         if not self.sent:
-            left_gate, right_gate = self.get_gate_location(self.gate_detection_client)
+            left_gate, right_gate = self.get_gate_location(
+                self.gate_detection_client)
             cmd_pose = Pose()
             # Calculate gate angle
-            angle = np.arctan2(right_gate.y - left_gate.y, right_gate.x - left_gate.x)
+            angle = np.arctan2(right_gate.y - left_gate.y,
+                               right_gate.x - left_gate.x)
             desired_angle = angle + np.pi / 2
             cmd_pose.position.x = self.current_pose.position.x
             cmd_pose.position.y = self.current_pose.position.y
             cmd_pose.position.z = self.desired_depth
-            quat = tf_transformations.quaternion_from_euler(0.0, 0.0, desired_angle)
+            quat = tf_transformations.quaternion_from_euler(
+                0.0, 0.0, desired_angle)
             cmd_pose.orientation.x = quat[0]
             cmd_pose.orientation.y = quat[1]
             cmd_pose.orientation.z = quat[2]
@@ -612,7 +622,8 @@ class GateTask(BaseTask):
 
         """
         if not self.sent:
-            left_gate, right_gate = self.get_gate_location(self.gate_detection_client)
+            left_gate, right_gate = self.get_gate_location(
+                self.gate_detection_client)
             cmd_pose = Pose()
             # Go to the point 1 meter away
             quarter_point_x = 3/4 * left_gate.x + 1/4 * right_gate.x

@@ -28,7 +28,9 @@ setup(
         'console_scripts': [
             'prequal_run = pontus_autonomy.prequalification_run_localization:main',
             'semi_run = pontus_autonomy.semi_run_localization:main',
-            'search_region_test = pontus_autonomy.helpers.SearchRegionClient:main'
+            'search_region_test = pontus_autonomy.helpers.SearchRegionClient:main',
+            'waypointing_run = pontus_autonomy.waypoint_run:main',
+            'semantic_map_seeder = pontus_autonomy.helpers.semantic_map_seeder:main'
         ],
     },
 )
