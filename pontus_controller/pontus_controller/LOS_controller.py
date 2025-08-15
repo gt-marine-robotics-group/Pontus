@@ -166,7 +166,7 @@ class LOSController(Node):
             case PositionControllerSequence.GoToPoint:
                 linear_err, angular_err = self.go_to_point(current_position, quat)
             case PositionControllerSequence.RotateToFinal:
-                 linear_err, angular_err = self.go_to_point(current_position, quat)
+                 linear_err, angular_err = self.rotate_to_final(current_position, quat)
 
         dt = self.get_clock().now() - self.prev_time
         self.prev_time = self.get_clock().now()
@@ -324,7 +324,7 @@ class LOSController(Node):
         (r, p, y) = tf_transformations.euler_from_quaternion(quat)
         current_orientation = np.array([r, p, y])
         if np.linalg.norm(self.cmd_linear[:2] - current_position[:2]) < 0.2:
-            self.sequence = PositionControllerSequence.MaintainPosition
+            self.sequence = PositionControllerSequence.RotateToFinal
             self.goal_pose = self.cmd_linear
             linear_err, angular_err = np.zeros(3), np.zeros(3)
         elif np.linalg.norm(self.cmd_linear[:2] - current_position[:2]) < 2.0:
