@@ -27,5 +27,11 @@ def generate_launch_description():
             package='joy',
             executable='joy_node',
             parameters=[params],
+        ),
+        Node(
+            package='pontus_controller',
+            executable='joy_listener',
+            name='joy_listener',
+            output='screen'
         )               
     ])
