@@ -74,7 +74,7 @@ class WaypointContoller(BaseTask):
         self.current_odometry = msg.pose.pose
 
     def auto_enable(self, msg: Bool) -> None:
-        if msg.data:
+        if not msg.data:
             self.autonomy_switch_count += 1
         else:
             self.autonomy_switch_count = 0
@@ -156,8 +156,9 @@ class WaypointContoller(BaseTask):
 
             self.get_logger().info(
                 f"Waypoint #{self.current_desired_position}: {cmd_pose.cmd_pose.position.x}, {cmd_pose.cmd_pose.position.y}, {cmd_pose.cmd_pose.position.z}")
-            self.get_logger().info(
-                f"Current pos: # {self.current_odometry.position.x}, {self.current_odometry.position.y}, {self.current_odometry.position.z}")
+            if self.current_odometry is not None:
+                self.get_logger().info(
+                    f"Current pos: # {self.current_odometry.position.x}, {self.current_odometry.position.y}, {self.current_odometry.position.z}")
 
             return cmd_pose
 

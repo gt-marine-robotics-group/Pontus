@@ -100,8 +100,13 @@ class LOSController(Node):
         self.current_pose = Pose()
         self.previous_state = None
 
+        self.skip_orientation = False
+
+
+
     async def execute_callback(self, goal_handle):
         request = goal_handle.request
+        self.skip_orientation = request.skip_orientation
         self.cmd_pos_callback(request.desired_pose)
         feedback_msg = GoToPose.Feedback()
         while True:
@@ -324,7 +329,10 @@ class LOSController(Node):
         (r, p, y) = tf_transformations.euler_from_quaternion(quat)
         current_orientation = np.array([r, p, y])
         if np.linalg.norm(self.cmd_linear[:2] - current_position[:2]) < 0.2:
-            self.sequence = PositionControllerSequence.RotateToFinal
+            if self.skip_orientation:
+                self.sequence = PositionControllerSequence.MaintainPosition
+            else:
+                self.sequence = PositionControllerSequence.RotateToFinal
             self.goal_pose = self.cmd_linear
             linear_err, angular_err = np.zeros(3), np.zeros(3)
         elif np.linalg.norm(self.cmd_linear[:2] - current_position[:2]) < 2.0:
