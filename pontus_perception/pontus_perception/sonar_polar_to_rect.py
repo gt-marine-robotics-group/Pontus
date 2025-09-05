@@ -1,16 +1,15 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
+from std_msgs.msg import Header
 from sensor_msgs.msg import PointCloud2
+from nav_msgs.msg import Odometry
 import sensor_msgs_py.point_cloud2 as pc2
 from sensor_msgs.msg import Image, CompressedImage
-# import cv2
 from cv_bridge import CvBridge
 import numpy as np
-# import open3d as o3d
 from typing import Optional, List
 import math
-
 
 class SonarPolarToRect(Node):
     def __init__(self):
@@ -38,6 +37,8 @@ class SonarPolarToRect(Node):
 
     def image_callback(self, msg: Image) -> None:
 
+        sonar_range = 15
+
         points = []
         bgr = self.cv_bridge.imgmsg_to_cv2(msg, 'bgr8')
         shape = bgr.shape
@@ -48,10 +49,11 @@ class SonarPolarToRect(Node):
                 # average the channels
                 value = sum(pixel) / 3.0
 
-                if value > -1:
+                if value > 1:
                     # convert to rectangular coords
 
-                    sonar_res = 0.008
+                    # sonar_res = sonar_range / shape[0]
+                    sonar_res = 0.0148
                     d = sonar_res * r
 
                     sonar_angle = math.pi/3.0
@@ -65,8 +67,6 @@ class SonarPolarToRect(Node):
                     points.append(point)
 
         # Convert back to PointCloud2 and publish
-        msg.header.frame_id = 'sonar_0'
-        # point_msg = pc2.create_cloud_xyz32(msg.header, np.array(points))
         fields = [
             pc2.PointField(name='x', offset=0, datatype=pc2.PointField.FLOAT32, count=1),
             pc2.PointField(name='y', offset=4, datatype=pc2.PointField.FLOAT32, count=1),

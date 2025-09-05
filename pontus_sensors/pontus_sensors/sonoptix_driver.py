@@ -91,6 +91,8 @@ class SonoptixDriver(Node):
                 # preprocessed_image = frame
                 #ros_image = self.cv_bridge.cv2_to_imgmsg(frame, encoding="bgr8")
                 ros_image = self.cv_bridge.cv2_to_imgmsg(preprocessed_image, encoding="mono8")
+                ros_image.header.frame_id = "sonar_0"
+                ros_image.header.stamp = self.get_clock().now().to_msg()
                 self.pub.publish(ros_image)
             else:
                 self.get_logger().warn("Failed to read frame")
