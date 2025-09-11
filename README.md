@@ -4,6 +4,24 @@ Pontus is a collection of ROS 2 packages that power our autonomous underwater ve
 
 ---
 
+# Installing Dependencies
+
+We require installing a few dependencies on each new setup of ROS. The following commands are assuming you are on Linux Ubuntu of some form whether locally, on Docker, or in WSL.
+
+### PIP Dependencies:
+`pip3 install ultralytics pandas`
+
+### Apt Dependencies:
+#### ROS Humble:
+`sudo apt install ros-humble-robot-localization ros-humble-tf-transformations`
+
+#### ROS Jazzy:
+`sudo apt install ros-jazzy-robot-localization ros-jazzy-tf-transformations`
+
+---
+
+# Overview of Packages
+
 ## `pontus_bringup`
 
 ### Overview
