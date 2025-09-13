@@ -5,6 +5,7 @@ from nav_msgs.msg import Odometry
 import tf_transformations
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from typing import Optional, List
+import numpy as np
 
 """
 Robot localization expects the position from odom to already be in the odom frame.
@@ -72,6 +73,12 @@ class DvlRepub(Node):
         msg.pose.pose.orientation.y = q_new[1]
         msg.pose.pose.orientation.z = q_new[2]
         msg.pose.pose.orientation.w = q_new[3]
+
+        # Transform dvl (pretty sure this is already handled by the base_link to dvl frame tf
+        # transform_x = 0.19685
+
+        # msg.pose.pose.position.x += transform_x * np.cos(yaw_new)
+        # msg.pose.pose.position.y += transform_x * np.sin(yaw_new)
 
         self.pub.publish(msg)
 

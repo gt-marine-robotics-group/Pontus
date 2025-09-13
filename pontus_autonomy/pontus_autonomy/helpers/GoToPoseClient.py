@@ -21,12 +21,14 @@ class PoseObj:
                  skip_orientation: bool = False,
                  cmd_twist: Twist = None,
                  desired_depth: float = None,
+                 desired_heading: float = None,
                  movement_method: MovementMethod = MovementMethod.TurnThenForward):
         self.cmd_pose = cmd_pose
         self.skip_orientation = skip_orientation
         self.movement_method = movement_method
         self.cmd_twist = cmd_twist
         self.desired_depth = desired_depth
+        self.desired_heading = desired_heading
 
 
 class GoToPoseClient:
@@ -67,6 +69,8 @@ class GoToPoseClient:
             goal_msg.desired_twist = pose_obj.cmd_twist
         if pose_obj.desired_depth is not None:
             goal_msg.desired_depth = pose_obj.desired_depth
+        if pose_obj.desired_heading is not None:
+            goal_msg.desired_heading = pose_obj.desired_heading
         goal_msg.movement_method = pose_obj.movement_method.value
         self.send_goal_future = self.action_client.send_goal_async(
             goal_msg,

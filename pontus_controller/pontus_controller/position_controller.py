@@ -7,6 +7,7 @@ from typing import Any
 from rclpy.action import ActionServer
 from geometry_msgs.msg import Pose, Twist
 from nav_msgs.msg import Odometry
+from rcl_interfaces.msg import SetParametersResult
 from tf_transformations import euler_from_quaternion
 from std_msgs.msg import Bool
 import asyncio
@@ -25,6 +26,7 @@ class PositionControllerState(Enum):
     Angular_correction = 6
     Velocity_pass_through = 7
     Velocity_maintain_depth = 8
+    Velocity_maintain_depth_heading = 9
 
 
 class MovementMethod(Enum):
@@ -32,6 +34,7 @@ class MovementMethod(Enum):
     StrafeThenForward = 2
     Velocity = 3
     VelocityMaintainDepth = 4
+    VelocityMaintainDepthHeading = 5
 
 
 class PositionNode(Node):
@@ -58,19 +61,44 @@ class PositionNode(Node):
         self.declare_parameter('sim_mode', False)
         sim_mode = self.get_parameter('sim_mode').get_parameter_value().bool_value
         # If this is true, stop the position controller from publishing command velocities
-        self.controller_mode = True
+        self.controller_mode = False
 
         # If we are in sim, there are no RC so automatically turn position controller on
         if sim_mode:
             self.controller_mode = False
+
+        param_list = (
+            ('x_kp', 1.0),
+            ('x_ki', 0.0),
+            ('x_kd', 0.0),
+            ('y_kp', 0.275),
+            ('y_ki', 0.1),
+            ('y_kd', 0.00001),
+            ('z_kp', 0.5),
+            ('z_ki', 0.0),
+            ('z_kd', 0.0),
+            ('r_kp', 0.1),
+            ('r_ki', 0.0),
+            ('r_kd', 0.0),
+            ('p_kp', 0.5),
+            ('p_ki', 0.0),
+            ('p_kd', 0.0),
+            ('yaw_kp', 0.15),
+            ('yaw_ki', 0.01),
+            ('yaw_kd', 0.000001),
+        )
+
+        self.pids_created = False
+        self.add_on_set_parameters_callback(self.param_callback)
+        self.declare_parameters(namespace="pos", parameters=param_list)
 
         # TODO: Tune these
         # Sim PID values
         if sim_mode:
             self.pid_linear = [
                 PID(1, 0, 0.7),
-                PID(1, 0, 0.5),
-                PID(2, 0, 2)
+                PID(0.5, 0, 0.5),
+                PID(3, 0, 2)
             ]
             self.pid_angular = [
                 PID(0.5, 0, 0),
@@ -80,17 +108,19 @@ class PositionNode(Node):
         # Real values for sub
         else:
             self.pid_linear = [
-                PID(1.0, 0, 0),
-                PID(0.5, 0, 0),
-                PID(0.5, 0, 0)
+                PID(self.x_kp, self.x_ki, self.x_kd),
+                PID(self.y_kp, self.y_ki, self.y_kd, windup_max=10),
+                PID(self.z_kp, self.z_ki, self.z_kd)
             ]
 
             self.pid_angular = [
-                PID(0.1, 0, 0),
-                PID(0.1, 0, 0),
-                PID(0.15, 0.01, 0.000001, windup_max=10)
+                PID(self.r_kp, self.r_ki, self.r_kd),
+                PID(self.p_kp, self.p_ki, self.p_kd),
+                PID(self.yaw_kp, self.yaw_ki, self.yaw_kd, windup_max=10)
             ]
-        # PID(0.15, 0.001, 0.000001, 5)
+
+        self.pids_created = True
+
         self.thresh = 0.2
         self.angular_thresh = 0.1
         self.hold_point = False
@@ -100,6 +130,7 @@ class PositionNode(Node):
         self.goal_twist = None
         self.skip_orientation = False
         self.desired_depth = 0
+        self.desired_heading = 0
         self.current_pose = None
         self.movement_method = MovementMethod.TurnThenForward
         # ROS infrastructure
@@ -164,6 +195,11 @@ class PositionNode(Node):
             self.goal_twist = request.desired_twist
             self.desired_depth = request.desired_depth
             self.state = PositionControllerState.Velocity_maintain_depth
+        if self.movement_method == MovementMethod.VelocityMaintainDepthHeading:
+            self.goal_twist = request.desired_twist
+            self.desired_depth = request.desired_depth
+            self.desired_heading = request.desired_heading
+            self.state = PositionControllerState.Velocity_maintain_depth_heading
         else:
             feedback_msg = GoToPose.Feedback()
             while True:
@@ -347,10 +383,15 @@ class PositionNode(Node):
             case PositionControllerState.Angular_correction:
                 linear_err, angular_err = self.correct_orientation(current_position, quat)
             case PositionControllerState.Velocity_pass_through:
-                linear_err = np.zeros(3)
-                angular_err = np.zeros(3)
+                linear_err, angular_err = np.zeros(3), np.zeros(3)
             case PositionControllerState.Velocity_maintain_depth:
                 z_error = self.maintain_z(self.desired_depth, current_position)
+            case PositionControllerState.Velocity_maintain_depth_heading:
+                z_error = self.maintain_z(self.desired_depth, current_position)
+                current_angle = euler_from_quaternion(quat)
+                angle_error = self.calculate_angular_error(
+                    np.array([0, 0, self.desired_heading]),
+                    current_angle)[2]
             case _:
                 linear_err = np.zeros(3)
                 angular_err = np.zeros(3)
@@ -362,6 +403,10 @@ class PositionNode(Node):
         elif self.state == PositionControllerState.Velocity_maintain_depth:
             msg = self.goal_twist
             msg.linear.z = self.pid_linear[2](z_error, dt)
+        elif self.state == PositionControllerState.Velocity_maintain_depth_heading:
+            msg = self.goal_twist
+            msg.linear.z = self.pid_linear[2](z_error, dt)
+            msg.angular.z = self.pid_angular[2](angle_error, dt)
         else:
             msg.linear.x = self.pid_linear[0](linear_err[0], dt)
             msg.linear.y = self.pid_linear[1](linear_err[1], dt)
@@ -372,6 +417,8 @@ class PositionNode(Node):
             msg.angular.z = self.pid_angular[2](angular_err[2], dt)
 
         self.prev_time = self.get_clock().now()
+        self.get_logger().info(f"{self.cmd_linear}")
+        self.get_logger().info(f"{current_position}")
         msg = self.clamp_velocity(msg)
         # If we are in controller mode, we are publishing command velociites from the rc controller
         if not self.controller_mode:
@@ -392,8 +439,12 @@ class PositionNode(Node):
 
         """
         # Roughly 30 degrees / s
-        if abs(msg.angular.z) > 0.3:
-            msg.angular.z = np.sign(msg.angular.z) * 0.3
+        if abs(msg.angular.z) > 0.18:
+            msg.angular.z = np.sign(msg.angular.z) * 0.18
+        if abs(msg.linear.x) > 0.25:
+            msg.linear.x = np.sign(msg.linear.x) * 0.25
+        if abs(msg.linear.y) > 0.3:
+            msg.linear.y = np.sign(msg.linear.y) * 0.3
         return msg
 
     def maintain_z(self,
@@ -618,6 +669,7 @@ class PositionNode(Node):
         linear_difference = self.cmd_linear - current_position
         (r, p, y) = euler_from_quaternion(quat)
         current_orientation = np.array([r, p, y])
+        self.get_logger().info(f"{current_orientation}")
         goal_orientation = np.array([0, 0, np.arctan2(linear_difference[1], linear_difference[0])])
         angular_err = self.calculate_angular_error(goal_orientation, current_orientation)
 
@@ -632,7 +684,9 @@ class PositionNode(Node):
             (r, p, y) = euler_from_quaternion(quat)
             current_orientation = np.array([0.0, 0.0, y])
             self.goal_angle = current_orientation
-
+        self.get_logger().info(f"linear error {linear_err}")
+        linear_err[2] = self.cmd_linear[2] - current_position[2]
+        self.get_logger().info(f"fixed linear_error {linear_err}")
         return linear_err, angular_err
 
     def correct_orientation(self,
@@ -666,6 +720,36 @@ class PositionNode(Node):
                                              self.movement_method)
         return linear_err, angular_err
 
+
+    def param_callback(self, params):
+      for param in params:
+        name = param.name.replace("pos.", "")
+        setattr(self, name, param.value)
+
+        if self.pids_created:
+          split = name.split("_")
+          dof = split[0]
+          gain = split[1]
+
+          pid_obj = None
+          match dof:
+            case "x":
+              pid_obj = self.pid_linear[0]
+            case "y":
+              pid_obj = self.pid_linear[1]
+            case "z":
+              pid_obj = self.pid_linear[2]
+            case "r":
+              pid_obj = self.pid_angular[0]
+            case "p":
+              pid_obj = self.pid_angular[1]
+            case "yaw":
+              pid_obj = self.pid_angular[2]
+
+          if (pid_obj is not None):
+            setattr(pid_obj, gain, param.value)
+
+      return SetParametersResult(successful=True)
 
 def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)

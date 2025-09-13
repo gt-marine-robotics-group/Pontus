@@ -7,4 +7,5 @@
       camera_name: "camera_low_light_left"
       image_height: 480
       image_width: 640
+      fps: 30
       camera_info_url: "package://pontus_sensors/config/front_left_camera_calibration.yaml"

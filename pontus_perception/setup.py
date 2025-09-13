@@ -45,6 +45,8 @@ setup(
             'compressed_image_republisher = pontus_perception.compressed_image_republisher:main',
             'camera_info_publisher_left = pontus_perception.camera_info_publisher_left:main',
             'camera_info_publisher_right = pontus_perception.camera_info_publisher_right:main',
+            'cylinder_shape_detection = pontus_perception.cylinder_shape_detection:main',
+            'sonar_polar_to_rect = pontus_perception.sonar_polar_to_rect:main',
         ],
     },
 )

@@ -36,12 +36,21 @@ class SemanticObject(Enum):
     SlalomRed = 4
     SlalomWhite = 5
     VerticalMarker = 6
+    Octagon = 7
 
 
 # class SemanticObject(Enum):
 #     LeftGate = 0
 #     RightGate = 1
 #     VerticalMarker = 2
+
+
+# class SemanticObject(Enum):
+#     GateLeft = 0
+#     GateRight = 1
+#     Red_Slalom = 2
+#     White_Slalom = 3
+#     Octagon = 4
 
 
 class SemanticMapManager(Node):
@@ -250,7 +259,8 @@ class SemanticMapManager(Node):
         # TODO:
         # See if there is a way to see if the self.tf_buffer is valid
         for class_id, detection_pose in zip(request.ids, request.positions):
-            map_position = self.convert_to_map_frame(detection_pose, self.tf_buffer)
+            map_position = self.convert_to_map_frame(
+                detection_pose, self.tf_buffer)
             if not map_position:
                 self.get_logger().warn('Unable to find map transform, skipping add')
                 return response
@@ -277,7 +287,8 @@ class SemanticMapManager(Node):
                          'confidence': 1.0,
                          'last_updated': 0}
             self.semantic_map.loc[len(self.semantic_map)] = new_entry
-            self.remove_duplicates(current_object, map_position, 1.5, yaw, self.iteration_updated)
+            self.remove_duplicates(
+                current_object, map_position, 1.5, yaw, self.iteration_updated)
         # self.update_confidences(fov_polygon, self.iteration_updated)
         self.publish_semantic_map()
         response.added = True
@@ -321,7 +332,8 @@ class SemanticMapManager(Node):
                 rclpy.time.Time()
             )
         except Exception as e:
-            self.get_logger().info(f'Exception {e}. Failed to get map transfrom. Skipping')
+            self.get_logger().info(
+                f'Exception {e}. Failed to get map transfrom. Skipping')
             return None
 
         pose_map_frame = do_transform_pose(position.pose, transform)
@@ -363,9 +375,12 @@ class SemanticMapManager(Node):
             return
 
         total_weight = matches['confidence'].sum()
-        weighted_x = (matches['x_loc'] * matches['confidence']).sum() / total_weight
-        weighted_y = (matches['y_loc'] * matches['confidence']).sum() / total_weight
-        weighted_z = (matches['z_loc'] * matches['confidence']).sum() / total_weight
+        weighted_x = (matches['x_loc'] *
+                      matches['confidence']).sum() / total_weight
+        weighted_y = (matches['y_loc'] *
+                      matches['confidence']).sum() / total_weight
+        weighted_z = (matches['z_loc'] *
+                      matches['confidence']).sum() / total_weight
 
         total_num_expected = matches['num_expected'].sum()
         total_num_detected = matches['num_detected'].sum()
@@ -428,7 +443,8 @@ class SemanticMapManager(Node):
         bool: true if the sub is moving
 
         """
-        return current_pose.position.z > -1
+        # return current_pose.position.z > -1
+        return False
 
     def update_confidences(self, fov_polygon: Polygon, update_iteration: int) -> None:
         """
@@ -488,84 +504,119 @@ class SemanticMapManager(Node):
         None
 
         """
-        match row['type']:
+        obj = row['type']
+
+        # Common pose for all markers
+        marker.pose = Pose()
+        marker.pose.position.x = float(row['x_loc'])
+        marker.pose.position.y = float(row['y_loc'])
+        marker.pose.position.z = float(row['z_loc'])
+
+        GATE_DIAMETER = 0.15
+        SLALOM_DIAMETER = 0.12
+
+        match obj:
             case SemanticObject.LeftGate:
-                # 3D models of the gate
-                marker.type = Marker.MESH_RESOURCE
-                marker.mesh_resource = 'package://pontus_mapping/visual_meshes/LeftGate.obj'
-                marker.scale.x = 1.0
-                marker.scale.y = 1.0
-                marker.scale.z = 1.0
-                marker.pose = Pose()
-                marker.pose.position.x = row['x_loc']
-                marker.pose.position.y = row['y_loc']
-                marker.pose.position.z = row['z_loc']
-                marker.mesh_use_embedded_materials = True
+                marker.type = Marker.CYLINDER
+                marker.scale.x = GATE_DIAMETER
+                marker.scale.y = GATE_DIAMETER
+                marker.scale.z = 1.20  # height
+                marker.color.r = 0.0
+                marker.color.g = 1.0
+                marker.color.b = 0.0
+                marker.color.a = 1.0
+                # marker.type = Marker.MESH_RESOURCE
+                # marker.mesh_resource = 'package://pontus_mapping/visual_meshes/LeftGate.obj'
+                # marker.scale.x = 1.0
+                # marker.scale.y = 1.0
+                # marker.scale.z = 1.0
+                # marker.mesh_use_embedded_materials = True
+
             case SemanticObject.RightGate:
-                # 3D models of the gate
-                marker.type = Marker.MESH_RESOURCE
-                marker.mesh_resource = 'package://pontus_mapping/visual_meshes/RightGate.obj'
-                marker.scale.x = 1.0
-                marker.scale.y = 1.0
-                marker.scale.z = 1.0
-                marker.pose = Pose()
-                marker.pose.position.x = row['x_loc']
-                marker.pose.position.y = row['y_loc']
-                marker.pose.position.z = row['z_loc']
-                marker.mesh_use_embedded_materials = True
+                marker.type = Marker.CYLINDER
+                marker.scale.x = GATE_DIAMETER
+                marker.scale.y = GATE_DIAMETER
+                marker.scale.z = 1.20  # height
+                marker.color.r = 0.0
+                marker.color.g = 1.0
+                marker.color.b = 0.0
+                marker.color.a = 1.0
+                # marker.type = Marker.MESH_RESOURCE
+                # marker.mesh_resource = 'package://pontus_mapping/visual_meshes/RightGate.obj'
+                # marker.scale.x = 1.0
+                # marker.scale.y = 1.0
+                # marker.scale.z = 1.0
+                # marker.mesh_use_embedded_materials = True
+
             case SemanticObject.VerticalMarker:
                 marker.type = Marker.MESH_RESOURCE
                 marker.mesh_resource = 'package://pontus_mapping/visual_meshes/VerticalMarker.obj'
                 marker.scale.x = 1.0
                 marker.scale.y = 1.0
                 marker.scale.z = 1.0
-                marker.pose = Pose()
-                marker.pose.position.x = row['x_loc']
-                marker.pose.position.y = row['y_loc']
-                marker.pose.position.z = row['z_loc']
                 marker.mesh_use_embedded_materials = True
+
             case SemanticObject.GateShark:
                 marker.type = Marker.MESH_RESOURCE
                 marker.mesh_resource = 'package://pontus_mapping/visual_meshes/shark_marker.obj'
                 marker.scale.x = 1.0
                 marker.scale.y = 1.0
                 marker.scale.z = 1.0
-                marker.pose = Pose()
-                marker.pose.position.x = row['x_loc']
-                marker.pose.position.y = row['y_loc']
-                marker.pose.position.z = row['z_loc']
-                roll = np.pi / 2
+                # orientation as you had it...
+                roll = np.pi/2
                 pitch = 0.0
-                yaw = -np.pi / 2 + row['yaw_orien']
-                quat = tf_transformations.quaternion_from_euler(roll, pitch, yaw)
-                marker.pose.orientation.x = quat[0]
-                marker.pose.orientation.y = quat[1]
-                marker.pose.orientation.z = quat[2]
-                marker.pose.orientation.w = quat[3]
+                yaw = -np.pi/2 + row['yaw_orien']
+                q = tf_transformations.quaternion_from_euler(roll, pitch, yaw)
+                marker.pose.orientation.x, marker.pose.orientation.y, marker.pose.orientation.z, marker.pose.orientation.w = q
                 marker.mesh_use_embedded_materials = True
+
             case SemanticObject.GateFish:
                 marker.type = Marker.MESH_RESOURCE
                 marker.mesh_resource = 'package://pontus_mapping/visual_meshes/fish_marker.obj'
                 marker.scale.x = 1.0
                 marker.scale.y = 1.0
                 marker.scale.z = 1.0
-                marker.pose = Pose()
-                marker.pose.position.x = row['x_loc']
-                marker.pose.position.y = row['y_loc']
-                marker.pose.position.z = row['z_loc']
-                roll = np.pi / 2
+                roll = np.pi/2
                 pitch = 0.0
-                yaw = -np.pi / 2 + row['yaw_orien']
-                quat = tf_transformations.quaternion_from_euler(roll, pitch, yaw)
-                marker.pose.orientation.x = quat[0]
-                marker.pose.orientation.y = quat[1]
-                marker.pose.orientation.z = quat[2]
-                marker.pose.orientation.w = quat[3]
+                yaw = -np.pi/2 + row['yaw_orien']
+                q = tf_transformations.quaternion_from_euler(roll, pitch, yaw)
+                marker.pose.orientation.x, marker.pose.orientation.y, marker.pose.orientation.z, marker.pose.orientation.w = q
                 marker.mesh_use_embedded_materials = True
+
+            case SemanticObject.SlalomRed:
+                marker.type = Marker.CYLINDER
+                marker.scale.x = SLALOM_DIAMETER
+                marker.scale.y = SLALOM_DIAMETER
+                marker.scale.z = 0.90  # height
+                marker.color.r = 1.0
+                marker.color.g = 0.0
+                marker.color.b = 0.0
+                marker.color.a = 1.0
+
+            case SemanticObject.SlalomWhite:
+                marker.type = Marker.CYLINDER
+                marker.scale.x = SLALOM_DIAMETER
+                marker.scale.y = SLALOM_DIAMETER
+                marker.scale.z = 0.90
+                marker.color.r = 1.0
+                marker.color.g = 1.0
+                marker.color.b = 1.0
+                marker.color.a = 1.0
+
+            case SemanticObject.Octagon:
+                # (use a cube for now; meshes can be flaky in Foxglove)
+                marker.type = Marker.CUBE
+                marker.scale.x = 2.70
+                marker.scale.y = 2.70
+                marker.scale.z = 0.0254
+                marker.color.r = 0.9
+                marker.color.g = 0.7
+                marker.color.b = 0.1
+                marker.color.a = 1.0
+
             case _:
                 self.get_logger().info('Found marker with unknown object type, skipping')
-
-        return
+                marker.action = Marker.DELETE
 
     def determine_fish_left(self) -> bool:
         """
@@ -648,8 +699,8 @@ class SemanticMapManager(Node):
         marker_array.markers.append(marker)
         # Iterate through semantic map dataframe and convert to display
         for _, row in self.semantic_map.iterrows():
-            if row['num_detected'] < 30:
-                continue
+            # if row['num_detected'] < 30:
+            #     continue
             marker = Marker()
             marker.header.frame_id = 'map'
             marker.header.stamp = self.get_clock().now().to_msg()
