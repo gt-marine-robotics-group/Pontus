@@ -74,11 +74,11 @@ class DvlRepub(Node):
         msg.pose.pose.orientation.z = q_new[2]
         msg.pose.pose.orientation.w = q_new[3]
 
-        # Transform dvl
-        transform_x = 0.19685
+        # Transform dvl (pretty sure this is already handled by the base_link to dvl frame tf
+        # transform_x = 0.19685
 
-        msg.pose.pose.position.x += transform_x * np.cos(yaw_new)
-        msg.pose.pose.position.y += transform_x * np.sin(yaw_new)
+        # msg.pose.pose.position.x += transform_x * np.cos(yaw_new)
+        # msg.pose.pose.position.y += transform_x * np.sin(yaw_new)
 
         self.pub.publish(msg)
 
