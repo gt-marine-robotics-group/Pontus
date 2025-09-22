@@ -7,7 +7,7 @@ import numpy as np
 import tf_transformations
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist, Pose
-from pontus_controller.PID import PID, FeedForwardPID
+from pontus_controller.PID import PID
 from rclpy.action import ActionServer
 from rcl_interfaces.msg import SetParametersResult
 
@@ -74,7 +74,6 @@ class LOSController(Node):
         self.prev_time = self.get_clock().now()
         self.controller_mode = False
 
-        self.pids_created = False
         self.add_on_set_parameters_callback(self.param_callback)
         self.declare_parameters(namespace="los", parameters=param_list)
 
@@ -89,8 +88,6 @@ class LOSController(Node):
             PID(self.p_kp, self.p_ki, self.p_kd),
             PID(self.yaw_kp, self.yaw_ki, self.yaw_kd, windup_max=2)
         ]
-
-        self.pids_created = True
 
         self.cmd_linear = None
         self.cmd_angular = np.zeros(3)
@@ -390,28 +387,28 @@ class LOSController(Node):
         name = param.name.replace("los.", "")
         setattr(self, name, param.value)
 
-        if self.pids_created:
-          split = name.split("_")
-          dof = split[0]
-          gain = split[1]
+        if hasattr(self, "pid_linear") and hasattr(self, "pid_angular"):
+            split = name.split("_")
+            dof = split[0]
+            gain = split[1]
 
-          pid_obj = None
-          match dof:
-            case "x":
-              pid_obj = self.pid_linear[0]
-            case "y":
-              pid_obj = self.pid_linear[1]
-            case "z":
-              pid_obj = self.pid_linear[2]
-            case "r":
-              pid_obj = self.pid_angular[0]
-            case "p":
-              pid_obj = self.pid_angular[1]
-            case "yaw":
-              pid_obj = self.pid_angular[2]
+            pid_obj = None
+            match dof:
+              case "x":
+                  pid_obj = self.pid_linear[0]
+              case "y":
+                  pid_obj = self.pid_linear[1]
+              case "z":
+                  pid_obj = self.pid_linear[2]
+              case "r":
+                  pid_obj = self.pid_angular[0]
+              case "p":
+                  pid_obj = self.pid_angular[1]
+              case "yaw":
+                  pid_obj = self.pid_angular[2]
 
-          if (pid_obj is not None):
-            setattr(pid_obj, gain, param.value)
+            if (pid_obj is not None):
+                setattr(pid_obj, gain, param.value)
 
       return SetParametersResult(successful=True)
 
