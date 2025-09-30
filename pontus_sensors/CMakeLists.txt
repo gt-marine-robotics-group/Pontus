@@ -6,6 +6,9 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+# would prefer if this was less version specific
+#set(PCL_INCLUDE_DIRS /usr/local/include/pcl-1.12)  #set path to pcl-dev lib # May need this for PCL
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
@@ -19,6 +22,8 @@ find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(OpenCV 4.0.0 REQUIRED)
 find_package(pontus_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 
 
 # C++
@@ -38,6 +43,19 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
+# Add executable
+add_executable(sonoptix_driver src/sonoptix_driver.cpp)
+# Specify dependencies for the target
+ament_target_dependencies(sonoptix_driver rclcpp sensor_msgs)
+# target_link_libraries(sonoptix_driver ${PCL_LIBRARIES}) # May need this if using PCL
+
+# Install the executable
+install(TARGETS
+  sonoptix_driver
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+
 # Python
 ament_python_install_package(${PROJECT_NAME})
 
@@ -47,7 +65,7 @@ install(PROGRAMS
   pontus_sensors/camera_republish.py
   pontus_sensors/imu_republish.py
   pontus_sensors/depth_republish.py
-  pontus_sensors/sonoptix_driver.py
+  pontus_sensors/basic_sonoptix_driver.py
   pontus_sensors/dvl_republish.py
   pontus_sensors/dvl_republish_sim.py
   DESTINATION lib/${PROJECT_NAME}

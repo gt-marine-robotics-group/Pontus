@@ -37,28 +37,31 @@ class SonarPolarToRect(Node):
 
     def image_callback(self, msg: Image) -> None:
 
-        sonar_range = 15
-
         points = []
         bgr = self.cv_bridge.imgmsg_to_cv2(msg, 'bgr8')
         shape = bgr.shape
-        for r in range(0, shape[0]):
-            for c in range(0, shape[1]):
+
+        sonar_range = 15 # Needs to match what is configured in the driver in m
+        sonar_angle = 2 * math.pi/3.0 # 120 degrees
+        sonar_res = sonar_range / shape[0]
+
+        # Loops vertically (rows) which corresponds to distance along beam
+        for distance in range(0, shape[0]):
+            # Loops horizontally (cols) which corresponds to beam angle
+            for angle in range(0, shape[1]):
                 pixel = bgr[r][c]
 
                 # average the channels
                 value = sum(pixel) / 3.0
 
+                # Ignore very low intensity returns which are probably noise
                 if value > 1:
                     # convert to rectangular coords
 
-                    # sonar_res = sonar_range / shape[0]
-                    sonar_res = 0.0148
-                    d = sonar_res * r
+                    d = sonar_res * distance # convert distance in pixels to m
 
-                    sonar_angle = math.pi/3.0
-                    angle_step = 2 * sonar_angle / shape[1]
-                    theta = (c * angle_step) - sonar_angle
+                    angle_step = sonar_angle / shape[1]
+                    theta = (angle * angle_step) - sonar_angle
 
                     x = d * math.cos(theta)
                     y = d * math.sin(theta)

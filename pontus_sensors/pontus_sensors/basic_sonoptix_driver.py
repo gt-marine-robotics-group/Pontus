@@ -12,7 +12,7 @@ import numpy as np
 
 class SonoptixDriver(Node):
     def __init__(self):
-        super().__init__('sonoptix_driver')
+        super().__init__('basic_sonoptix_driver')
 
         # Ros params
         self.declare_parameter('ip_address', "192.168.1.211")
