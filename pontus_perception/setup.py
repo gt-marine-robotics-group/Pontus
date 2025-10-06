@@ -15,11 +15,8 @@ setup(
         (os.path.join('share', package_name, 'launch'),
          glob(os.path.join('launch', '*.launch.py'))),
 
-        (os.path.join('share', package_name, 'config/auv'),
-            glob(os.path.join('config', 'auv', '*.yaml'))),
-
-        (os.path.join('share', package_name, 'config/sim'),
-            glob(os.path.join('config', 'sim', '*.yaml'))),
+        (os.path.join('share', package_name, 'config/'),
+            glob(os.path.join('config',  '*.yaml'))),
 
         (os.path.join('share', package_name, 'yolo/auv'),
             glob(os.path.join('yolo', 'auv', '*.pt'))),
@@ -31,22 +28,15 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='mroglan',
-    maintainer_email='manueljoseph113@gmail.com',
-    description='TODO: Package description',
+    maintainer='mbturton',
+    maintainer_email='mbturton33@gmail.com',
+    description='ROS Package to handle the perception onboard our RoboSub vehicle. This includes processing of sensor data through computer vision methodds such as YOLO and tools for working with our sonar data',
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'yolo = pontus_perception.yolo_node:main',
-            'point_cloud_downsampling = pontus_perception.point_cloud_downsampling:main',
-            'bag2mp4 = pontus_perception.bag2mp4:main',
-            'yolo_pose_detection = pontus_perception.yolo_pose_detection:main',
-            'compressed_image_republisher = pontus_perception.compressed_image_republisher:main',
-            'camera_info_publisher_left = pontus_perception.camera_info_publisher_left:main',
-            'camera_info_publisher_right = pontus_perception.camera_info_publisher_right:main',
-            'cylinder_shape_detection = pontus_perception.cylinder_shape_detection:main',
-            'sonar_polar_to_rect = pontus_perception.sonar_polar_to_rect:main',
+            'color_thresolding = pontus_perception.color_thresholding:main'
         ],
     },
 )

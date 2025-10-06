@@ -7,6 +7,9 @@ from typing import Optional, List
 
 
 class CameraRepublish(Node):
+    """
+    Node that republishes camera data to give QOS of Best Effort
+    """
     def __init__(self):
         super().__init__('camera_republish')
 
@@ -16,7 +19,8 @@ class CameraRepublish(Node):
             depth=1
         )
 
-        self.pub = self.create_publisher(Image, 'output', qos_profile=qos_profile)
+        self.pub = self.create_publisher(
+            Image, 'output', qos_profile=qos_profile)
 
         self.sub = self.create_subscription(Image, 'input', self.callback, 10)
 
@@ -43,12 +47,5 @@ def main(args: Optional[List[str]] = None) -> None:
 
     rclpy.spin(camera_republish)
 
-    # Destroy the node explicitly
-    # (optional - otherwise it will be done automatically)
-    # when the garbage collector destroys the node object
     camera_republish.destroy_node()
     rclpy.shutdown()
-
-
-if __name__ == '__main__':
-    main()
