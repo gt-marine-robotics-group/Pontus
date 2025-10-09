@@ -134,9 +134,11 @@ class SemanticMapManager(Node):
             10
         )
 
-        map_visual_period = 0.1
+        map_visual_period = 1.0
         self.map_visual_timer = self.create_timer(
             map_visual_period, self.publish_semantic_map_visual)
+
+        # TODO: put semantic_map publisher on a timer
 
         self.semantic_map = SemanticMapDC()
 
@@ -189,7 +191,7 @@ class SemanticMapManager(Node):
             obj.last_updated = now
             obj.duplicant_tolerance_m = 0.1
 
-            self.semantic_map_dc.add(obj)
+            self.semantic_map.add(obj)
 
         self.publish_semantic_map()
 
@@ -198,7 +200,7 @@ class SemanticMapManager(Node):
 
     def publish_semantic_map(self) -> None:
         """Publish the SemanticMap message"""
-        msg = self.semantic_map_dc.create_message()
+        msg = self.semantic_map.create_message()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = "map"
         self.semantic_map_pub.publish(msg)
@@ -218,7 +220,7 @@ class SemanticMapManager(Node):
             marker.id = marker_id
             marker_id += 1
 
-            marker.pose = obj.pose
+            marker.pose = obj.pose.pose
 
             self._set_marker_shape(obj, marker)
 
@@ -265,7 +267,7 @@ class SemanticMapManager(Node):
                 # marker.scale.z = 1.0
                 # marker.mesh_use_embedded_materials = True
 
-            case SemanticObject.VERICAL_MARKER:
+            case SemanticObject.VERTICAL_MARKER:
                 marker.type = Marker.MESH_RESOURCE
                 marker.mesh_resource = 'package://pontus_mapping/visual_meshes/VerticalMarker.obj'
                 marker.scale.x = 1.0

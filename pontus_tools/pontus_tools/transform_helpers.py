@@ -1,36 +1,51 @@
-# ------- Libraries -------
-import rclpy
+"""Helper utilities shared across Pontus packages"""
 
-from geometry_msgs.msg import Pose, PoseStamped, Twist
+# ------- Libraries -------
+from __future__ import annotations
+
+from typing import Optional
+
+from rclpy.logging import get_logger
+from rclpy.time import Time
+
+from geometry_msgs.msg import Pose, PoseStamped
 
 import tf2_ros
 from tf2_geometry_msgs import do_transform_pose
-import tf_transformations
 
-def convert_to_map_frame(position: PoseStamped, tf_buffer: tf2_ros.buffer) -> Pose:
-    """
-    Convert a point in relation to the body frame to the map frame.
+LOGGER = get_logger(__name__)
+
+def convert_to_map_frame(
+    pose_stamped: PoseStamped,
+    tf_buffer: tf2_ros.Buffer,
+    target_frame: str = 'map',
+) -> Optional[Pose]:
+    """Transform a pose into the target frame (defaults to ``map``).
 
     Args:
-    ----
-    position (PoseStamped): the point to transform
-    tf_buffer (tf2_ros.buffer): tf buffer to get transform
+        pose_stamped: Pose to transform.
+        tf_buffer: TF2 buffer used to look up transforms.
+        target_frame: Desired frame for the resulting pose.
 
-    Return:
-    ------
-    Pose: the pose in the map frame
-
+    Returns:
+        The transformed pose in the target frame, or ``None`` if the
+        transform was unavailable.
     """
     try:
         transform = tf_buffer.lookup_transform(
-            'map',
-            position.header.frame_id,
-            rclpy.time.Time()
+            target_frame,
+            pose_stamped.header.frame_id,
+            Time())
+    except (tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException) as exc:
+        LOGGER.warning(
+            'Failed to lookup transform from %s to %s: %s',
+            pose_stamped.header.frame_id,
+            target_frame,
+            exc,
         )
-    except Exception as e:
-        rclpy.get_logger().info(
-            f'Exception {e}. Failed to get map transfrom. Skipping')
         return None
 
-    pose_map_frame = do_transform_pose(position.pose, transform)
-    return pose_map_frame
+    transformed = do_transform_pose(pose_stamped, transform)
+    return transformed.pose if hasattr(transformed, 'pose') else transformed

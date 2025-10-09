@@ -6,15 +6,11 @@ import os
 import sys
 from launch import LaunchDescription
 
-from typing import Array, Optional
+from typing import Optional
 
 
-def generate_launch_description() -> None:
+def generate_launch_description() -> LaunchDescription:
     pkg_share = get_package_share_directory('pontus_perception')
-
-    # ------ Load the YOLO model ------
-    yolo_model = 'model.pt'
-    model_path = os.path.join(pkg_share, 'yolo', auv_config_str, yolo_model)
 
     # ------  Set whether sim or read hardware ------
     auv_config_str: Optional[str] = 'auv'
@@ -22,10 +18,15 @@ def generate_launch_description() -> None:
         if arg.startswith('auv:='):
             auv_config_str = arg.split(':=')[1]
 
+    # ------ Load the YOLO model ------
+    yolo_model = 'model.pt'
+    model_path = os.path.join(pkg_share, 'yolo', auv_config_str, yolo_model)
+
+
     # ------ Creating Perception Nodes -------
 
     # --- Front camera YOLO ---
-    front_camera_topic = '/pontus/camera_front/'
+    front_camera_topic = '/pontus/camera_front'
 
     front_camera_YOLO_node: Node = Node(
         package='pontus_perception',

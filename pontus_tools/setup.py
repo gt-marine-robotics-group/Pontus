@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'bag_to_mp4 = pontus_tools.bag2mp4:main'
         ],
     },
 )

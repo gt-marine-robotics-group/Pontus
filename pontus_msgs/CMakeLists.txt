@@ -17,6 +17,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/SemanticMap.msg"
   "srv/GateSideInformation.srv"
   "srv/AddSemanticObject.srv"
+  "srv/SetEnum.srv"
   "action/GoToPose.action"
   "action/SearchRegion.action"
   DEPENDENCIES std_msgs geometry_msgs

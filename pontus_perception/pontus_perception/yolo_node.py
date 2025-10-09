@@ -27,20 +27,16 @@ import numpy as np
 import cv2
 
 # ------ Helpers ------
-def build_header(frame_id: str) -> Header:
-    """
-    create a std_msgs/header with the current ROS time
 
-    Args: 
-        frame_id: the coordinate frame identifier
 
-    Return:
-        Header message
-    """
-
-    header: Header = Header()
-    header.stamp = Clock.now().to_msg()
-    header.frame_id = frame_id
+def _build_header(node: Node, source_header: Header, fallback_frame_id: str) -> Header:
+    """Return a header using the input header if valid, otherwise use the node clock."""
+    header = Header()
+    header.frame_id = source_header.frame_id or fallback_frame_id
+    if source_header.stamp.sec != 0 or source_header.stamp.nanosec != 0:
+        header.stamp = source_header.stamp
+    else:
+        header.stamp = node.get_clock().now().to_msg()
     return header
 
 
@@ -59,18 +55,16 @@ class YOLONode(Node):
             namespace='',
             parameters=[
                 ('auv', 'auv'),
-                ('threshold', '0.5'),
-                ('model_path', '')
+                ('threshold', '0.45'),
+                ('model_path', ''),
+                ('frame_id', '')
             ]
         )
 
-        auv = self.get_parameter('auv').get_parameter_value().string_value
-        threshold = self.get_parameter(
-            'threshold').get_parameter_value().double_value
-        model_path_param = self.get_parameter(
-            'model_path').get_parameter_value().string_value
-        self.frame_id = self.get_parameter(
-            'frame_id').get_parameter_value().string_value
+        auv = str(self.get_parameter('auv').value)
+        threshold = float(self.get_parameter('threshold').value)
+        model_path_param = str(self.get_parameter('model_path').value)
+        self.frame_id = str(self.get_parameter('frame_id').value)
 
         if model_path_param:
             model_path = model_path_param
@@ -78,7 +72,7 @@ class YOLONode(Node):
             pkg_share = get_package_share_directory('pontus_perception')
             model_path = f'{pkg_share}/yolo/{auv}/model.pt'
 
-        self.threshold: float = float(threshold)
+        self.threshold = threshold
 
         # ------ Torch / YOLO ------
         self.device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -94,15 +88,15 @@ class YOLONode(Node):
             Image, 'input', self.image_callback, 10
         )
 
-        self.dets_pub: Publisher = self.create_publisher(
+        self.detections_publisher: Publisher = self.create_publisher(
             Detection2DArray, 'results', 10
         )
 
-        self.debug_img_pub: Publisher = self.create_publisher(
+        self.debug_image_pub: Publisher = self.create_publisher(
             Image, 'yolo_debug', 10
         )
 
-        self.debug_img_compressed_pub: Publisher = self.create_publisher(
+        self.debug_image_compressed_pub: Publisher = self.create_publisher(
             CompressedImage, 'yolo_debug/compressed', 10
         )
 
@@ -141,9 +135,8 @@ class YOLONode(Node):
         inference_results = self.model(image_bgr)[0]
 
         detections_array: Detection2DArray = Detection2DArray()
-        detections_array.header = (
-            msg.header if msg.header.frame_id else build_header(self.frame_id)
-        )
+        detections_array.header = _build_header(
+            self, msg.header, self.frame_id)
 
         # Extract boxes, confidences, classes
         if inference_results.boxes is not None and len(inference_results.boxes) > 0:
@@ -209,9 +202,9 @@ class YOLONode(Node):
         self.detections_publisher.publish(detections_array)
 
         # Publish debug images
-        self.debug_image_publisher.publish(
+        self.debug_image_pub.publish(
             self.bridge.cv2_to_imgmsg(image_bgr, encoding='bgr8'))
-        self.debug_image_compressed_publisher.publish(
+        self.debug_image_compressed_pub.publish(
             self.bridge.cv2_to_compressed_imgmsg(image_bgr)
         )
 

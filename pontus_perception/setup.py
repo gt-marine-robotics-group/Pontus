@@ -36,7 +36,7 @@ setup(
     entry_points={
         'console_scripts': [
             'yolo = pontus_perception.yolo_node:main',
-            'color_thresolding = pontus_perception.color_thresholding:main'
+            'color_thresholding = pontus_perception.color_thresholding:main'
         ],
     },
 )

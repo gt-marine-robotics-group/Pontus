@@ -1,12 +1,12 @@
 # ------- Imports ------
 from __future__ import annotations
 
+import copy
 import os
 from typing import Optional, List, Dict, Any
 
 import rclpy
 from rclpy.node import Node
-from rclpy.time import Time
 
 from ament_index_python.packages import get_package_share_directory
 from sensor_msgs.msg import CameraInfo
@@ -14,6 +14,8 @@ from std_msgs.msg import Header
 import yaml
 
 # ------- Loading configuration helper -------
+
+
 def load_camera_info_from_yaml(yaml_path: str) -> CameraInfo:
     """
     Load a CameraInfo message from a standard ROS camera calibration YAML file.
@@ -51,13 +53,13 @@ def load_camera_info_from_yaml(yaml_path: str) -> CameraInfo:
 
     return msg
 
-    
+
 # ------ Camera Info Publisher Node -------
 class CameraInfoPublisher(Node):
     """
     Generic CameraInfo publisher that reads calibration from a YAML file.
     """
-    
+
     def __init__(self) -> None:
         super().__init__("camera_info_publisher")
 
@@ -69,18 +71,23 @@ class CameraInfoPublisher(Node):
                 ("calibration_file", "front_left_camera_calibration.yaml"),
                 ("calibration_package", "pontus_sensors"),
                 ("camera_info_topic", "/pontus/camera_front/camera_info"),
-                ("frame_id", "narrow_stereo/left"),  # TODO: figure out the correct frame_id
+                # TODO: figure out the correct frame_id
+                ("frame_id", "narrow_stereo/left"),
                 ("publish_rate_hz", 5.0),
             ],
         )
 
-        calibration_file = self.get_parameter("calibration_file").get_parameter_value().string_value
-        calibration_package = self.get_parameter("calibration_package").get_parameter_value().string_value
-        camera_info_topic = self.get_parameter("camera_info_topic").get_parameter_value().string_value
-        self.frame_id = self.get_parameter("frame_id").get_parameter_value().string_value
-        publish_rate_hz = float(self.get_parameter("publish_rate_hz").get_parameter_value().double_value)
+        calibration_file = self.get_parameter(
+            "calibration_file").get_parameter_value().string_value
+        calibration_package = self.get_parameter(
+            "calibration_package").get_parameter_value().string_value
+        camera_info_topic = self.get_parameter(
+            "camera_info_topic").get_parameter_value().string_value
+        self.frame_id = self.get_parameter(
+            "frame_id").get_parameter_value().string_value
+        publish_rate_hz = float(self.get_parameter(
+            "publish_rate_hz").get_parameter_value().double_value)
 
-        
         if os.path.isabs(calibration_file):
             yaml_path = calibration_file
         else:
@@ -90,7 +97,8 @@ class CameraInfoPublisher(Node):
         if not os.path.exists(yaml_path):
             raise FileNotFoundError(f"Calibration YAML not found: {yaml_path}")
 
-        self.camera_info_template: CameraInfo = load_camera_info_from_yaml(yaml_path)
+        self.camera_info_template: CameraInfo = load_camera_info_from_yaml(
+            yaml_path)
 
         self.publisher = self.create_publisher(
             CameraInfo,
@@ -103,13 +111,13 @@ class CameraInfoPublisher(Node):
         )
 
         # Timer
-        period = 1.0 / max(1e-6, publish_rate_hz)  # Period either infinantly long or the given rate
+        # Period either infinantly long or the given rate
+        period = 1.0 / max(1e-6, publish_rate_hz)
         self.timer = self.create_timer(period, self.publish_camera_info)
 
-    def publish_camaera_info(self) -> None:
-        msg: CameraInfo = CameraInfo()
-        msg.__dict__.update(self.camera_info_template.__dict__)
-        
+    def publish_camera_info(self) -> None:
+        msg: CameraInfo = copy.deepcopy(self.camera_info_template)
+
         msg.header = Header()
         msg.header.frame_id = self.frame_id
         msg.header.stamp = self.get_clock().now().to_msg()
@@ -126,7 +134,3 @@ def main(args: Optional[List[str]] = None) -> None:
     finally:
         node.destroy_node()
         rclpy.shutdown()
-
-        
-        
-        
