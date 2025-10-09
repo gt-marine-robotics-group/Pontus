@@ -1,7 +1,8 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSDurabilityPolicy
 
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge
 import cv2
 from typing import Optional, List
@@ -12,8 +13,8 @@ class Bag2Mp4(Node):
         super().__init__('bag_to_mp4')
 
         self.camera_sub = self.create_subscription(
-            Image,
-            '/pontus/camera_2/raw_image/compressed',
+            CompressedImage,
+            '/pontus/camera_2/image_raw/compressed',
             self.camera_callback,
             10
         )
@@ -38,7 +39,7 @@ class Bag2Mp4(Node):
         None
 
         """
-        cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+        cv_image = self.bridge.compressed_imgmsg_to_cv2(msg, "bgr8")
         self.out.write(cv_image)
 
     def destroy_node(self) -> None:
