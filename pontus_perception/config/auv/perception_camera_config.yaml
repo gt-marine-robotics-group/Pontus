@@ -1,0 +1,27 @@
+perception_camera_config:
+  all_camera_types: [
+    "usb",
+    "usb"
+  ]
+
+  all_camera_base_topics: [
+    "/pontus/camera_front",
+    "/pontus/camera_tilted"
+  ]
+
+
+  all_camera_matrices: [
+    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  ]
+
+
+  all_camera_transforms: [
+    [1.0, 0.0, 0.1],
+    [1.0, 0.0, 0.1]
+  ]
+
+  all_camera_frames: [
+    "camera_front_link",
+    "cmaera_tilted_link"
+  ]

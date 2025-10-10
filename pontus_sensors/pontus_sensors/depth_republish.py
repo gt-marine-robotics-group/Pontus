@@ -43,11 +43,6 @@ class DepthRepublishNode(Node):
         odom_msg.header.stamp = self.get_clock().now().to_msg()
         odom_msg.pose.pose.position.z = (-msg.data + 194.5) / 17.8
 
-        """
-        for i in range(0, 36):
-            odom_msg.pose.covariance[i] = 0.001
-        """
-
         self.pub.publish(odom_msg)
 
 

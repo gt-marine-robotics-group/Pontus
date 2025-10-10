@@ -45,7 +45,7 @@ ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
   # add python executable file paths here
   pontus_sensors/camera_republish.py
-  pontus_sensors/imu_republish.py
+  pontus_sensors/camera_info_publisher.py
   pontus_sensors/depth_republish.py
   pontus_sensors/sonoptix_driver.py
   pontus_sensors/dvl_republish.py
