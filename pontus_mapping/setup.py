@@ -33,6 +33,7 @@ setup(
         'console_scripts': [
             'exploration_map_manager = pontus_mapping.exploration_map_manager:main',
             'semantic_map_manager = pontus_mapping.semantic_map_manager:main',
+            'occupancy_grid_manager = pontus_mapping.occupency_grid_manager:main',
         ],
     },
 )
