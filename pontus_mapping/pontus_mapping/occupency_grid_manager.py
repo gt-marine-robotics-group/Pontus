@@ -2,8 +2,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Header
 from builtin_interfaces.msg import Time
-from nav_msgs.msg import OccupancyGrid, MapMetaData
-from geometry_msgs.msg import Pose, PointStamped, Point
+from nav_msgs.msg import OccupancyGrid
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs_py import point_cloud2
 from tf2_ros import TransformListener
@@ -67,8 +66,14 @@ class OccupancyGridManager(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)
         
         self.get_logger().info("Occupancy Grid started")
-    
+        
     def pointcloud_callback(self, msg: PointCloud2) -> None:
+        """
+        Saves recieved pointcloud to latest_pointcloud
+        Args:
+        ----
+        msg (PointCloud2): subscribed pointcloud
+        """
         
         transformed_msg = self.transform_sonar(msg)
         
@@ -79,6 +84,9 @@ class OccupancyGridManager(Node):
         self.latest_pointcloud = points
     
     def occupancy_grid_update(self) -> None:
+        """
+        Publishes most recent Occupancy Grid update
+        """
         if self.latest_pointcloud is not None and self.latest_pointcloud.size != 0:
             self.process_data(self.latest_pointcloud)
         #else:
@@ -90,6 +98,12 @@ class OccupancyGridManager(Node):
         
     
     def process_data(self, points) -> None:
+        """
+        Uses points to update Occupancy Grid
+        Args:
+        ----
+        points (np.ndarray): np array of all 2d points from PointCloud2d
+        """
         bin = np.floor(points.copy() / self.resolution)
         bin[:, 0] += self.map_width // 2 #Account for the shifting from begininng
         bin[:, 1] = self.map_height // 2 - bin[:, 1]
@@ -106,12 +120,33 @@ class OccupancyGridManager(Node):
             self.occupancy_grid.data[index] = int(self.calculate_values(scan[index], curr_val))
     
     def calculate_values(self, cell_count, curr_score) -> int:
+        """
+        updates score given the number of cells in the count.
+        Args:
+        ----
+        cell_count (int): number of points in the cell
+        curr_score (int): the current score of the cell
+        Return:
+        ----
+        (int): the updated score
+        """
         if cell_count <= 0:
             return max(curr_score - self.decay_rate, 0)
         new_score = cell_count * self.point_weight
         return min(curr_score + new_score, 100)
     
-    def transform_sonar(self, msg: PointCloud2):
+    def transform_sonar(self, msg: PointCloud2) -> PointCloud2:
+        """
+        transforms the frame from sonar to map
+        
+        Args:
+        ----
+        msg (PointCloud2): subscribed pointcloud
+        
+        Return:
+        ----
+        (PointCloud2): The pointedcloud with transformed data
+        """
         transform = None
         try:
             transform = self.tf_buffer.lookup_transform(
