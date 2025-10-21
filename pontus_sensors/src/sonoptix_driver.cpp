@@ -152,8 +152,7 @@ public:
 
     RCLCPP_INFO(get_logger(),
       "Sonar Pointcloud Params: sonar_res=%.6f m/bin, sonar_angle=%.3f rad, thr=%d, norm=%s, frame_id='%s'",
-      input_topic_.c_str(), output_topic_.c_str(), sonar_res_m_, sonar_angle_rad_,
-      intensity_min_, normalize_intensity_ ? "true" : "false", frame_id_.c_str());
+      sonar_res_m_, sonar_angle_rad_,intensity_min_, normalize_intensity_ ? "true" : "false", frame_id_.c_str());
   }
 
 private:

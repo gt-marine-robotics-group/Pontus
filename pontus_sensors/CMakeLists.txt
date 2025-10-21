@@ -22,6 +22,13 @@ find_package(pontus_msgs REQUIRED)
 
 
 # C++
+include_directories(
+  include
+  $(rclcpp_INCLUDE_DIRS)
+  ${OpenCV_INCLUDE_DIRS}
+  colormaps
+)
+
 add_executable(sonoptix_driver_node
   src/sonoptix_driver.cpp
 )
