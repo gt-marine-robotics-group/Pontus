@@ -19,6 +19,8 @@ find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(OpenCV 4.0.0 REQUIRED)
 find_package(pontus_msgs REQUIRED)
+find_package(PCL REQUIRED COMPONENTS common io)
+find_package(pcl_conversions REQUIRED)
 
 
 # C++
@@ -36,15 +38,20 @@ add_executable(sonoptix_driver_node
 target_include_directories(sonoptix_driver_node PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/colormaps
+  ${PCL_INCLUDE_DIRS}
 )
 
 ament_target_dependencies(sonoptix_driver_node
   rclcpp
   sensor_msgs
   cv_bridge
+  pcl_conversions
 )
 
-target_link_libraries(sonoptix_driver_node ${OpenCV_LIBS})
+target_link_libraries(sonoptix_driver_node 
+  ${OpenCV_LIBS}
+  ${PCL_LIBRARIES}
+)
 
 install(TARGETS 
   sonoptix_driver_node
