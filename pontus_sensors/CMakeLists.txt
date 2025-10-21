@@ -22,13 +22,27 @@ find_package(pontus_msgs REQUIRED)
 
 
 # C++
-include_directories(
-  include
-  $(rclcpp_INCLUDE_DIRS)
-  ${OpenCV_INCLUDE_DIRS}
-  colormaps
+add_executable(sonoptix_driver_node
+  src/sonoptix_driver.cpp
 )
 
+target_include_directories(sonoptix_driver_node PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/colormaps
+)
+
+ament_target_dependencies(sonoptix_driver_node
+  rclcpp
+  sensor_msgs
+  cv_bridge
+)
+
+target_link_libraries(sonoptix_driver_node ${OpenCV_LIBS})
+
+install(TARGETS 
+  sonoptix_driver_node
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 install(DIRECTORY
   launch
