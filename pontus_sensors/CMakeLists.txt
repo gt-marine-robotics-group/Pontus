@@ -3,7 +3,7 @@ set(CMAKE_CXX_STANDARD 20) # C++ 20 is required for the blueview driver
 project(pontus_sensors)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
+add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
 # find dependencies
@@ -19,8 +19,9 @@ find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(OpenCV 4.0.0 REQUIRED)
 find_package(pontus_msgs REQUIRED)
-find_package(PCL REQUIRED COMPONENTS common io)
+find_package(PCL REQUIRED)
 find_package(pcl_conversions REQUIRED)
+find_package(pcl_ros REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_sensor_msgs REQUIRED)
@@ -52,7 +53,9 @@ ament_target_dependencies(sonoptix_driver_node
   rclcpp
   sensor_msgs
   cv_bridge
+  PCL
   pcl_conversions
+  pcl_ros
   tf2
   tf2_ros 
   tf2_sensor_msgs
