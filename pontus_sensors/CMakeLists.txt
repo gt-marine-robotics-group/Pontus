@@ -21,6 +21,12 @@ find_package(OpenCV 4.0.0 REQUIRED)
 find_package(pontus_msgs REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common io)
 find_package(pcl_conversions REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_sensor_msgs REQUIRED)
+find_package(tf2_eigen REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 
 # C++
@@ -39,6 +45,7 @@ target_include_directories(sonoptix_driver_node PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/colormaps
   ${PCL_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIRS}
 )
 
 ament_target_dependencies(sonoptix_driver_node
@@ -46,6 +53,10 @@ ament_target_dependencies(sonoptix_driver_node
   sensor_msgs
   cv_bridge
   pcl_conversions
+  tf2
+  tf2_ros 
+  tf2_sensor_msgs
+  tf2_eigen
 )
 
 target_link_libraries(sonoptix_driver_node 
