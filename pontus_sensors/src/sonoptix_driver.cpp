@@ -3,6 +3,8 @@
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 #include <std_msgs/msg/header.hpp>
+#include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 
 #include <cv_bridge/cv_bridge.hpp>
 #include <opencv2/core.hpp>
@@ -11,6 +13,13 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
+
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+
+#include <pcl/common/transforms.h>
+#include <tf2_eigen/tf2_eigen.hpp>
+#include <Eigen/Geometry>
 
 #include <algorithm>
 #include <cmath>
@@ -24,22 +33,32 @@ public:
   SonoptixDriverNode() : rclcpp::Node("sonoptix_driver") {
     // Parameters
     frame_id_ = this->declare_parameter<std::string>("frame_id", "");
+    target_frame_ = this->declare_parameter<std::string>("target_frame", "map");
     sonar_res_m_ = this->declare_parameter<double>("sonar_res", 0.0148);
     sonar_angle_rad_ = this->declare_parameter<double>("sonar_angle", M_PI / 3.0);
     intensity_min_ = this->declare_parameter<int>("intensity_min", 1);
     normalize_intensity_ = this->declare_parameter<bool>("normalize_intensity", true);
+    min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.2);   // keep points at least this deep
+    max_depth_m_ = this->declare_parameter<double>("max_depth_m", 3.5);  // keep points at most this deep
 
-    rclcpp::QoS qos(rclcpp::KeepLast(1));
-    qos.best_effort();
 
-    cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/pontus/sonar/pointcloud", qos);
+    rclcpp::QoS image_qos(rclcpp::KeepLast(1));
+    image_qos.best_effort();
+
+    cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/pontus/sonar/pointcloud", 10);
     img_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-      "/pontus/sonar_0/image_debug", qos, std::bind(&SonoptixDriverNode::onImage, this, std::placeholders::_1)
+      "/pontus/sonar_0/image_debug", image_qos, 
+      std::bind(&SonoptixDriverNode::onImage, this, std::placeholders::_1)
     );
 
+    // TF buffer + listener
+    tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+    tf_listener_ = std::make_unique<tf2_ros::TransformListener>(*tf_buffer_);
+
     RCLCPP_INFO(get_logger(),
-      "Sonoptix: sonar_res=%.6f m/bin, sonar_angle=%.3f rad, thr=%d, norm=%s, frame_id='%s'",
-      sonar_res_m_, sonar_angle_rad_, intensity_min_, normalize_intensity_ ? "true" : "false", frame_id_.c_str()
+      "Sonoptix: sonar_res=%.6f m/bin, sonar_angle=%.3f rad, thr=%d, norm=%s, frame_id='%s', target_frame='%s'",
+      sonar_res_m_, sonar_angle_rad_, intensity_min_, normalize_intensity_ ? "true" : "false",
+      frame_id_.c_str(), target_frame_.c_str()
     );
   }
 
@@ -53,10 +72,7 @@ private:
 
     sensor_msgs::msg::PointCloud2 cloud_msg = sonar_image_to_cloud(gray, msg->header);
 
-    // Check if pointcloud is valid
-    if (cloud_msg.width > 1) {
-      cloud_pub_->publish(cloud_msg);
-    }
+    cloud_pub_->publish(cloud_msg);
   }
 
   bool toGray(const sensor_msgs::msg::Image& img, cv::Mat& out_gray) {
@@ -79,17 +95,20 @@ private:
     }
   }
 
-  sensor_msgs::msg::PointCloud2 sonar_image_to_cloud(const cv::Mat& gray,
-                                                     const std_msgs::msg::Header& in_header)
+  sensor_msgs::msg::PointCloud2 sonar_image_to_cloud(
+    const cv::Mat& gray,
+    const std_msgs::msg::Header& in_header)
   {
-    sensor_msgs::msg::PointCloud2 out;
+    sensor_msgs::msg::PointCloud2 cloud_msg;
 
     const int rows = gray.rows;
     const int cols = gray.cols;
     if (rows <= 0 || cols <= 0) {
-      out.header = in_header;
-      if (!frame_id_.empty()) out.header.frame_id = frame_id_;
-      return out;
+      cloud_msg.header = in_header;
+      if (!frame_id_.empty()) {
+        cloud_msg.header.frame_id = frame_id_;
+      }
+      return cloud_msg;
     }
 
     const double angle_step = (cols > 0) ? (2.0 * sonar_angle_rad_ / static_cast<double>(cols)) : 0.0;
@@ -100,11 +119,10 @@ private:
 
     // Allocate PCL cloud
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>);
-    cloud->height = 1;
+    cloud->height = 1;  // This makes the pointcloud 2D instead of 3D
     cloud->is_dense = false;
 
     // Fill points
-    std::size_t num_points = 0;
     for (int r = 0; r < rows; ++r) {
       const double d_m = sonar_res_m_ * static_cast<double>(r);
       const uint8_t* row_line = gray.ptr<uint8_t>(r);
@@ -119,39 +137,139 @@ private:
         point.x = d_m * std::cos(theta);
         point.y = d_m * std::sin(theta);
         point.z = 0.0f;
-        point.intensity = normalize_intensity_
-                         ? (pixel_intensity) / 255.0f
-                         : (pixel_intensity);
+        point.intensity = normalize_intensity_ ? (pixel_intensity) / 255.0f : (pixel_intensity);
         cloud->points.push_back(point);
-        num_points++;
       }
     }
+    cloud->width = cloud->points.size();
 
-    cloud->width = num_points;
+    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZI>);
 
-    // Convert to ROS PointCloud2
-    pcl::toROSMsg(*cloud, out);
-    out.header = in_header;
+    std_msgs::msg::Header src_header = in_header;
     if (!frame_id_.empty()) {
-      out.header.frame_id = frame_id_;
+      src_header.frame_id = frame_id_;
     }
 
-    return out;
+    // Try to transform to map frame
+    const bool tf_ok = transform_pcl_to_map_frame(*cloud, src_header, *cloud_transformed);
+
+    if (!tf_ok) {
+      pcl::toROSMsg(*cloud, cloud_msg);
+      cloud_msg.header = src_header;
+      return cloud_msg;
+    }
+
+    // Filter in map frame
+    *cloud_transformed = filter_points_pcl(*cloud_transformed, min_depth_m_, max_depth_m_);
+
+    // Convert to ROS PointCloud2
+    pcl::toROSMsg(*cloud_transformed, cloud_msg);
+    cloud_msg.header = src_header;
+    cloud_msg.header.frame_id = target_frame_;
+    return cloud_msg;
+  }
+
+  bool transform_pcl_to_map_frame(
+    const pcl::PointCloud<pcl::PointXYZI>& cloud_in,
+    const std_msgs::msg::Header& src_header,
+    pcl::PointCloud<pcl::PointXYZI>& cloud_out)
+  {
+    if (src_header.frame_id.empty()) {
+      RCLCPP_WARN(get_logger(), "transform_pcl_to_map_frame(): empty frame_id; cannot transform to '%s'.",
+                  target_frame_.c_str());
+      return false;
+    }
+
+    try {
+      // First, try at the cloud timestamp
+      auto tf = tf_buffer_->lookupTransform(
+        target_frame_,
+        src_header.frame_id,
+        rclcpp::Time(src_header.stamp),
+        rclcpp::Duration::from_seconds(0.1)
+      );
+
+      const Eigen::Isometry3d iso = tf2::transformToEigen(tf);
+      const Eigen::Matrix4f T = iso.matrix().cast<float>();
+      pcl::transformPointCloud(cloud_in, cloud_out, T);
+      cloud_out.height = 1;
+      cloud_out.is_dense = false;
+      return true;
+
+    } catch (const tf2::ExtrapolationException& ex_future) {
+      try {
+        auto tf_latest = tf_buffer_->lookupTransform(
+          target_frame_,
+          src_header.frame_id,
+          tf2::TimePointZero   // latest available transform
+        );
+        const Eigen::Isometry3d iso = tf2::transformToEigen(tf_latest);
+        const Eigen::Matrix4f T = iso.matrix().cast<float>();
+        pcl::transformPointCloud(cloud_in, cloud_out, T);
+        cloud_out.height = 1;
+        cloud_out.is_dense = false;
+
+        RCLCPP_DEBUG(get_logger(),
+          "TF future extrapolation for time %.3f; used latest transform instead.",
+          rclcpp::Time(src_header.stamp).seconds());
+
+        return true;
+
+      } catch (const tf2::TransformException& ex2) {
+        RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
+          "TF fallback to latest also failed (%s -> %s): %s",
+          src_header.frame_id.c_str(), target_frame_.c_str(), ex2.what());
+        return false;
+      }
+
+    } catch (const tf2::TransformException& ex) {
+      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
+        "TF to '%s' failed from '%s': %s",
+        target_frame_.c_str(), src_header.frame_id.c_str(), ex.what());
+      return false;
+    }
+  }
+
+  pcl::PointCloud<pcl::PointXYZI> filter_points_pcl(
+    const pcl::PointCloud<pcl::PointXYZI>& cloud_in,
+    double min_depth_m,
+    double max_depth_m)
+  {
+    pcl::PointCloud<pcl::PointXYZI> cloud_out;
+    cloud_out.height = 1;
+    cloud_out.is_dense = false;
+    cloud_out.points.reserve(cloud_in.points.size());
+
+    const float z_max_allowed = static_cast<float>(-min_depth_m);
+    const float z_min_allowed = static_cast<float>(-max_depth_m);
+
+    for (const auto& p : cloud_in.points) {
+      if (p.z >= z_min_allowed && p.z <= z_max_allowed) {
+        cloud_out.points.push_back(p);
+      }
+    }
+    cloud_out.width = cloud_out.points.size();
+    return cloud_out;
   }
 
 private:
   // params
   std::string frame_id_;
+  std::string target_frame_;
   double sonar_res_m_;
   double sonar_angle_rad_;
   int intensity_min_;
   bool normalize_intensity_;
-  std::string input_topic_;
-  std::string output_topic_;
+  double min_depth_m_;
+  double max_depth_m_;
 
   // ROS I/O
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr img_sub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_pub_;
+
+  // TF2
+  std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
 };
 
 int main(int argc, char** argv) {
