@@ -11,6 +11,7 @@ import numpy as np
 from typing import Optional, List
 import math
 
+
 class SonarPolarToRect(Node):
     def __init__(self):
         super().__init__('sonar_polar_to_rect')
@@ -31,7 +32,7 @@ class SonarPolarToRect(Node):
 
         self.point_cloud_pub = self.create_publisher(
             PointCloud2,
-            '/pontus/sonar/rect',
+            '/pontus/sonar/pointcloud',
             10
         )
 
@@ -68,10 +69,14 @@ class SonarPolarToRect(Node):
 
         # Convert back to PointCloud2 and publish
         fields = [
-            pc2.PointField(name='x', offset=0, datatype=pc2.PointField.FLOAT32, count=1),
-            pc2.PointField(name='y', offset=4, datatype=pc2.PointField.FLOAT32, count=1),
-            pc2.PointField(name='z', offset=8, datatype=pc2.PointField.FLOAT32, count=1),
-            pc2.PointField(name='intensity', offset=12, datatype=pc2.PointField.FLOAT32, count=1),
+            pc2.PointField(name='x', offset=0,
+                           datatype=pc2.PointField.FLOAT32, count=1),
+            pc2.PointField(name='y', offset=4,
+                           datatype=pc2.PointField.FLOAT32, count=1),
+            pc2.PointField(name='z', offset=8,
+                           datatype=pc2.PointField.FLOAT32, count=1),
+            pc2.PointField(name='intensity', offset=12,
+                           datatype=pc2.PointField.FLOAT32, count=1),
         ]
 
         point_msg = pc2.create_cloud(msg.header, fields, np.array(points))
