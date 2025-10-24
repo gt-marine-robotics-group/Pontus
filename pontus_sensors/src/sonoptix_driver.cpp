@@ -20,8 +20,8 @@
 #include <tf2_ros/transform_listener.h>
 
 #include <pcl/common/transforms.h>
-#include <tf2_eigen/tf2_eigen.hpp>
-#include <Eigen/Geometry>
+#include "pcl_ros/transforms.hpp"
+#include <pcl/filters/passthrough.h>
 
 #include <algorithm>
 #include <cmath>
@@ -260,11 +260,7 @@ private:
         rclcpp::Duration::from_seconds(0.1)
       );
 
-      const Eigen::Isometry3d iso = tf2::transformToEigen(tf);
-      const Eigen::Matrix4f T = iso.matrix().cast<float>();
-      pcl::transformPointCloud(cloud_in, cloud_out, T);
-      cloud_out.height = 1;
-      cloud_out.is_dense = false;
+      pcl_ros::transformPointCloud(cloud_in, cloud_out, tf);
       return true;
 
     } catch (const tf2::ExtrapolationException& ex_future) {
@@ -274,11 +270,7 @@ private:
           src_header.frame_id,
           tf2::TimePointZero   // latest available transform
         );
-        const Eigen::Isometry3d iso = tf2::transformToEigen(tf_latest);
-        const Eigen::Matrix4f T = iso.matrix().cast<float>();
-        pcl::transformPointCloud(cloud_in, cloud_out, T);
-        cloud_out.height = 1;
-        cloud_out.is_dense = false;
+        pcl_ros::transformPointCloud(cloud_in, cloud_out, tf_latest);
 
         RCLCPP_DEBUG(get_logger(),
           "TF future extrapolation for time %.3f; used latest transform instead.",
@@ -306,21 +298,16 @@ private:
     double min_depth_m,
     double max_depth_m)
   {
-    pcl::PointCloud<pcl::PointXYZI> cloud_out;
-    cloud_out.height = 1;
-    cloud_out.is_dense = false;
-    cloud_out.points.reserve(cloud_in.points.size());
+    auto cloudPtr = std::make_shared<pcl::PointCloud<pcl::PointXYZI>>(cloud_in);
+    auto filtered_data = new pcl::PointCloud<pcl::PointXYZI>();
 
-    const float z_max_allowed = static_cast<float>(-min_depth_m);
-    const float z_min_allowed = static_cast<float>(-max_depth_m);
+    pcl::PassThrough<pcl::PointXYZI> pass;
+    pass.setInputCloud(cloudPtr);
+    pass.setFilterFieldName("z");
+    pass.setFilterLimits(-max_depth_m, -min_depth_m); // Z axis is inverted from "depth"
+    pass.filter(*filtered_data);
 
-    for (const auto& p : cloud_in.points) {
-      if (p.z >= z_min_allowed && p.z <= z_max_allowed) {
-        cloud_out.points.push_back(p);
-      }
-    }
-    cloud_out.width = cloud_out.points.size();
-    return cloud_out;
+    return *filtered_data;
   }
 
   std::vector<pcl::PointIndices> euclideanClustering(const pcl::PointCloud<pcl::PointXYZ>::Ptr& pcl_data) {

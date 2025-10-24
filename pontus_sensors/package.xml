@@ -23,9 +23,6 @@
   <depend>usb_cam</depend>
   <depend>tf_transformations</depend>
 
-  <build_depend>opencv</build_depend>
-  <exec_depend>opencv</exec_depend>
-
   <build_depend>pcl_conversions</build_depend>
   <exec_depend>pcl_conversions</exec_depend>
   <build_depend>pcl_ros</build_depend>
