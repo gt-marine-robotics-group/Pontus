@@ -44,7 +44,7 @@ public:
     max_depth_m_ = this->declare_parameter<double>("max_depth_m", 3.5);  // keep points at most this deep
 
     cluster_tolerance_ = this->declare_parameter<double>("cluster_tolerance", 0.15);
-    cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 4);
+    cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 10);
     cluster_max_points_ = this->declare_parameter<int>("cluster_max_points", 200);
 
     rclcpp::QoS image_qos(rclcpp::KeepLast(1));
@@ -173,32 +173,17 @@ private:
     cloud_msg.header = src_header;
     cloud_msg.header.frame_id = target_frame_;
 
+    if(cloud_transformed->size() == 0 || cloud_transformed->size() != cloud_transformed->width * cloud_transformed->height) {
+      return cloud_msg;
+    }
+    
+
     // cloud for clustering
     pcl::PointCloud<pcl::PointXYZ>::Ptr xyz_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-    for (const auto& point : cloud_transformed.points) {
-      // Create a new point for the XYZ cloud
-      pcl::PointXYZ xyz_point;
-      xyz_point.x = point.x;
-      xyz_point.y = point.y;
-      xyz_point.z = point.z;
-      // Add the new point to the XYZ cloud
-      xyz_cloud->points.push_back(xyz_point);
-
-    }
-
-    // xyz_cloud.points.resize(cloud_transformed.size());
-    // for (size_t i = 0; i < cloud_xyz.points.size(); i++) {
-    //     xyz_cloud.points[i].x = cloud_transformed.points[i].x;
-    //     xyz_cloud.points[i].y = cloud_transformed.points[i].y;
-    //     xyz_cloud.points[i].z = cloud_transformed.points[i].z;
-    // }
-
-    xyz_cloud->width = cloud_transformed->width;
-
     // Euclidean clustering
-    std::vector<pcl::PointIndices> clusters = euclideanClustering(xyz_cloud);
-    std::vector<Eigen::Vector4f> centroids = computeClusterCentroids(xyz_cloud, clusters);
+    std::vector<pcl::PointIndices> clusters = euclideanClustering(cloud_transformed);
+    std::vector<Eigen::Vector4f> centroids = computeClusterCentroids(cloud_transformed, clusters);
 
     // Allocate PCL cloud
     pcl::PointCloud<pcl::PointXYZI>::Ptr clustered_cloud(new pcl::PointCloud<pcl::PointXYZI>);
@@ -212,10 +197,9 @@ private:
         pcl::PointXYZI point;
         point.x = centroid[0];
         point.y = centroid[1];
-        point.z = 0.0f;
+        point.z = centroid[2];
 
         point.intensity = 100.0f;
-        clustered_cloud->points.push_back(point);
 
         // these points are not transformed because they are based on an already transformed cloud
         clustered_cloud->points.push_back(point);
@@ -227,10 +211,7 @@ private:
     // Convert to ROS PointCloud2
     sensor_msgs::msg::PointCloud2 clustered_msg;
     pcl::toROSMsg(*clustered_cloud, clustered_msg);
-    clustered_msg.header = in_header;
-    if (!frame_id_.empty()) {
-      clustered_msg.header.frame_id = frame_id_;
-    }
+    clustered_msg.header = cloud_msg.header;
 
     // publish here, move outside function if desired
     if (clustered_msg.width > 1) {
@@ -310,14 +291,13 @@ private:
     return *filtered_data;
   }
 
-  std::vector<pcl::PointIndices> euclideanClustering(const pcl::PointCloud<pcl::PointXYZ>::Ptr& pcl_data) {
+  std::vector<pcl::PointIndices> euclideanClustering(const pcl::PointCloud<pcl::PointXYZI>::Ptr& pcl_data) {
 
-
-      pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
+      pcl::search::KdTree<pcl::PointXYZI>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZI>());
       tree->setInputCloud(pcl_data);
 
       std::vector<pcl::PointIndices> cluster_indices;
-      pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
+      pcl::EuclideanClusterExtraction<pcl::PointXYZI> ec;
       ec.setClusterTolerance(cluster_tolerance_);
       ec.setMinClusterSize(cluster_min_points_); 
       ec.setMaxClusterSize(cluster_max_points_);
@@ -328,7 +308,7 @@ private:
       return cluster_indices;
   }
 
-  std::vector<Eigen::Vector4f> computeClusterCentroids(const pcl::PointCloud<pcl::PointXYZ>::Ptr& pcl_data, const std::vector<pcl::PointIndices>& cluster_indices) {
+  std::vector<Eigen::Vector4f> computeClusterCentroids(const pcl::PointCloud<pcl::PointXYZI>::Ptr& pcl_data, const std::vector<pcl::PointIndices>& cluster_indices) {
       std::vector<Eigen::Vector4f> centroids;
 
       for (const auto& indices : cluster_indices) {
