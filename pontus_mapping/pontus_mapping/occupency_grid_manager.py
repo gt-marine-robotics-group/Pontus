@@ -13,9 +13,7 @@ import numpy as np
 from sensor_msgs.msg import PointField
 from sensor_msgs_py import point_cloud2 as pc2
 
-# The Occupancy Grid values sometimes don't align. Might be a non-issue/noise problem
 # PSA: Times are currently set based on the message time. This may cause issues during real running. Change the times to current time
-# grid size may have undue effects on the accuracy. Unsure
 
 
 class OccupancyGridManager(Node):
@@ -29,7 +27,6 @@ class OccupancyGridManager(Node):
 
         self.sonar = self.create_subscription(
             PointCloud2,
-            #'pontus/sonar/rect',
             'pontus/sonar/pointcloud',
             self.pointcloud_callback,
             10
@@ -38,7 +35,7 @@ class OccupancyGridManager(Node):
         #self.timer = self.create_timer(
         #    0.1,
         #    self.occupancy_grid_update
-        #)
+        #) Uncomment this line to use a timer update/remove comment in pointcloud_callback
 
         self.declare_parameter('resolution', 0.1)
         self.declare_parameter('width', 500)
@@ -83,12 +80,6 @@ class OccupancyGridManager(Node):
 
         transformed_msg = self.transform_sonar(msg)
 
-        # points = np.array([[i[0], -i[1]] for i in point_cloud2.read_points(
-        #     transformed_msg, field_names=('x', 'y'), skip_nans=True)])
-
-        # self.get_logger().info(
-        #     f"Original points: shape: {points.shape}, obj: {points}")
-
         points = point_cloud2.read_points_numpy(
             transformed_msg, field_names=('x', 'y'),
             skip_nans=True
@@ -101,7 +92,7 @@ class OccupancyGridManager(Node):
         self.occupancy_grid.header.stamp = msg.header.stamp
 
         self.latest_pointcloud = points
-        self.occupancy_grid_update()
+        self.occupancy_grid_update() #comment this line if you want to use a timer update time
         
         
 
@@ -134,9 +125,6 @@ class OccupancyGridManager(Node):
             bin[:, :2] <= [self.map_width, self.map_height])), axis=1)]
 
         scan = np.full(self.map_width * self.map_height, -self.decay_rate, dtype=np.int16)
-        #for cell in bin:
-        #    cell_index = int(cell[0] + (-cell[1] - 1) * (self.map_width))
-        #    scan[cell_index] += 1
 
         bin = bin[:, 0] + (bin[:, 1] - 1) * self.map_width
         bin = bin.astype(np.int32)
@@ -147,7 +135,6 @@ class OccupancyGridManager(Node):
         
         bin[bin > 0] *= self.point_weight
         bin[bin > 0] += self.decay_rate
-        #self.get_logger().info(f"BIN DATA: {bin}")
         
         scan += np.array(self.occupancy_grid.data) + bin
     
@@ -212,7 +199,6 @@ class OccupancyGridManager(Node):
 
         msg_canon = self._canonicalize_cloud(msg)
         transformed_msg = do_transform_cloud(msg_canon, transform)
-        # transformed_msg = do_transform_cloud(msg, transform)
 
         return transformed_msg
 
