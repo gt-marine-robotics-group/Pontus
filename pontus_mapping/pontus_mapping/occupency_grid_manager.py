@@ -29,19 +29,20 @@ class OccupancyGridManager(Node):
 
         self.sonar = self.create_subscription(
             PointCloud2,
+            #'pontus/sonar/rect',
             'pontus/sonar/pointcloud',
             self.pointcloud_callback,
             10
         )
 
-        self.timer = self.create_timer(
-            0.1,
-            self.occupancy_grid_update
-        )
+        #self.timer = self.create_timer(
+        #    0.1,
+        #    self.occupancy_grid_update
+        #)
 
         self.declare_parameter('resolution', 0.1)
-        self.declare_parameter('width', 250)
-        self.declare_parameter('height', 250)
+        self.declare_parameter('width', 500)
+        self.declare_parameter('height', 500)
 
         self.resolution = self.get_parameter('resolution').value
         self.map_width = self.get_parameter('width').value
@@ -92,6 +93,7 @@ class OccupancyGridManager(Node):
             transformed_msg, field_names=('x', 'y'),
             skip_nans=True
         )
+        points[:, 1] = -points[:, 1]
         # self.get_logger().info(
         #     f"New points: shape: {new_points.shape}, obj: {new_points}")
 
@@ -99,6 +101,9 @@ class OccupancyGridManager(Node):
         self.occupancy_grid.header.stamp = msg.header.stamp
 
         self.latest_pointcloud = points
+        self.occupancy_grid_update()
+        
+        
 
     def occupancy_grid_update(self) -> None:
         """
@@ -128,14 +133,27 @@ class OccupancyGridManager(Node):
         bin = bin[np.all(((bin[:, :2] >= [0, 0]) & (
             bin[:, :2] <= [self.map_width, self.map_height])), axis=1)]
 
-        scan = np.zeros(self.map_width * self.map_height, dtype=np.int8)
-        for cell in bin:
-            cell_index = int(cell[0] + (-cell[1] - 1) * (self.map_width))
-            scan[cell_index] += 1
+        scan = np.full(self.map_width * self.map_height, -self.decay_rate, dtype=np.int16)
+        #for cell in bin:
+        #    cell_index = int(cell[0] + (-cell[1] - 1) * (self.map_width))
+        #    scan[cell_index] += 1
 
-        for index, curr_val in enumerate(self.occupancy_grid.data):
-            self.occupancy_grid.data[index] = int(
-                self.calculate_values(scan[index], curr_val))
+        bin = bin[:, 0] + (bin[:, 1] - 1) * self.map_width
+        bin = bin.astype(np.int32)
+        bin = bin[bin > 0]
+        
+
+        bin = np.bincount(bin,minlength=self.map_height * self.map_width)
+        
+        bin[bin > 0] *= self.point_weight
+        bin[bin > 0] += self.decay_rate
+        #self.get_logger().info(f"BIN DATA: {bin}")
+        
+        scan += np.array(self.occupancy_grid.data) + bin
+    
+        scan[scan<0] = 0
+        scan[scan>100] = 100
+        self.occupancy_grid.data = scan.tolist()
 
     def calculate_values(self, cell_count, curr_score) -> int:
         """
