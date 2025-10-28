@@ -13,6 +13,8 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
+#include <pcl/search/kdtree.h>
+#include <pcl/segmentation/extract_clusters.h>
 
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
@@ -41,11 +43,15 @@ public:
     min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.2);   // keep points at least this deep
     max_depth_m_ = this->declare_parameter<double>("max_depth_m", 3.5);  // keep points at most this deep
 
+    cluster_tolerance_ = this->declare_parameter<double>("cluster_tolerance", 0.15);
+    cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 10);
+    cluster_max_points_ = this->declare_parameter<int>("cluster_max_points", 200);
 
     rclcpp::QoS image_qos(rclcpp::KeepLast(1));
     image_qos.best_effort();
 
     cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/pontus/sonar/pointcloud", 10);
+    clustered_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/pontus/sonar/clustercloud", 10);
     img_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
       "/pontus/sonar_0/image_debug", image_qos, 
       std::bind(&SonoptixDriverNode::onImage, this, std::placeholders::_1)
@@ -110,7 +116,7 @@ private:
       }
       return cloud_msg;
     }
-
+    
     const double angle_step = (cols > 0) ? (2.0 * sonar_angle_rad_ / static_cast<double>(cols)) : 0.0;
     const double angle_min  = -sonar_angle_rad_;
 
@@ -166,6 +172,52 @@ private:
     pcl::toROSMsg(*cloud_transformed, cloud_msg);
     cloud_msg.header = src_header;
     cloud_msg.header.frame_id = target_frame_;
+
+    if(cloud_transformed->size() == 0 || cloud_transformed->size() != cloud_transformed->width * cloud_transformed->height) {
+      return cloud_msg;
+    }
+    
+
+    // cloud for clustering
+    pcl::PointCloud<pcl::PointXYZ>::Ptr xyz_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+    // Euclidean clustering
+    std::vector<pcl::PointIndices> clusters = euclideanClustering(cloud_transformed);
+    std::vector<Eigen::Vector4f> centroids = computeClusterCentroids(cloud_transformed, clusters);
+
+    // Allocate PCL cloud
+    pcl::PointCloud<pcl::PointXYZI>::Ptr clustered_cloud(new pcl::PointCloud<pcl::PointXYZI>);
+    clustered_cloud->height = 1;
+    clustered_cloud->is_dense = false;
+
+    std::size_t num_points2 = 0;
+
+    // Populate the occupied indices from each cluster
+    for (const auto& centroid : centroids) {
+        pcl::PointXYZI point;
+        point.x = centroid[0];
+        point.y = centroid[1];
+        point.z = centroid[2];
+
+        point.intensity = 100.0f;
+
+        // these points are not transformed because they are based on an already transformed cloud
+        clustered_cloud->points.push_back(point);
+        num_points2++;
+
+    }
+    clustered_cloud->width = num_points2;
+
+    // Convert to ROS PointCloud2
+    sensor_msgs::msg::PointCloud2 clustered_msg;
+    pcl::toROSMsg(*clustered_cloud, clustered_msg);
+    clustered_msg.header = cloud_msg.header;
+
+    // publish here, move outside function if desired
+    if (clustered_msg.width > 1) {
+        clustered_pub_->publish(clustered_msg);
+    }
+
     return cloud_msg;
   }
 
@@ -239,6 +291,44 @@ private:
     return *filtered_data;
   }
 
+  std::vector<pcl::PointIndices> euclideanClustering(const pcl::PointCloud<pcl::PointXYZI>::Ptr& pcl_data) {
+
+      pcl::search::KdTree<pcl::PointXYZI>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZI>());
+      tree->setInputCloud(pcl_data);
+
+      std::vector<pcl::PointIndices> cluster_indices;
+      pcl::EuclideanClusterExtraction<pcl::PointXYZI> ec;
+      ec.setClusterTolerance(cluster_tolerance_);
+      ec.setMinClusterSize(cluster_min_points_); 
+      ec.setMaxClusterSize(cluster_max_points_);
+      ec.setSearchMethod(tree);
+      ec.setInputCloud(pcl_data);
+      ec.extract(cluster_indices);
+
+      return cluster_indices;
+  }
+
+  std::vector<Eigen::Vector4f> computeClusterCentroids(const pcl::PointCloud<pcl::PointXYZI>::Ptr& pcl_data, const std::vector<pcl::PointIndices>& cluster_indices) {
+      std::vector<Eigen::Vector4f> centroids;
+
+      for (const auto& indices : cluster_indices) {
+          Eigen::Vector4f centroid(0, 0, 0, 0);
+          for (const auto& index : indices.indices) {
+              centroid[0] += pcl_data->points[index].x;
+              centroid[1] += pcl_data->points[index].y;
+              centroid[2] += pcl_data->points[index].z;
+          }
+          centroid[0] /= indices.indices.size();
+          centroid[1] /= indices.indices.size();
+          centroid[2] /= indices.indices.size();
+          centroid[3] = 1.0; // Homogeneous coordinate, usually set to 1
+          
+          centroids.push_back(centroid);
+      }
+
+      return centroids;
+  }
+
 private:
   // params
   std::string frame_id_;
@@ -249,10 +339,14 @@ private:
   bool normalize_intensity_;
   double min_depth_m_;
   double max_depth_m_;
+  double cluster_tolerance_;
+  int cluster_min_points_;
+  int cluster_max_points_;
 
   // ROS I/O
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr img_sub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr clustered_pub_;
 
   // TF2
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
