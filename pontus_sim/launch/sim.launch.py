@@ -43,7 +43,16 @@ def generate_launch_description():
         output='screen'
     )
 
+    # Thruster topic conversion node
+    thruster = Node(
+        package='pontus_sim',
+        executable='sim_thruster_bridge.py',
+        output='screen'
+    )
+
     return LaunchDescription([
         world_arg,
         gz_sim,
-        bridge])
+        bridge,
+        thruster
+    ])

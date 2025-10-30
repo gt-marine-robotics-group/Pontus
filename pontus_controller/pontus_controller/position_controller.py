@@ -1,79 +1,44 @@
-import rclpy
-from rclpy.node import Node
-import numpy as np
 from enum import Enum
-from typing import Any
-
-from rclpy.action import ActionServer
-from geometry_msgs.msg import Pose, Twist
-from nav_msgs.msg import Odometry
-from rcl_interfaces.msg import SetParametersResult
-from tf_transformations import euler_from_quaternion
-from std_msgs.msg import Bool
 import asyncio
+import numpy as np
+from typing import Optional, List, Dict
+import rclpy
 
-from .PID import PID
+from rclpy.node import Node
+from rclpy.action import ActionServer
+import tf_transformations
+
+from nav_msgs.msg import Odometry
+from geometry_msgs.msg import Twist, Pose
+from pontus_msgs.msg import CommandMode
 from pontus_msgs.action import GoToPose
-from typing import Optional, List
+from rcl_interfaces.msg import SetParametersResult
 
+from pontus_controller.PID import PID
 
-class PositionControllerState(Enum):
-    Maintain_position = 1
-    Z_correction = 2
-    Strafe = 3
-    Direction_correction = 4
-    Linear_correction = 5
-    Angular_correction = 6
-    Velocity_pass_through = 7
-    Velocity_maintain_depth = 8
-    Velocity_maintain_depth_heading = 9
+class State(Enum):
+    Stopped = 0
+    MaintainPosition = 1
+    ZCorrection = 2
+    FaceTargetPoint = 3
+    GoToPoint = 4
 
-
-class MovementMethod(Enum):
-    TurnThenForward = 1
-    StrafeThenForward = 2
-    Velocity = 3
-    VelocityMaintainDepth = 4
-    VelocityMaintainDepthHeading = 5
-
-
-class PositionNode(Node):
+class PositionController(Node):
     def __init__(self):
         super().__init__('position_controller')
-
-        self.state = PositionControllerState.Maintain_position
-        self.transition_threshold = {}
-        self.transition_threshold[PositionControllerState.Z_correction] = 0.1
-        self.transition_threshold[PositionControllerState.Direction_correction] = 0.1
-        self.transition_threshold[PositionControllerState.Linear_correction] = 0.1
-        self.transition_threshold[PositionControllerState.Strafe] = 0.05
-        self.transition_threshold[PositionControllerState.Angular_correction] = 0.10
-
-        self.deadzone = 0.2
-        self.linear_deadzone = 0.5
-
-        self.cmd_linear = None
-        self.cmd_angular = None
-
-        self.prev_time = self.get_clock().now()
-        self.prev_linear_time_under_threshold = self.get_clock().now()
-
-        self.declare_parameter('sim_mode', False)
-        sim_mode = self.get_parameter('sim_mode').get_parameter_value().bool_value
-        # If this is true, stop the position controller from publishing command velocities
-        self.controller_mode = False
-
-        # If we are in sim, there are no RC so automatically turn position controller on
-        if sim_mode:
-            self.controller_mode = False
+        self.state = State.Stopped
 
         param_list = (
+            ('x_vmax', 0.4), # m/s
+            ('y_vmax', 0.2), # m/s
+            ('yaw_vmax', 0.35), # radians/s
+            ('lookahead_distance', 1.0), # m
             ('x_kp', 1.0),
             ('x_ki', 0.0),
             ('x_kd', 0.0),
             ('y_kp', 0.275),
-            ('y_ki', 0.1),
-            ('y_kd', 0.00001),
+            ('y_ki', 0.0),
+            ('y_kd', 0.0),
             ('z_kp', 0.5),
             ('z_ki', 0.0),
             ('z_kd', 0.0),
@@ -83,186 +48,152 @@ class PositionNode(Node):
             ('p_kp', 0.5),
             ('p_ki', 0.0),
             ('p_kd', 0.0),
-            ('yaw_kp', 0.15),
-            ('yaw_ki', 0.01),
-            ('yaw_kd', 0.000001),
-        )
-
-        self.pids_created = False
-        self.add_on_set_parameters_callback(self.param_callback)
-        self.declare_parameters(namespace="pos", parameters=param_list)
-
-        # TODO: Tune these
-        # Sim PID values
-        if sim_mode:
-            self.pid_linear = [
-                PID(1, 0, 0.7),
-                PID(0.5, 0, 0.5),
-                PID(3, 0, 2)
-            ]
-            self.pid_angular = [
-                PID(0.5, 0, 0),
-                PID(4, 0, 0),
-                PID(0.4, 0, 0)
-            ]
-        # Real values for sub
-        else:
-            self.pid_linear = [
-                PID(self.x_kp, self.x_ki, self.x_kd),
-                PID(self.y_kp, self.y_ki, self.y_kd, windup_max=10),
-                PID(self.z_kp, self.z_ki, self.z_kd)
-            ]
-
-            self.pid_angular = [
-                PID(self.r_kp, self.r_ki, self.r_kd),
-                PID(self.p_kp, self.p_ki, self.p_kd),
-                PID(self.yaw_kp, self.yaw_ki, self.yaw_kd, windup_max=10)
-            ]
-
-        self.pids_created = True
-
-        self.thresh = 0.2
-        self.angular_thresh = 0.1
-        self.hold_point = False
-
-        self.goal_pose = np.zeros(3)
-        self.goal_angle = np.zeros(3)
-        self.goal_twist = None
-        self.skip_orientation = False
-        self.desired_depth = 0
-        self.desired_heading = 0
-        self.current_pose = None
-        self.movement_method = MovementMethod.TurnThenForward
-        # ROS infrastructure
-        self.cmd_pos_sub = self.create_subscription(
-          Pose,
-          '/cmd_pos',
-          self.cmd_pos_callback,
-          10
+            ('yaw_kp', 0.5),
+            ('yaw_ki', 0.0),
+            ('yaw_kd', 0.0),
         )
 
         self.odom_sub = self.create_subscription(
-          Odometry,
-          '/pontus/odometry',
-          self.odometry_callback,
-          10
-        )
-
-        self.autonomy_sub = self.create_subscription(
-            Bool,
-            '/autonomy_mode',
-            self.autonomy_mode_callback,
+            Odometry,
+            '/pontus/odometry',
+            self.odometry_callback,
             10
         )
-
+        self.command_mode_sub = self.create_subscription(
+            CommandMode,
+            '/command_mode',
+            self.command_mode_callback,
+            10
+        )
+        self.cmd_pos_sub = self.create_subscription(
+            Pose,
+            '/cmd_pos',
+            self.cmd_pos_callback,
+            10
+        )
+        self.cmd_vel_manual_sub = self.create_subscription(
+          Twist,
+          '/cmd_vel',
+          self.cmd_vel_callback,
+          10)
         self.action_server = ActionServer(
             self,
             GoToPose,
             '/pontus/go_to_pose',
             execute_callback=self.execute_callback,
         )
+        self.cmd_vel_pub = self.create_publisher(
+            Twist,
+            '/cmd_vel_fused',
+            10
+        )
+        self.debug_pose_pub = self.create_publisher(
+            Pose,
+            '/debug/pose_command',
+            10
+        )
 
-        self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
-        self.hold_point_pub = self.create_publisher(Bool, '/hold_point', 10)
+        self.prev_time = self.get_clock().now()
 
+        self.add_on_set_parameters_callback(self.param_callback)
+        self.declare_parameters(namespace="pos", parameters=param_list)
+
+        self.pid_linear = [
+            PID(self.x_kp, self.x_ki, self.x_kd),
+            PID(self.y_kp, self.y_ki, self.y_kd, windup_max=10.0),
+            PID(self.z_kp, self.z_ki, self.z_kd, windup_max =1.0)
+        ]
+
+        self.pid_angular = [
+            PID(self.r_kp, self.r_ki, self.r_kd),
+            PID(self.p_kp, self.p_ki, self.p_kd),
+            PID(self.yaw_kp, self.yaw_ki, self.yaw_kd, windup_max=2)
+        ]
+
+        self.command_mode = CommandMode.ESTOP
+
+        self.cmd_pos_linear = np.zeros(3)
+        self.cmd_pos_angular = np.zeros(3)
+        self.cmd_vel = np.zeros(6)
+
+        self.start_pose = np.zeros(6)
+
+        self.current_pose = Pose()
+        self.current_vel = Twist()
         self.previous_state = None
-        self.desired_pose = None
 
-    async def execute_callback(self, goal_handle: Any) -> GoToPose.Result:
-        """
-        Handle go to pose action.
+        # TODO: IMPLEMENT THIS CORRECTLY
+        # Acceptable error for each dof
+        self.linear_thresholds = 0.5 # m
+        self.depth_threshold = 0.2 # m
+        self.angular_thresholds = np.array([0.1, 0.1, 0.1]) # r, p, y
+        self.velocity_thresholds = np.array([0.1, 0.3]) # linear, angular
 
-        This will check the state until we are back at maintain_position. This state indicates
-        that the position controller has finished executing.
+        self.skip_orientation = False
 
-        Args:
-        ----
-        goal_handle (Any): the goal handle of the action
+    def command_mode_callback(self, msg: CommandMode) -> None:
+        if self.command_mode == msg.command_mode:
+            return
 
-        Return:
-        ------
-        GoToPose.Result: the result of the action
+        self.get_logger().info(f"Changing Command Mode: {msg.command_mode}")
 
-        """
-        request = goal_handle.request
-        self.cmd_pos_callback(request.desired_pose)
-        self.skip_orientation = request.skip_orientation
-        self.movement_method = MovementMethod(request.movement_method)
-        if self.movement_method == MovementMethod.Velocity:
-            self.goal_twist = request.desired_twist
-            self.state = PositionControllerState.Velocity_pass_through
-        if self.movement_method == MovementMethod.VelocityMaintainDepth:
-            self.goal_twist = request.desired_twist
-            self.desired_depth = request.desired_depth
-            self.state = PositionControllerState.Velocity_maintain_depth
-        if self.movement_method == MovementMethod.VelocityMaintainDepthHeading:
-            self.goal_twist = request.desired_twist
-            self.desired_depth = request.desired_depth
-            self.desired_heading = request.desired_heading
-            self.state = PositionControllerState.Velocity_maintain_depth_heading
+        self.command_mode = msg.command_mode
+        self.skip_orientation = False
+
+        if (self.command_mode == CommandMode.ESTOP
+            or self.command_mode == CommandMode.DIRECT_CONTROL
+            or self.command_mode == CommandMode.VELOCITY_CONTROL):
+            self.state = State.Stopped
         else:
-            feedback_msg = GoToPose.Feedback()
-            while True:
-                if self.state == PositionControllerState.Maintain_position:
-                    break
-                current_state = self.state.value
-                feedback_msg.current_state = current_state
-                goal_handle.publish_feedback(feedback_msg)
-                # Yield control back to the executor loop
-                await asyncio.sleep(0)
+            self.state = State.MaintainPosition
+
+    def cmd_vel_callback(self, msg: Twist) -> None:
+        self.cmd_vel = np.array([
+            msg.linear.x,
+            msg.linear.y,
+            msg.linear.z,
+            msg.angular.x,
+            msg.angular.y,
+            msg.angular.z,
+        ])
+
+        # Bypass the position controller and send commands directly
+        if self.command_mode == CommandMode.DIRECT_CONTROL \
+            or self.command_mode == CommandMode.VELOCITY_CONTROL:
+            self.cmd_vel_pub.publish(msg)
+
+    async def execute_callback(self, goal_handle: any) -> GoToPose.Result:
+        request = goal_handle.request
+
+        self.command_mode = request.command_mode
+        self.cmd_pos_callback(request.desired_pose, request.use_relative_position)
+        self.cmd_vel_callback(request.desired_twist)
+        self.skip_orientation = request.skip_orientation
+
+        feedback_msg = GoToPose.Feedback()
+
+        while True:
+            if self.is_pose_complete():
+                break
+            feedback_msg.current_state = self.state.value
+            goal_handle.publish_feedback(feedback_msg)
+            # This might spam the feedback message pretty fast
+            await asyncio.sleep(0)
 
         goal_handle.succeed()
         result = GoToPose.Result()
         result.completed = True
         return result
 
-    def autonomy_mode_callback(self, msg: Bool) -> None:
+    def cmd_pos_callback(self, msg: Pose, use_relative_pos: bool = False) -> None:
         """
-        Keep track of autonomy mode.
-
-        When autonomy mode is turned off, then we turn off the position controller. This allows
-        for velocities to be directly published to the velocity controller (RC). When autonomy
-        mode is turned back on, then the position controller takes care of publsihing velocities.
-
-        Args;
-        ----
-        msg (Bool): Bool message from callback
-
-        Return:
-        ------
-        None
-
-        """
-        if msg.data:
-            self.controller_mode = False
-        else:
-            self.controller_mode = True
-
-    def state_debugger(self) -> None:
-        """
-        Publish state on state changes for debugging purposes.
+        Stores the commanded pose and configures the position controller
 
         Args:
         ----
-        None
-
-        Return:
-        ------
-        None
-
-        """
-        # self.get_logger().info(f"Goal pose: {self.goal_pose}")
-        if self.previous_state != self.state:
-            self.get_logger().info(f"Now at: {self.state.name}")
-            self.previous_state = self.state
-
-    def cmd_pos_callback(self, msg: Pose) -> None:
-        """
-        Store the commanded positions to use in the odometry callback.
-
-        Args:
-        ----
-        msg (Pose): commanded pose
+        msg (Pose): The new commanded pose
+        use_relative_pos (bool): Whether or not the controller should move to the commanded position
+            in global space or relative to the current position of the vehicle
 
         Return:
         ------
@@ -270,200 +201,313 @@ class PositionNode(Node):
 
         """
         quat = msg.orientation
-        (r, p, y) = euler_from_quaternion([quat.x, quat.y, quat.z, quat.w])
+        (r, p, y) = tf_transformations.euler_from_quaternion([quat.x, quat.y, quat.z, quat.w])
         cmd_pos_new = np.array([msg.position.x, msg.position.y, msg.position.z])
         cmd_ang_new = np.array([r, p, y])
-        self.goal_pose = [self.goal_pose[0], self.goal_pose[1], cmd_pos_new[2]]
+
+        if use_relative_pos and self.current_pose is not None:
+            cmd_pos_new += np.array([
+                self.current_pose.position.x,
+                self.current_pose.position.y,
+                self.current_pose.position.z,
+            ])
+
         # If the cmd_pos and cmd_ang is the same as the previous, do nothing
-        if np.array_equal(cmd_pos_new, self.cmd_linear) \
-                and np.array_equal(cmd_ang_new, self.cmd_angular):
+        if np.array_equal(cmd_pos_new, self.cmd_pos_linear) \
+                and np.array_equal(cmd_ang_new, self.cmd_pos_angular):
             return
-        # If we get a new cmd_pos or cmd_ang, transition to the Z_correction state
-        self.cmd_linear = cmd_pos_new
-        self.cmd_angular = cmd_ang_new
-        self.state = PositionControllerState.Z_correction
 
-    def angle_wrap(self, angle: float) -> float:
+        start_quat = msg.orientation
+        (start_r, start_p, start_y) = tf_transformations.euler_from_quaternion([
+            start_quat.x,
+            start_quat.y,
+            start_quat.z,
+            start_quat.w
+        ])
+        self.start_pose = [
+            self.current_pose.position.x,
+            self.current_pose.position.y,
+            self.current_pose.position.z,
+            start_r,
+            start_p,
+            start_y
+        ]
+
+        self.cmd_pos_linear = cmd_pos_new
+        self.cmd_pos_angular = cmd_ang_new
+
+        self.debug_pose_pub.publish(msg)
+
+    def state_debugger(self) -> None:
+        if self.previous_state != self.state:
+            self.get_logger().info(f"Now at: {self.state.name}")
+            self.previous_state = self.state
+
+    def is_pose_complete(self) -> bool:
         """
-        Ensure that the angle is in the range [-pi, pi].
+        Determines if the position controller has reached the current commanded position
 
         Args:
         ----
-        angle (float): the desired angle we want to convert
+        None
 
         Return:
         ------
-        float: the new angle
-
+        bool: Whether or not the commanded position has been reached
         """
-        return (angle + np.pi) % (2 * np.pi) - np.pi
+        pose_array = self.get_current_pose_array()
 
-    def get_next_state(self,
-                       current_state: PositionControllerState,
-                       skip_orientation: bool,
-                       movement_method: MovementMethod) -> PositionControllerState:
-        """
-        Return the next state based on the parameters.
+        goal_linear_err = self.calculate_linear_error(self.cmd_pos_linear, pose_array[0:3])
+        goal_angular_err = self.calculate_angular_error(self.cmd_pos_angular, pose_array[3:6])
+        dist_to_goal = np.linalg.norm(goal_linear_err[0:2])
 
-        This basically defines the structure of our state machine, which may change based on
-        the inputs from the action. Represents the δ function p = δ(q, a).
+        linear_vel = np.array([
+            self.current_twist.linear.x,
+            self.current_twist.linear.y,
+            self.current_twist.linear.z,
+        ])
+        angular_vel = np.array([
+            self.current_twist.angular.x,
+            self.current_twist.angular.y,
+            self.current_twist.angular.z,
+        ])
 
-        Args:
-        ----
-        current_state (PositionControllerState): represents our current state
-        skip_orientation (bool): whether or not to skip fixing our orientation at the end
-        movement_method (MovementMethod): represents how the sub should reach the desired pose
+        orientation_good = self.skip_orientation or np.all(goal_angular_err < self.angular_thresholds)
+        velocity_good = np.all(linear_vel < self.velocity_thresholds[0]) \
+                           and np.all(angular_vel < self.velocity_thresholds[1])
 
-        Return:
-        ------
-        PositionControllerState: the next position controller state in the state machine
-
-        """
-        match current_state:
-            case PositionControllerState.Z_correction:
-                if movement_method == MovementMethod.StrafeThenForward:
-                    return PositionControllerState.Strafe
-                if movement_method == MovementMethod.TurnThenForward:
-                    return PositionControllerState.Direction_correction
-            case PositionControllerState.Strafe:
-                return PositionControllerState.Direction_correction
-            case PositionControllerState.Direction_correction:
-                return PositionControllerState.Linear_correction
-            case PositionControllerState.Linear_correction:
-                if skip_orientation:
-                    return PositionControllerState.Maintain_position
-                else:
-                    return PositionControllerState.Angular_correction
-            case PositionControllerState.Angular_correction:
-                return PositionControllerState.Maintain_position
-        self.get_logger().warn("Encountered unhandled case of movement method " +
-                               f"{movement_method} at state {current_state}")
+        if dist_to_goal < self.linear_thresholds \
+            and orientation_good \
+            and velocity_good:
+            return True
+        else:
+            return False
 
     def odometry_callback(self, msg: Odometry) -> None:
         """
-        Take in current odometry to command velocity to reach a pose.
+        Runs the position controller state machine to determine
+        and publish the desired body velocities
 
         Args:
         ----
-        msg (Odometry): our current odometry
+        msg (Odometry): our current odometry from robot localization
 
         Return:
         ------
         None
 
         """
-        self.state_debugger()
         self.current_pose = msg.pose.pose
-        # # Get the current positions from odometry
-        quat = msg.pose.pose.orientation
-        quat = [quat.x, quat.y, quat.z, quat.w]
-        # transform world frame to body frame
-        u = np.array(quat[:3])
-        u[1] = -u[1]
-        u[2] = -u[2]
-        current_position = np.array([msg.pose.pose.position.x,
-                                     msg.pose.pose.position.y,
-                                     msg.pose.pose.position.z])
-        quat = msg.pose.pose.orientation
-        quat = [quat.x, quat.y, quat.z, quat.w]
-        current_position = np.array([msg.pose.pose.position.x,
-                                     msg.pose.pose.position.y,
-                                     msg.pose.pose.position.z])
+        self.current_twist = msg.twist.twist
+        pose_array = self.get_current_pose_array()
+
+        self.state = self.calculate_state(pose_array)
+        self.state_debugger()
+
+        state_target_linear = pose_array[0:3].copy()
+        state_target_angular = pose_array[3:6].copy()
         match self.state:
-            case PositionControllerState.Maintain_position:
-                linear_err, angular_err = self.maintain_position(current_position, quat)
-            case PositionControllerState.Z_correction:
-                linear_err, angular_err = self.correct_z(current_position, quat)
-            case PositionControllerState.Strafe:
-                linear_err, angular_err = self.correct_strafe(current_position, quat)
-            case PositionControllerState.Direction_correction:
-                linear_err, angular_err = self.turn_to_next_point(current_position, quat)
-            case PositionControllerState.Linear_correction:
-                linear_err, angular_err = self.go_to_point(current_position, quat)
-            case PositionControllerState.Angular_correction:
-                linear_err, angular_err = self.correct_orientation(current_position, quat)
-            case PositionControllerState.Velocity_pass_through:
-                linear_err, angular_err = np.zeros(3), np.zeros(3)
-            case PositionControllerState.Velocity_maintain_depth:
-                z_error = self.maintain_z(self.desired_depth, current_position)
-            case PositionControllerState.Velocity_maintain_depth_heading:
-                z_error = self.maintain_z(self.desired_depth, current_position)
-                current_angle = euler_from_quaternion(quat)
-                angle_error = self.calculate_angular_error(
-                    np.array([0, 0, self.desired_heading]),
-                    current_angle)[2]
-            case _:
-                linear_err = np.zeros(3)
-                angular_err = np.zeros(3)
+            case State.Stopped:
+                return
+            case State.MaintainPosition:
+                state_target_linear = self.cmd_pos_linear
+                state_target_angular = self.cmd_pos_angular
+            case State.ZCorrection:
+                state_target_linear = self.cmd_pos_linear[2]
+            case State.FaceTargetPoint:
+                state_target_linear[2] = self.cmd_pos_linear[2]
+                state_target_angular[2] = self.calculate_angle_to_target(self.cmd_pos_linear, pose_array[0:3])
+            case State.GoToPoint:
+                state_target_linear, state_target_angular = self.calculate_go_to_point_target(pose_array)
+
+        linear_err = self.calculate_linear_error(state_target_linear, pose_array[0:3])
+        angular_err = self.calculate_angular_error(state_target_angular, pose_array[3:6])
 
         dt = self.get_clock().now() - self.prev_time
-        msg: Twist = Twist()
-        if self.state == PositionControllerState.Velocity_pass_through:
-            msg = self.goal_twist
-        elif self.state == PositionControllerState.Velocity_maintain_depth:
-            msg = self.goal_twist
-            msg.linear.z = self.pid_linear[2](z_error, dt)
-        elif self.state == PositionControllerState.Velocity_maintain_depth_heading:
-            msg = self.goal_twist
-            msg.linear.z = self.pid_linear[2](z_error, dt)
-            msg.angular.z = self.pid_angular[2](angle_error, dt)
-        else:
-            msg.linear.x = self.pid_linear[0](linear_err[0], dt)
-            msg.linear.y = self.pid_linear[1](linear_err[1], dt)
-            msg.linear.z = self.pid_linear[2](linear_err[2], dt)
-
-            msg.angular.x = self.pid_angular[0](angular_err[0], dt)
-            msg.angular.y = self.pid_angular[1](angular_err[1], dt)
-            msg.angular.z = self.pid_angular[2](angular_err[2], dt)
-
         self.prev_time = self.get_clock().now()
-        self.get_logger().info(f"{self.cmd_linear}")
-        self.get_logger().info(f"{current_position}")
-        msg = self.clamp_velocity(msg)
-        # If we are in controller mode, we are publishing command velociites from the rc controller
-        if not self.controller_mode:
-            self.cmd_vel_pub.publish(msg)
-            self.hold_point_pub.publish(Bool(data=self.hold_point))
 
-    def clamp_velocity(self, msg: Twist) -> Twist:
+        commands = np.array([
+            self.pid_linear[0](linear_err[0], dt),
+            self.pid_linear[1](linear_err[1], dt),
+            self.pid_linear[2](linear_err[2], dt),
+            self.pid_angular[0](angular_err[0], dt),
+            self.pid_angular[1](angular_err[1], dt),
+            self.pid_angular[2](angular_err[2], dt)
+        ])
+
+        msg = self.generate_command_msg(commands, pose_array)
+
+        if self.command_mode != CommandMode.DIRECT_CONTROL \
+            and self.command_mode != CommandMode.VELOCITY_CONTROL:
+            self.cmd_vel_pub.publish(msg)
+
+    def calculate_state(self, pose_array: np.ndarray) -> State:
         """
-        Clamp the veloctiy to ensure our sub does not over actuate.
+        Determines what state machine state the position controller should be in
+        based on the command mode and current position/velocity of the sub
 
         Args:
         ----
-        msg (TWist): the desired twist
+        pose_array (np.ndarray): our current pose in [x, y, z, r, p, yaw]
 
-        Return:
+        Return State: State machine state
         ------
-        Twist: the clamped twist
 
         """
-        # Roughly 30 degrees / s
-        if abs(msg.angular.z) > 0.18:
-            msg.angular.z = np.sign(msg.angular.z) * 0.18
-        if abs(msg.linear.x) > 0.25:
-            msg.linear.x = np.sign(msg.linear.x) * 0.25
-        if abs(msg.linear.y) > 0.3:
-            msg.linear.y = np.sign(msg.linear.y) * 0.3
+
+        if self.command_mode == CommandMode.ESTOP \
+            or self.command_mode == CommandMode.DIRECT_CONTROL:
+            return State.Stopped
+        elif self.command_mode == CommandMode.VELOCITY_HOLD_DEPTH \
+            or self.command_mode == CommandMode.VELOCITY_HOLD_DEPTH_HEADING \
+            or self.command_mode == CommandMode.VELOCITY_HOLD_POSITION:
+            return State.MaintainPosition
+        elif self.command_mode == CommandMode.POSITION_WITH_STRAFE:
+            return State.MaintainPosition
+
+        linear_vel = np.array([
+            self.current_twist.linear.x,
+            self.current_twist.linear.y,
+            self.current_twist.linear.z,
+        ])
+        angular_vel = np.array([
+            self.current_twist.angular.x,
+            self.current_twist.angular.y,
+            self.current_twist.angular.z,
+        ])
+
+        goal_linear_err = self.calculate_linear_error(self.cmd_pos_linear, pose_array[0:3])
+
+        if goal_linear_err[2] > self.depth_threshold:
+            return State.ZCorrection
+
+        # Close enough to strafe directly to target
+        dist_to_goal = np.linalg.norm(goal_linear_err[0:2])
+        if self.command_mode == CommandMode.POSITION_WITH_STRAFE \
+            or dist_to_goal < 2.0 * self.linear_thresholds:
+
+            return State.MaintainPosition
+
+        # Remaining states need to point towards the target point
+        # instead of the final angle
+        angle_to_target_point = np.array([0, 0, self.calculate_angle_to_target(self.cmd_pos_linear, pose_array[0:3])])
+        face_target_angular_err = self.calculate_angular_error(angle_to_target_point, pose_array[3:6])
+
+        if abs(face_target_angular_err[2]) > self.angular_thresholds[2] \
+            or abs(angular_vel[2]) > 0.1:
+
+            return State.FaceTargetPoint
+
+        # Need to be facing target point and have yaw velocity settled before reaching this state
+        return State.GoToPoint
+
+    def generate_command_msg(self, commands: np.ndarray, pose_array: np.ndarray) -> Twist:
+        """
+        Handles the various velocity hold modes that control only specific
+        degrees of freedom, applys the max velocity limits, then builds the commanded twist message
+
+        Args:
+        ----
+        commands (np.ndarray): array of velocity commands for the degrees of freedom: [x, y, z, r, p, yaw]
+        pose_array (np.ndarray): our current pose in [x, y, z, r, p, yaw]
+
+        Return Twist: Desired body velocity twist message
+        ------
+
+        """
+
+        if self.command_mode == CommandMode.VELOCITY_HOLD_DEPTH \
+            or self.command_mode == CommandMode.VELOCITY_HOLD_DEPTH_HEADING \
+            or self.command_mode == CommandMode.VELOCITY_HOLD_POSITION:
+
+            # Figure out which degrees of freedom to allow the controller to influence
+            # and override the request position if they are changed by the incoming velocity command
+            command_indices = []
+            if self.command_mode == CommandMode.VELOCITY_HOLD_DEPTH:
+                command_indices = [2]
+            elif self.command_mode == CommandMode.VELOCITY_HOLD_DEPTH_HEADING:
+                command_indices = [2, 6]
+            elif self.command_mode == CommandMode.VELOCITY_HOLD_POSITION:
+                command_indices = list(range(6))
+
+            for i in range(len(commands)):
+                if i in command_indices:
+                    if not np.isnan(self.cmd_vel[i]) and abs(self.cmd_vel[i]) > 0.01:
+                        commands[i] = self.cmd_vel[i]
+
+                        if i < 3:
+                            self.cmd_pos_linear[i] = pose_array[i]
+                        else:
+                            self.cmd_pos_angular[i%3] = pose_array[i]
+                else:
+                    commands[i] = self.cmd_vel[i]
+
+        msg = Twist()
+        msg.linear.x = commands[0]
+        msg.linear.y = commands[1]
+        msg.linear.z = commands[2]
+        msg.angular.x = commands[3]
+        msg.angular.y = commands[4]
+        msg.angular.z = commands[5]
+
+        # TODO: This may cause issues while moving forward 
+        # and strafing where it clamps different axes seperately so the final movement
+        # does not follow the same angle
+        if abs(msg.linear.x) > self.x_vmax:
+            msg.linear.x = np.sign(msg.linear.x) * self.x_vmax
+        if abs(msg.linear.y) > self.y_vmax:
+            msg.linear.y = np.sign(msg.linear.y) * self.y_vmax
+        if abs(msg.angular.z) > self.yaw_vmax:
+            msg.angular.z = np.sign(msg.angular.z) * self.yaw_vmax
         return msg
 
-    def maintain_z(self,
-                   desired_depth: float,
-                   current_position: np.ndarray) -> float:
+    def get_current_pose_array(self):
         """
-        Calculate the error to maintain our depth.
+        Convert the most recently received odometry message into a pose array
 
         Args:
         ----
-        desired_depth (float): the desired depth we want to maintain
-        current_position (np.ndarray): our current position
+        None
 
-        Return:
+        Return np.ndarray: our current pose in [x, y, z, r, p, yaw]
         ------
-        float: z error
 
         """
-        return desired_depth - current_position[2]
+        (r, p, yaw) = tf_transformations.euler_from_quaternion([
+            self.current_pose.orientation.x,
+            self.current_pose.orientation.y,
+            self.current_pose.orientation.z,
+            self.current_pose.orientation.w,
+        ])
+
+        return np.array([
+            self.current_pose.position.x,
+            self.current_pose.position.y,
+            self.current_pose.position.z,
+            r,
+            p,
+            yaw
+        ])
+
+    def calculate_angle_to_target(self, 
+                                  target: np.ndarray,
+                                  current_pose: np.ndarray) -> np.ndarray:
+        """
+        Calculate the yaw angle to point from current pose to the target point
+
+        Args:
+        ----
+        target (np.ndarray): the target point [x, y, z]
+        current_pose (np.ndarray): the point we are currently at [x, y, z]
+
+        Return float: Yaw angle in radians
+        ------
+
+        """
+
+        linear_difference = target - current_pose
+        orientation_to_target = np.arctan2(linear_difference[1], linear_difference[0])
+        return orientation_to_target
 
     def calculate_angular_error(self,
                                 desired_angle: np.ndarray,
@@ -492,8 +536,7 @@ class PositionNode(Node):
 
     def calculate_linear_error(self,
                                desired_pose: np.ndarray,
-                               current_pose: np.ndarray,
-                               quat_orientation: np.ndarray) -> np.ndarray:
+                               current_pose: np.ndarray) -> np.ndarray:
         """
         Calculate the linear error between our desired pose and our current pose.
 
@@ -501,258 +544,105 @@ class PositionNode(Node):
         ----
         desired_pose (np.ndarray): our desired position in [x, y, z]
         current_pose (np.ndarray): our current position in [x, y, z]
-        quat_orientation (np.ndarray): our current orientation in [x, y, z, w]
 
         Return:
         ------
         np.ndarray: our linear error in [x, y, z]
 
         """
-        u = np.array(quat_orientation[:3])
-        u[1] = -u[1]
-        u[2] = -u[2]
-        s = quat_orientation[3]
+        u = np.array([
+            self.current_pose.orientation.x,
+            -self.current_pose.orientation.y,
+            -self.current_pose.orientation.z,
+        ])
+        s = self.current_pose.orientation.w
         linear_err = desired_pose - current_pose
         linear_err = (2.0 * np.dot(u, linear_err) * u
                       + (s**2 - np.dot(u, u)) * linear_err
                       + 2.0 * s * np.cross(u, linear_err))
         return linear_err
 
-    def maintain_position(self,
-                          current_position: np.ndarray,
-                          quat: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def calculate_go_to_point_target(self,
+                  pose_array: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
-        Maintain our current position.
-
-        Our orientation is needed to convert from odom frame to body frame for thrust vectors.
+        Uses a lookahead distance to calculate a target point 
+        to go to on the line between the starting point of the vehicle 
+        when it received the commanded position and its commanded position.
+        This keeps it from drifting sideways or driving in curves
 
         Args:
         ----
-        current_position (np.ndarray): our current position
-        quat (np.ndarray): our current orientation
+        pose_array (np.ndarray): our current pose in [x, y, z, r, p, yaw]
 
         Return:
         ------
-        tuple[np.ndarray, np.ndarray]: linear error, angular error
+        np.ndarray: our linear error in [x, y, z]
+        np.ndarray: our angular error in [r, p, y]
 
         """
-        linear_err = self.calculate_linear_error(self.goal_pose, current_position, quat)
-        (r, p, y) = euler_from_quaternion(quat)
-        current_orientation = np.array([r, p, y])
-        angular_err = self.calculate_angular_error(self.goal_angle, current_orientation)
 
-        return linear_err, angular_err
+        trajectory_vector = self.cmd_pos_linear[:2] - self.start_pose[:2]
+        trajectory_unit = trajectory_vector / np.linalg.norm(trajectory_vector)
 
-    def correct_z(self,
-                  current_position: np.ndarray,
-                  quat: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        vec = pose_array[:2] - self.start_pose[:2]
+
+        proj_length = np.dot(vec, trajectory_unit)
+        trajectory_length = np.linalg.norm(trajectory_vector)
+        proj_length = max(0.0, min(proj_length, trajectory_length - self.lookahead_distance))
+        projected_point = self.start_pose[:2] + proj_length * trajectory_unit
+
+        target_point = projected_point + self.lookahead_distance * trajectory_unit
+        target_point = np.append(target_point, self.cmd_pos_linear[2])
+
+        linear_difference = self.cmd_pos_linear - pose_array[0:3]
+        orientation_to_target = np.array([0, 0, np.arctan2(linear_difference[1], linear_difference[0])])
+
+        return target_point, orientation_to_target
+
+    def param_callback(self, params: Dict[str, any]) -> SetParametersResult:
         """
-        Correct our depth.
-
-        Our orientation is needed to convert from odom frame to body frame for thrust vectors.
+        Handles ROS2 param changes to update the nodes member variables as well
+        as the internal PID parameters
 
         Args:
         ----
-        current_position (np.ndarray): our current position
-        quat (np.ndarray): our current orientation
+        params (dict): A dictionary of parameter values to set on the class
 
         Return:
         ------
-        tuple[np.ndarray, np.ndarray]: linear error, angular error
+        SetParametersResult
 
         """
-        self.goal_pose = [self.goal_pose[0], self.goal_pose[1], self.cmd_linear[2]]
-        linear_err = self.calculate_linear_error(self.goal_pose, current_position, quat)
-        (r, p, y) = euler_from_quaternion(quat)
-        current_orientation = np.array([r, p, y])
-        angular_err = self.calculate_angular_error(self.goal_angle, current_orientation)
-        transition_thresh = self.transition_threshold[PositionControllerState.Z_correction]
-        if abs(self.goal_pose[2] - current_position[2]) < transition_thresh:
-            self.state = self.get_next_state(self.state,
-                                             self.skip_orientation,
-                                             self.movement_method)
-        return linear_err, angular_err
+        for param in params:
+            name = param.name.replace("pos.", "")
+            setattr(self, name, param.value)
 
-    def correct_strafe(self,
-                       current_position: np.ndarray,
-                       quat: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Strafe.
+            if hasattr(self, "pid_linear") and hasattr(self, "pid_angular"):
+                split = name.split("_")
+                dof = split[0]
+                gain = split[1]
 
-        Our orientation is needed to convert from odom frame to body frame for thrust vectors.
+                pid_obj = None
+                match dof:
+                    case "x":
+                        pid_obj = self.pid_linear[0]
+                    case "y":
+                        pid_obj = self.pid_linear[1]
+                    case "z":
+                        pid_obj = self.pid_linear[2]
+                    case "r":
+                        pid_obj = self.pid_angular[0]
+                    case "p":
+                        pid_obj = self.pid_angular[1]
+                    case "yaw":
+                        pid_obj = self.pid_angular[2]
 
-        Args:
-        ----
-        current_position (np.ndarray): our current position
-        quat (np.ndarray): our current orientation
+                if (pid_obj is not None):
+                    setattr(pid_obj, gain, param.value)
 
-        Return:
-        ------
-        tuple[np.ndarray, np.ndarray]: linear error, angular error
-
-        """
-        linear_err = self.calculate_linear_error(self.cmd_linear, current_position, quat)
-        # Remove x error
-        linear_err[0] = 0.0
-        self.goal_pose = self.cmd_linear
-        (r, p, y) = euler_from_quaternion(quat)
-        current_orientation = np.array([r, p, y])
-        angular_err = self.calculate_angular_error(self.goal_angle, current_orientation)
-        transition_thresh = self.transition_threshold[PositionControllerState.Strafe]
-        if abs(linear_err[1]) < transition_thresh:
-            self.state = self.get_next_state(self.state,
-                                             self.skip_orientation,
-                                             self.movement_method)
-        return linear_err, angular_err
-
-    def turn_to_next_point(self,
-                           current_position: np.ndarray,
-                           quat: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Turn to the next point.
-
-        This is because we are faster going straight.
-        Our orientation is needed to convert from odom frame to body frame for thrust vectors.
-
-        Args:
-        ----
-        current_position (np.ndarray): our current position
-        quat (np.ndarray): our current orientation
-
-        Return:
-        ------
-        tuple[np.ndarray, np.ndarray]: linear error, angular error
-
-        """
-        linear_err = self.calculate_linear_error(self.goal_pose, current_position, quat)
-
-        linear_difference = self.cmd_linear - current_position
-        if np.linalg.norm(linear_difference[:2]) < self.deadzone:
-            self.state = self.get_next_state(self.state,
-                                             self.skip_orientation,
-                                             self.movement_method)
-            return np.array([0.0, 0.0, 0.0]), np.array([0.0, 0.0, 0.0])
-
-        (r, p, y) = euler_from_quaternion(quat)
-        current_orientation = np.array([r, p, y])
-        goal_orientation = np.array([0, 0, np.arctan2(linear_difference[1], linear_difference[0])])
-        angular_err = self.calculate_angular_error(goal_orientation, current_orientation)
-        transition_thresh = self.transition_threshold[PositionControllerState.Direction_correction]
-        if abs(angular_err[2]) < transition_thresh:
-            self.state = self.get_next_state(self.state,
-                                             self.skip_orientation,
-                                             self.movement_method)
-            self.goal_angle = goal_orientation
-            self.prev_linear_time_under_threshold = self.get_clock().now()
-        return linear_err, angular_err
-
-    def go_to_point(self,
-                    current_position: np.ndarray,
-                    quat: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Go forward to the desired point.
-
-        Our orientation is needed to convert from odom frame to body frame for thrust vectors.
-
-        Args:
-        ----
-        current_position (np.ndarray): our current position
-        quat (np.ndarray): our current orientation
-
-        Return:
-        ------
-        tuple[np.ndarray, np.ndarray]: linear error, angular error
-
-        """
-        self.goal_pose = self.cmd_linear
-        linear_err = self.calculate_linear_error(self.goal_pose, current_position, quat)
-        linear_difference = self.cmd_linear - current_position
-        (r, p, y) = euler_from_quaternion(quat)
-        current_orientation = np.array([r, p, y])
-        self.get_logger().info(f"{current_orientation}")
-        goal_orientation = np.array([0, 0, np.arctan2(linear_difference[1], linear_difference[0])])
-        angular_err = self.calculate_angular_error(goal_orientation, current_orientation)
-
-        if np.linalg.norm(linear_err[:2]) < self.linear_deadzone:
-            angular_err = np.zeros(3)
-
-        transition_thresh = self.transition_threshold[PositionControllerState.Linear_correction]
-        if np.linalg.norm(linear_err) < transition_thresh:
-            self.state = self.get_next_state(self.state,
-                                             self.skip_orientation,
-                                             self.movement_method)
-            (r, p, y) = euler_from_quaternion(quat)
-            current_orientation = np.array([0.0, 0.0, y])
-            self.goal_angle = current_orientation
-        self.get_logger().info(f"linear error {linear_err}")
-        linear_err[2] = self.cmd_linear[2] - current_position[2]
-        self.get_logger().info(f"fixed linear_error {linear_err}")
-        return linear_err, angular_err
-
-    def correct_orientation(self,
-                            current_position: np.ndarray,
-                            quat: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Correct our orientation.
-
-        Our orientation is needed to convert from odom frame to body frame for thrust vectors.
-
-        Args:
-        ----
-        current_position (np.ndarray): our current position
-        quat (np.ndarray): our current orientation
-
-        Return:
-        ------
-        tuple[np.ndarray, np.ndarray]: linear error, angular error
-
-        """
-        linear_err = self.calculate_linear_error(self.goal_pose, current_position, quat)
-
-        (r, p, y) = euler_from_quaternion(quat)
-        current_orientation = np.array([r, p, y])
-        angular_err = self.calculate_angular_error(self.cmd_angular, current_orientation)
-        transition_thresh = self.transition_threshold[PositionControllerState.Angular_correction]
-        if abs(angular_err[2]) < transition_thresh:
-            self.goal_angle = self.cmd_angular
-            self.state = self.get_next_state(self.state,
-                                             self.skip_orientation,
-                                             self.movement_method)
-        return linear_err, angular_err
-
-
-    def param_callback(self, params):
-      for param in params:
-        name = param.name.replace("pos.", "")
-        setattr(self, name, param.value)
-
-        if self.pids_created:
-          split = name.split("_")
-          dof = split[0]
-          gain = split[1]
-
-          pid_obj = None
-          match dof:
-            case "x":
-              pid_obj = self.pid_linear[0]
-            case "y":
-              pid_obj = self.pid_linear[1]
-            case "z":
-              pid_obj = self.pid_linear[2]
-            case "r":
-              pid_obj = self.pid_angular[0]
-            case "p":
-              pid_obj = self.pid_angular[1]
-            case "yaw":
-              pid_obj = self.pid_angular[2]
-
-          if (pid_obj is not None):
-            setattr(pid_obj, gain, param.value)
-
-      return SetParametersResult(successful=True)
+        return SetParametersResult(successful=True)
 
 def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
-    position_node = PositionNode()
-    rclpy.spin(position_node)
-    rclpy.shutdown()
+    node = PositionController()
+    rclpy.spin(node)

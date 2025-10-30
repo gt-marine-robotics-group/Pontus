@@ -3,6 +3,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Twist
+from pontus_msgs.msg import CommandMode
 
 class JoyListener(Node):
     def __init__(self):
@@ -20,29 +21,11 @@ class JoyListener(Node):
             10
         )
 
-        self.autonomy_mode_pub = self.create_publisher(
-            Bool,
-            '/autonomy_mode',
+        self.command_mode_pub = self.create_publisher(
+            CommandMode,
+            '/CommandMode',
             10
         )
-
-        self.cmd_vel_raw_sub = self.create_subscription(
-            Twist,
-            '/cmd_vel_joy_raw',
-            self.cmd_vel_callback,
-            10
-        )
-
-        self.cmd_vel_pub = self.create_publisher(
-            Twist,
-            '/cmd_vel_joy',
-            10
-        )
-
-        self.cmd_vel_current = Twist()
-    
-    def cmd_vel_callback(self, msg):
-        self.cmd_vel_current = msg
 
     def joy_callback(self, joy_msg):
         buttons = joy_msg.buttons
@@ -53,6 +36,10 @@ class JoyListener(Node):
             for i in range(0,5):
                 self.estop_pub.publish(estop_msg)
                 self.get_logger().info("Publishing estop: TRUE")
+            
+            cmd_mode_msg = CommandMode()
+            cmd_mode_msg.data = CommandMode.ESTOP
+            self.command_mode_pub.publish(cmd_mode_msg)
 
         manual_pressed = True if buttons[8] == 1 else False
         if not estop_pressed and manual_pressed:
@@ -71,20 +58,10 @@ class JoyListener(Node):
             estop_msg.data = False
             self.estop_pub.publish(estop_msg)
             self.get_logger().info("Publishing estop: FALSE")
-            autonomy_msg = Bool()
-            autonomy_msg.data = True
-            self.autonomy_mode_pub.publish(autonomy_msg)
-            self.get_logger().info("Publishing autonomy mode: TRUE")
-
-        
-        strafe_pressed = True if buttons[6] == 1 else False
-        if strafe_pressed:
-            self.cmd_vel_current.linear.y = self.cmd_vel_current.angular.z
-            self.cmd_vel_current.angular.z = 0.0
-            
-        self.cmd_vel_pub.publish(self.cmd_vel_current)
-
-        
+            cmd_mode_msg = CommandMode()
+            cmd_mode_msg.data = CommandMode.POSITION_FACE_TRAVEL
+            self.command_mode_pub.publish(cmd_mode_msg)
+            self.get_logger().info("Publishing command mode: POSITION_FACE_TRAVEL")
 
 
 def main(args=None):
