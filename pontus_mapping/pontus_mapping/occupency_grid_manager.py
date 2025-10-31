@@ -37,13 +37,14 @@ class OccupancyGridManager(Node):
         #    self.occupancy_grid_update
         #) Uncomment this line to use a timer update/remove comment in pointcloud_callback
 
-        self.declare_parameter('resolution', 0.1)
-        self.declare_parameter('width', 500)
-        self.declare_parameter('height', 500)
+        
+        self.declare_parameter('map_resolution_m', 0.1)
+        self.declare_parameter('map_width_cell', 500)
+        self.declare_parameter('map_height_cell', 500)
 
-        self.resolution = self.get_parameter('resolution').value
-        self.map_width = self.get_parameter('width').value
-        self.map_height = self.get_parameter('height').value
+        self.resolution = self.get_parameter('map_resolution_m').value
+        self.map_width = self.get_parameter('map_width_cell').value
+        self.map_height = self.get_parameter('map_height_cell').value
         self.latest_pointcloud: np.array = None
         self.point_weight = 6
         self.decay_rate = 3
@@ -64,6 +65,7 @@ class OccupancyGridManager(Node):
         self.occupancy_grid.info.origin.orientation.w = 1.0
 
         self.occupancy_grid.data = [0] * (self.map_width * self.map_height)
+        self.occupancy_ndarray = np.zeros(self.map_width * self.map_height, dtype=np.int16)
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -85,8 +87,6 @@ class OccupancyGridManager(Node):
             skip_nans=True
         )
         points[:, 1] = -points[:, 1]
-        # self.get_logger().info(
-        #     f"New points: shape: {new_points.shape}, obj: {new_points}")
 
         # Comment this line if current time is desired
         self.occupancy_grid.header.stamp = msg.header.stamp
@@ -107,6 +107,7 @@ class OccupancyGridManager(Node):
 
         # Uncomment this line to set time to current time instead of message time
         # self.occupancy_grid.header.stamp = self.get_clock().now().to_msg()
+        self.occupancy_grid.data = self.occupancy_ndarray.tolist()
         self.occupancy_grid_publisher.publish(self.occupancy_grid)
 
     def process_data(self, points) -> None:
@@ -124,23 +125,30 @@ class OccupancyGridManager(Node):
         bin = bin[np.all(((bin[:, :2] >= [0, 0]) & (
             bin[:, :2] <= [self.map_width, self.map_height])), axis=1)]
 
-        scan = np.full(self.map_width * self.map_height, -self.decay_rate, dtype=np.int16)
+        score = np.full(self.map_width * self.map_height, -self.decay_rate, dtype=np.int16)
 
+        #For each (x,y) pair in bin, we perform x + (y - 1) * map_width to convert from pointgrid to occupancy_grid location
         bin = bin[:, 0] + (bin[:, 1] - 1) * self.map_width
+        
         bin = bin.astype(np.int32)
+        
+        #Some bin locations are negative and must be removed
         bin = bin[bin > 0]
         
 
         bin = np.bincount(bin,minlength=self.map_height * self.map_width)
         
+        #For every cell with 1 or more point, we calculate additional score as (#points * point_weight)
         bin[bin > 0] *= self.point_weight
+        #Subtract decay_rate as decay rate is added to all cells in score
         bin[bin > 0] += self.decay_rate
         
-        scan += np.array(self.occupancy_grid.data) + bin
-    
-        scan[scan<0] = 0
-        scan[scan>100] = 100
-        self.occupancy_grid.data = scan.tolist()
+        score += self.occupancy_ndarray + bin
+
+        #Scores are clamped to between 0-100
+        score[score<0] = 0
+        score[score>100] = 100
+        self.occupancy_ndarray = score
 
     def calculate_values(self, cell_count, curr_score) -> int:
         """
