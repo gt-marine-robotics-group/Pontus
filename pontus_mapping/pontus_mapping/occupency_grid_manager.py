@@ -122,6 +122,7 @@ class OccupancyGridManager(Node):
         bin[:, 0] += self.map_width // 2
         bin[:, 1] = self.map_height // 2 - bin[:, 1]
 
+        #All points not within the occupancy grid range are removed
         bin = bin[np.all(((bin[:, :2] >= [0, 0]) & (
             bin[:, :2] <= [self.map_width, self.map_height])), axis=1)]
 
@@ -149,22 +150,6 @@ class OccupancyGridManager(Node):
         score[score<0] = 0
         score[score>100] = 100
         self.occupancy_ndarray = score
-
-    def calculate_values(self, cell_count, curr_score) -> int:
-        """
-        updates score given the number of cells in the count.
-        Args:
-        ----
-        cell_count (int): number of points in the cell
-        curr_score (int): the current score of the cell
-        Return:
-        ----
-        (int): the updated score
-        """
-        if cell_count <= 0:
-            return max(curr_score - self.decay_rate, 0)
-        new_score = cell_count * self.point_weight
-        return min(curr_score + new_score, 100)
 
     @staticmethod
     def _canonicalize_cloud(cloud: PointCloud2) -> PointCloud2:
