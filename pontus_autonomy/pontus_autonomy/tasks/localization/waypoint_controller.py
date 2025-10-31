@@ -9,8 +9,7 @@ import tf_transformations
 
 from pontus_autonomy.tasks.base_task import BaseTask
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
-from pontus_controller.position_controller import MovementMethod
-from pontus_msgs.msg import YOLOResultArray, YOLOResultArrayPose
+from pontus_msgs.msg import YOLOResultArray, YOLOResultArrayPose, CommandMode
 from pontus_mapping.semantic_map_manager import SemanticObject
 
 from pontus_autonomy.helpers.run_info import waypoints_list

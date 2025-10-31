@@ -122,7 +122,9 @@ class PositionController(Node):
         self.current_vel = Twist()
         self.previous_state = None
 
-        # TODO: IMPLEMENT THIS CORRECTLY
+        # TODO: Find a way for these values to be set by a request
+        # but easily reset to default
+
         # Acceptable error for each dof
         self.linear_thresholds = 0.5 # m
         self.depth_threshold = 0.2 # m
@@ -432,7 +434,7 @@ class PositionController(Node):
 
             for i in range(len(commands)):
                 if i in command_indices:
-                    if not np.isnan(self.cmd_vel[i]) and abs(self.cmd_vel[i]) > 0.01:
+                    if abs(self.cmd_vel[i]) > 0.01:
                         commands[i] = self.cmd_vel[i]
 
                         if i < 3:

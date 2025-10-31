@@ -1,12 +1,10 @@
 import rclpy
 from rclpy.node import Node
 import numpy as np
-import math
 
 import tf2_ros
 from typing import Optional, List
 from geometry_msgs.msg import Twist
-from std_msgs.msg import Float64
 from std_msgs.msg import Float32MultiArray
 
 

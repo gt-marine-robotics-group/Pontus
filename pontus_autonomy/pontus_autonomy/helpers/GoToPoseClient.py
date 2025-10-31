@@ -9,26 +9,26 @@ from rclpy.task import Future
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import Twist
 
+from pontus_msgs.msg import CommandMode
 from pontus_msgs.action import GoToPose
-from pontus_controller.position_controller import PositionControllerState
+from pontus_controller.position_controller import State
 from pontus_autonomy.base_run import BaseTask
-from pontus_controller.position_controller import MovementMethod
 
 
 class PoseObj:
     def __init__(self,
                  cmd_pose: Pose = None,
-                 skip_orientation: bool = False,
                  cmd_twist: Twist = None,
-                 desired_depth: float = None,
-                 desired_heading: float = None,
-                 movement_method: MovementMethod = MovementMethod.TurnThenForward):
+                 skip_orientation: bool = False,
+                 use_relative_position: bool = False,
+                 command_mode: int = CommandMode.POSITION_FACE_TRAVEL):
+
         self.cmd_pose = cmd_pose
-        self.skip_orientation = skip_orientation
-        self.movement_method = movement_method
         self.cmd_twist = cmd_twist
-        self.desired_depth = desired_depth
-        self.desired_heading = desired_heading
+
+        self.command_mode = command_mode
+        self.skip_orientation = skip_orientation
+        self.use_relative_position = use_relative_position
 
 
 class GoToPoseClient:
@@ -41,7 +41,7 @@ class GoToPoseClient:
 
         if not self.action_client.wait_for_server(timeout_sec=5.0):
             node.get_logger().error('GoToPose action server not available.')
-        self.current_state = PositionControllerState.Maintain_position
+        self.current_state = State.MaintainPosition
         self.completed = False
         self.is_in_progress = False
 
@@ -61,17 +61,16 @@ class GoToPoseClient:
         """
         self.completed = False
         self.is_in_progress = True
-        goal_msg = GoToPose.Goal()
+        goal_msg: GoToPose.Goal = GoToPose.Goal()
+        goal_msg.skip_orientation = pose_obj.skip_orientation
+        goal_msg.use_relative_position = pose_obj.use_relative_position
+        goal_msg.command_mode.command_mode = pose_obj.command_mode
+
         if pose_obj.cmd_pose is not None:
             goal_msg.desired_pose = pose_obj.cmd_pose
-            goal_msg.skip_orientation = pose_obj.skip_orientation
         if pose_obj.cmd_twist is not None:
             goal_msg.desired_twist = pose_obj.cmd_twist
-        if pose_obj.desired_depth is not None:
-            goal_msg.desired_depth = pose_obj.desired_depth
-        if pose_obj.desired_heading is not None:
-            goal_msg.desired_heading = pose_obj.desired_heading
-        goal_msg.movement_method = pose_obj.movement_method.value
+
         self.send_goal_future = self.action_client.send_goal_async(
             goal_msg,
             feedback_callback=self.feedback_callback
@@ -91,7 +90,7 @@ class GoToPoseClient:
         None
 
         """
-        self.current_state = PositionControllerState(feedback.feedback.current_state)
+        self.current_state = State(feedback.feedback.current_state)
 
     def goal_response_callback(self, future: Future) -> None:
         """
@@ -131,7 +130,7 @@ class GoToPoseClient:
         self.completed = True
 
     # Abstraction Layer
-    def get_current_state(self) -> PositionControllerState:
+    def get_current_state(self) -> State:
         """
         Return what state the position controller is in.
 
@@ -141,7 +140,7 @@ class GoToPoseClient:
 
         Return:
         ------
-        PositionControllerState: the current state the position controller is in
+        State: the current state the position controller is in
 
         """
         return self.current_state
