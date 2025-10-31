@@ -3,10 +3,7 @@ from rclpy.node import Node
 
 
 class BaseTask(Node):
-    # TODO: make state be an abstract property and set up automated state publishing
-
     debug_string = ""
-    # OpenCV BGR8 Mat image for providing debug information
     overlay_image = None
 
     def __init__(self, name: str):

@@ -14,14 +14,11 @@ find_package(geometry_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/CommandMode.msg"
-  "msg/Blueviewping.msg"
-  "msg/YOLOResult.msg"
-  "msg/YOLOResultArray.msg"
-  "msg/YOLOResultArrayPose.msg"
-  "srv/GetGateLocation.srv"
-  "srv/GetVerticalMarkerLocation.srv"
+  "msg/SemanticObject.msg"
+  "msg/SemanticMap.msg"
   "srv/GateSideInformation.srv"
   "srv/AddSemanticObject.srv"
+  "srv/SetEnum.srv"
   "action/GoToPose.action"
   "action/SearchRegion.action"
   DEPENDENCIES std_msgs geometry_msgs
