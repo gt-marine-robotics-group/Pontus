@@ -3,10 +3,9 @@ import launch
 from launch import LaunchDescription
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, ExecuteProcess
 from launch_ros.actions import Node
 import os
-
 
 def generate_launch_description():
 
@@ -67,14 +66,20 @@ def generate_launch_description():
             PathJoinSubstitution([
                 get_package_share_directory('pontus_controller'),
                 'launch',
-                'los_control.launch.py'
-                # 'hybrid_control.launch.py'
+                'pos_control.launch.py'
             ])
         ),
         launch_arguments={
             'sim': 'true',
         }.items()
     )
+
+    # This should only be used in sim
+    configure_command_mode = ExecuteProcess(
+            cmd=['ros2', 'topic', 'pub', '--once', '/command_mode', 'pontus_msgs/msg/CommandMode', '\"{command_mode: 6}\"'],
+            shell=True,
+            output='screen'
+        )
 
     dvl_republisher = Node(
         package='pontus_sensors',
@@ -88,6 +93,7 @@ def generate_launch_description():
         spawn_vehicle,
         odom_bridge,
         controls,
+        configure_command_mode,
         dvl_republisher,
         localization
     ])
