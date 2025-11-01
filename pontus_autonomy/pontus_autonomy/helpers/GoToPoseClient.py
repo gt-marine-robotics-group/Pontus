@@ -11,7 +11,7 @@ from geometry_msgs.msg import Twist
 
 from pontus_msgs.msg import CommandMode
 from pontus_msgs.action import GoToPose
-from pontus_controller.position_controller import State
+from pontus_controller.position_controller import PositionControllerState
 from pontus_autonomy.base_run import BaseTask
 
 
@@ -41,7 +41,7 @@ class GoToPoseClient:
 
         if not self.action_client.wait_for_server(timeout_sec=5.0):
             node.get_logger().error('GoToPose action server not available.')
-        self.current_state = State.MaintainPosition
+        self.current_state = PositionControllerState.MaintainPosition
         self.completed = False
         self.is_in_progress = False
 
@@ -90,7 +90,7 @@ class GoToPoseClient:
         None
 
         """
-        self.current_state = State(feedback.feedback.current_state)
+        self.current_state = PositionControllerState(feedback.feedback.current_state)
 
     def goal_response_callback(self, future: Future) -> None:
         """
@@ -130,7 +130,7 @@ class GoToPoseClient:
         self.completed = True
 
     # Abstraction Layer
-    def get_current_state(self) -> State:
+    def get_current_state(self) -> PositionControllerState:
         """
         Return what state the position controller is in.
 

@@ -11,22 +11,31 @@ import tf_transformations
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist, Pose
 from pontus_msgs.msg import CommandMode
+from pontus_msgs.message_enums import CommandModeEnum
 from pontus_msgs.action import GoToPose
 from rcl_interfaces.msg import SetParametersResult
 
 from pontus_controller.PID import PID
 
-class State(Enum):
+class PositionControllerState(Enum):
     Stopped = 0
     MaintainPosition = 1
     ZCorrection = 2
     FaceTargetPoint = 3
     GoToPoint = 4
 
+class DegreeOfFreedom(Enum):
+    X = 0
+    Y = 1
+    Z = 2
+    ROLL = 3
+    PITCH = 4
+    YAW = 5
+
 class PositionController(Node):
     def __init__(self):
         super().__init__('position_controller')
-        self.state = State.Stopped
+        self.state = PositionControllerState.Stopped
 
         param_list = (
             ('x_vmax', 0.4), # m/s
@@ -137,7 +146,7 @@ class PositionController(Node):
         if self.command_mode == msg.command_mode:
             return
 
-        self.get_logger().info(f"Changing Command Mode: {msg.command_mode}")
+        self.get_logger().info(f"Changing Command Mode: {CommandModeEnum(msg.command_mode).name}")
 
         self.command_mode = msg.command_mode
         self.skip_orientation = False
@@ -145,9 +154,9 @@ class PositionController(Node):
         if (self.command_mode == CommandMode.ESTOP
             or self.command_mode == CommandMode.DIRECT_CONTROL
             or self.command_mode == CommandMode.VELOCITY_CONTROL):
-            self.state = State.Stopped
+            self.state = PositionControllerState.Stopped
         else:
-            self.state = State.MaintainPosition
+            self.state = PositionControllerState.MaintainPosition
 
     def cmd_vel_callback(self, msg: Twist) -> None:
         self.cmd_vel = np.array([
@@ -309,17 +318,17 @@ class PositionController(Node):
         state_target_linear = pose_array[0:3].copy()
         state_target_angular = pose_array[3:6].copy()
         match self.state:
-            case State.Stopped:
+            case PositionControllerState.Stopped:
                 return
-            case State.MaintainPosition:
+            case PositionControllerState.MaintainPosition:
                 state_target_linear = self.cmd_pos_linear
                 state_target_angular = self.cmd_pos_angular
-            case State.ZCorrection:
+            case PositionControllerState.ZCorrection:
                 state_target_linear = self.cmd_pos_linear[2]
-            case State.FaceTargetPoint:
+            case PositionControllerState.FaceTargetPoint:
                 state_target_linear[2] = self.cmd_pos_linear[2]
                 state_target_angular[2] = self.calculate_angle_to_target(self.cmd_pos_linear, pose_array[0:3])
-            case State.GoToPoint:
+            case PositionControllerState.GoToPoint:
                 state_target_linear, state_target_angular = self.calculate_go_to_point_target(pose_array)
 
         linear_err = self.calculate_linear_error(state_target_linear, pose_array[0:3])
@@ -343,7 +352,7 @@ class PositionController(Node):
             and self.command_mode != CommandMode.VELOCITY_CONTROL:
             self.cmd_vel_pub.publish(msg)
 
-    def calculate_state(self, pose_array: np.ndarray) -> State:
+    def calculate_state(self, pose_array: np.ndarray) -> PositionControllerState:
         """
         Determines what state machine state the position controller should be in
         based on the command mode and current position/velocity of the sub
@@ -359,13 +368,13 @@ class PositionController(Node):
 
         if self.command_mode == CommandMode.ESTOP \
             or self.command_mode == CommandMode.DIRECT_CONTROL:
-            return State.Stopped
+            return PositionControllerState.Stopped
         elif self.command_mode == CommandMode.VELOCITY_HOLD_DEPTH \
             or self.command_mode == CommandMode.VELOCITY_HOLD_DEPTH_HEADING \
             or self.command_mode == CommandMode.VELOCITY_HOLD_POSITION:
-            return State.MaintainPosition
+            return PositionControllerState.MaintainPosition
         elif self.command_mode == CommandMode.POSITION_WITH_STRAFE:
-            return State.MaintainPosition
+            return PositionControllerState.MaintainPosition
 
         linear_vel = np.array([
             self.current_twist.linear.x,
@@ -381,14 +390,14 @@ class PositionController(Node):
         goal_linear_err = self.calculate_linear_error(self.cmd_pos_linear, pose_array[0:3])
 
         if goal_linear_err[2] > self.depth_threshold:
-            return State.ZCorrection
+            return PositionControllerState.ZCorrection
 
         # Close enough to strafe directly to target
         dist_to_goal = np.linalg.norm(goal_linear_err[0:2])
         if self.command_mode == CommandMode.POSITION_WITH_STRAFE \
             or dist_to_goal < 2.0 * self.linear_thresholds:
 
-            return State.MaintainPosition
+            return PositionControllerState.MaintainPosition
 
         # Remaining states need to point towards the target point
         # instead of the final angle
@@ -398,10 +407,10 @@ class PositionController(Node):
         if abs(face_target_angular_err[2]) > self.angular_thresholds[2] \
             or abs(angular_vel[2]) > 0.1:
 
-            return State.FaceTargetPoint
+            return PositionControllerState.FaceTargetPoint
 
         # Need to be facing target point and have yaw velocity settled before reaching this state
-        return State.GoToPoint
+        return PositionControllerState.GoToPoint
 
     def generate_command_msg(self, commands: np.ndarray, pose_array: np.ndarray) -> Twist:
         """
@@ -426,11 +435,11 @@ class PositionController(Node):
             # and override the request position if they are changed by the incoming velocity command
             command_indices = []
             if self.command_mode == CommandMode.VELOCITY_HOLD_DEPTH:
-                command_indices = [2]
+                command_indices = [DegreeOfFreedom.Z]
             elif self.command_mode == CommandMode.VELOCITY_HOLD_DEPTH_HEADING:
-                command_indices = [2, 6]
+                command_indices = [DegreeOfFreedom.Z, DegreeOfFreedom.YAW]
             elif self.command_mode == CommandMode.VELOCITY_HOLD_POSITION:
-                command_indices = list(range(6))
+                command_indices = list(range(len(commands)))
 
             for i in range(len(commands)):
                 if i in command_indices:
