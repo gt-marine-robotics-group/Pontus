@@ -9,6 +9,7 @@
 #include <cv_bridge/cv_bridge.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/opencv.hpp>
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -22,6 +23,8 @@
 #include <pcl/common/transforms.h>
 #include "pcl_ros/transforms.hpp"
 #include <pcl/filters/passthrough.h>
+
+#include <cpr/cpr.h>
 
 #include <algorithm>
 #include <cmath>
@@ -50,12 +53,19 @@ public:
     rclcpp::QoS image_qos(rclcpp::KeepLast(1));
     image_qos.best_effort();
 
+    configureSonoptix();
+    // Read Sonoptix and generate point cloud every 100ms
+    timer_ = this->create_wall_timer(
+      std::chrono::milliseconds(100),
+      std::bind(&SonoptixDriverNode::publishPointCloud, this)
+    );
+
     cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/pontus/sonar/pointcloud", 10);
     clustered_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/pontus/sonar/clustercloud", 10);
-    img_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-      "/pontus/sonar_0/image_debug", image_qos, 
-      std::bind(&SonoptixDriverNode::onImage, this, std::placeholders::_1)
-    );
+    // img_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+    //   "/pontus/sonar_0/image_debug", image_qos, 
+    //   std::bind(&SonoptixDriverNode::onImage, this, std::placeholders::_1)
+    // );
 
     // TF buffer + listener
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
@@ -69,6 +79,61 @@ public:
   }
 
 private:
+  void configureSonoptix() {
+    // Configure Sonoptix 
+    std::string api_url = "http://" + ip_address + ":8000/api/v1";
+    cpr::Header header{{"Content-Type", "application/json"}};
+    auto res = cpr::Patch(
+        cpr::Url{api_url + "/transponder"},
+        cpr::Body{R"({"enable": true, "sonar_range": )" + std::to_string(range) + "}"},
+        header
+    );
+    auto res2 = cpr::Put(
+      cpr::Url{api_url + "/streamtype"},
+      cpr::Body{R"({"value": 2})"},
+      header
+    );
+    auto res3 = cpr::Patch(
+      cpr::Url{api_url + "/config"},
+      cpr::Body{R"({
+        "contrast": 0,
+        "gain": -20,
+        "mirror_image": false,
+        "autodetect_orientation": 0
+      })"},
+      header
+    );
+    if (res.status_code != 200 || res2.status_code != 200 || res3.status_code != 200) {
+      RCLCPP_WARN(get_logger(), "Sonoptix configuration request failed");
+    }
+
+    // Open the RTSP connection
+    std::string rtsp_url = "rtsp://" + ip_address + ":8554/raw";
+    cap_.open(rtsp_url, cv::CAP_FFMPEG);
+    cap_.set(cv::CAP_PROP_BUFFERSIZE, 1);
+  }
+
+  void publishPointCloud() {
+    // Check if connection open
+    if (!cap_.isOpened()) {
+      RCLCPP_WARN(get_logger(), "Cannot read image because RTSP stream not open");
+      return;
+    }
+    // Try to read frame
+    cv::Mat frame;
+    if (!cap_.read(frame)) {
+      RCLCPP_WARN(get_logger(), "Failed to read frame from RTSP");
+      return;
+    }
+    // Process frame and publish point cloud
+    // I didn't end up using the onImage() method because it converts to cv::Mat and then calls sonar_image_to_cloud but I already have a cv::Mat
+    std_msgs::msg::Header header;
+    header.stamp = this->get_clock()->now();
+    header.frame_id = "sonar_0";
+    sensor_msgs::msg::PointCloud2 cloud_msg = sonar_image_to_cloud(frame, header);
+    cloud_pub_->publish(cloud_msg);
+  }
+
   // ----------- Image callback -----------
   void onImage(const sensor_msgs::msg::Image::SharedPtr msg) {
     cv::Mat gray;
@@ -335,6 +400,8 @@ private:
   std::string target_frame_;
   double sonar_res_m_;
   double sonar_angle_rad_;
+  cv::VideoCapture image_cap_;
+  rclcpp::TimerBase::SharedPtr timer_;
   int intensity_min_;
   bool normalize_intensity_;
   double min_depth_m_;
