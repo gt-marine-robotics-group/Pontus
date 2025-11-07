@@ -7,6 +7,7 @@ from typing import Optional, List
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Float32MultiArray
 
+from pontus_description.vehicle_params_helper import VehicleParams
 
 class ThrusterController(Node):
     class Thruster:
@@ -52,25 +53,24 @@ class ThrusterController(Node):
     def __init__(self):
         super().__init__('thruster_controller')
 
-        # TODO: make these parameters or something
+        self.vehicle_params = VehicleParams(self)
+
         self.vehicle_name = 'pontus'
-        self.max_allowed_thrust = 30.0
-        self.thruster_max = 52.0
-        self.deadzone = 2.6
+        self.max_allowed_thrust = self.vehicle_params.thruster_max_allowed
+        self.thruster_max = self.vehicle_params.thruster_max_thrust
+        self.deadzone = self.vehicle_params.thruster_min_allowed
 
         if (self.max_allowed_thrust > self.thruster_max):
             self.max_allowed_thrust = self.thruster_max
 
-        # TODO: These could be pulled from the robot description topic
-
-        mass = 18.65
+        mass = self.vehicle_params.mass
         # Moments of inertia of the vehicle (these also need to be properly calculated)
-        ixx = 55
-        ixy = 0
-        ixz = 0
-        iyy = 0.585
-        iyz = 0
-        izz = 55
+        ixx = self.vehicle_params.ixx
+        ixy = self.vehicle_params.ixy
+        ixz = self.vehicle_params.ixz
+        iyy = self.vehicle_params.iyy
+        iyz = self.vehicle_params.iyz
+        izz = self.vehicle_params.izz
 
         self.inertial_tensor = np.array([
             [ixx, ixy, ixz],

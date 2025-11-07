@@ -10,6 +10,7 @@ from nav_msgs.msg import Odometry
 from rcl_interfaces.msg import SetParametersResult
 from pontus_msgs.msg import CommandMode
 
+from pontus_description.vehicle_params_helper import VehicleParams
 
 class VelocityNode(Node):
     def __init__(self):
@@ -55,7 +56,9 @@ class VelocityNode(Node):
         )
 
         self.add_on_set_parameters_callback(self.param_callback)
-        self.declare_parameters(namespace="vel", parameters=param_list)
+        self.declare_parameters(namespace="", parameters=param_list)
+
+        self.vehicle_params = VehicleParams(self)
 
         # TODO: Tune these
         self.pid_linear = [
@@ -217,11 +220,11 @@ class VelocityNode(Node):
         """
         # Sub Coefficients
         cross_sectional_area = np.array([
-           np.pi * (0.5 * self.sub_diameter) ** 2,
-           self.sub_length * self.sub_diameter,
-           self.sub_length * self.sub_diameter
+           np.pi * (0.5 * self.vehicle_params.diameter) ** 2,
+           self.vehicle_params.length * self.vehicle_params.diameter,
+           self.vehicle_params.length * self.vehicle_params.diameter
         ])
-        sub_volume = cross_sectional_area[0] * self.sub_length
+        sub_volume = cross_sectional_area[0] * self.vehicle_params.length
 
         # Drag Coefficients
         # Values taken from: https://phys.libretexts.org/Bookshelves/Classical_Mechanics/Classical_Mechanics_(Dourmashkin)/08%3A_Applications_of_Newtons_Second_Law/8.06%3A_Drag_Forces_in_Fluids  # noqa: E501
@@ -236,11 +239,11 @@ class VelocityNode(Node):
 
         # Calculate buoyancy force
         # F = pVg
-        f_buoyancy = self.water_density * sub_volume * self.gravity
+        f_buoyancy = self.vehicle_params.fluid_density * sub_volume * self.vehicle_params.gravity
         # F = mg
-        f_gravity = self.sub_mass * self.gravity
+        f_gravity = self.vehicle_params.mass * self.vehicle_params.gravity
         f_net = f_buoyancy - f_gravity
-        world_acceleration_buoyancy = np.array([0.0, 0.0, f_net / self.sub_mass])
+        world_acceleration_buoyancy = np.array([0.0, 0.0, f_net / self.vehicle_params.mass])
         body_rotation_matrix = Rotation.from_quat(np.array([
             msg.pose.pose.orientation.x,
             msg.pose.pose.orientation.y,
@@ -254,7 +257,7 @@ class VelocityNode(Node):
 
         # Linear Drag: F = 1/2 CpAv^2
         # Approximated as a cylinder
-        linear_f_drag = 0.5 * C[0:3] * self.water_density * cross_sectional_area \
+        linear_f_drag = 0.5 * C[0:3] * self.vehicle_params.fluid_density * cross_sectional_area \
           * (np.sign(self.cmd_linear) * self.cmd_linear ** 2)
 
         # Rotational Drag: TODO: Estimate drag coefficients
@@ -283,11 +286,10 @@ class VelocityNode(Node):
 
         """
         for param in params:
-            name = param.name.replace("vel.", "")
-            setattr(self, name, param.value)
+            setattr(self, param.name, param.value)
 
             if hasattr(self, "pid_linear") and hasattr(self, "pid_angular"):
-                split = name.split("_")
+                split = param.name.split("_")
                 dof = split[0]
                 gain = split[1]
 
