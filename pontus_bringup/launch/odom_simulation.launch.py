@@ -22,6 +22,17 @@ def generate_launch_description():
     static = LaunchConfiguration('static')
     localization_share = get_package_share_directory('pontus_localization')
 
+    description = launch.actions.IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                get_package_share_directory('pontus_description'),
+                'launch',
+                'description.launch.py'
+            ])
+        ),
+        launch_arguments={'static': static}.items()
+    )
+
     gzsim = launch.actions.IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
@@ -36,7 +47,7 @@ def generate_launch_description():
     spawn_vehicle = launch.actions.IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
-                get_package_share_directory('pontus_description'),
+                get_package_share_directory('pontus_sim'),
                 'launch',
                 'spawn.launch.py'
             ])
@@ -89,6 +100,7 @@ def generate_launch_description():
     return LaunchDescription([
         world_arg,
         static_arg,
+        description,
         gzsim,
         spawn_vehicle,
         odom_bridge,

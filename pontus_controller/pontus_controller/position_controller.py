@@ -105,7 +105,7 @@ class PositionController(Node):
         self.prev_time = self.get_clock().now()
 
         self.add_on_set_parameters_callback(self.param_callback)
-        self.declare_parameters(namespace="pos", parameters=param_list)
+        self.declare_parameters(namespace="", parameters=param_list)
 
         self.pid_linear = [
             PID(self.x_kp, self.x_ki, self.x_kd),
@@ -625,11 +625,10 @@ class PositionController(Node):
 
         """
         for param in params:
-            name = param.name.replace("pos.", "")
-            setattr(self, name, param.value)
+            setattr(self, param.name, param.value)
 
             if hasattr(self, "pid_linear") and hasattr(self, "pid_angular"):
-                split = name.split("_")
+                split = param.name.split("_")
                 dof = split[0]
                 gain = split[1]
 
