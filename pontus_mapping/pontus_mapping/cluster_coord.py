@@ -33,10 +33,11 @@ class ImageCoordinator(Node):
         self.latest_pointcloud: np.array = None
         self.line_projection_width = .2 # (m), width of line pointing toward object detected by yolo
 
-        # self.srv = self.create_service(AddSemanticObject, 'add_three_ints', self.add_three_ints_callback)  
+        # self.srv = self.create_service(AddSemanticObject, 'add_semantic_object', self.placeholder)  
 
-        self.coordinated_cloud_publisher = self.create_publisher(
-            PointCloud2,
+        #TODO Improve publisher type
+        self.coordinated_points_publisher = self.create_publisher(
+            list,
             '/pontus/coordinated_cloud',
             10
         )
@@ -56,12 +57,18 @@ class ImageCoordinator(Node):
         )
 
     def yolo_callback(self, msg: Detection2DArray) -> None:
-        """Assigns results from yolo to points in latest_pointcloud
+        """Assigns results from yolo to points in latest_pointcloud and publishes all points as list
 
         Args:
             msg (Detection2DArray): _description_
         """
-        1
+        named_points = []
+        for object in msg.detections:
+            temp = self.associate_object_with_point(object, self.latest_pointcloud)
+            if temp.id != -1:
+                named_points.append(temp)
+        
+        self.coordinated_points_publisher.publish(named_points)
 
     def pointcloud_callback(self, msg: PointCloud2) -> None:
         """
@@ -71,13 +78,17 @@ class ImageCoordinator(Node):
         msg (PointCloud2): subscribed pointcloud
         """
 
-        transformed_msg = self.transform_sonar(msg)
+        # clustered_cloud is already in correct space, optionally add transform logic here just in case
+        if msg.header.frame_id != 'map':
+            transformed_msg = self.transform_sonar(msg)
+        else:
+            transformed_msg = msg
 
         points = point_cloud2.read_points_numpy(
-            transformed_msg, field_names=('x', 'y'),
+            transformed_msg, field_names=('x', 'y', 'z'),
             skip_nans=True
         )
-        points[:, 1] = -points[:, 1]
+        points[:, 1] = -points[:, 1] #TODO ask why do this?
 
         # Comment this line if current time is desired
         self.occupancy_grid.header.stamp = msg.header.stamp
@@ -85,14 +96,14 @@ class ImageCoordinator(Node):
         self.latest_pointcloud = points
 
 
-    def associate_object_with_point(self, object_msg: Detection2D, point_cloud_msg: PointCloud2) -> NamedPoint:
+    def associate_object_with_point(self, object_msg: Detection2D, point_array: np.ndarray) -> NamedPoint:
         """
         finds the tracetory to an object from the camera and associates the first point in pointcloud on the line defined
         by that trajectory with that object
 
         Args:
             object_msg (Detection2D): dectected object message
-            point_cloud_msg (PointCloud2): pointcloud to search for matching points in
+            point_array (np.ndarray): pointcloud to search for matching points in as an array
 
         Returns:
             placeholder: _description_
@@ -105,7 +116,6 @@ class ImageCoordinator(Node):
         transformed_pose = Pose()
 
         # find first point lying on line from pose
-        point_array = sensor_msgs_py.point_cloud2.read_points(point_cloud_msg, field_names=['x', 'y', 'z'], skip_nans=True)
         relevant_points = self.points_on_line(point_array, transformed_pose)
         if (relevant_points == []).all():
             #no points on line
@@ -149,11 +159,12 @@ class ImageCoordinator(Node):
             np.ndarray: structured numpy array of all points on the line defined by pose
         """
 
-        # get indices based on pose orientation, math.abs(target_x/a) % 1 < self.line_projection_width
+        # get indices based on pose orientation, atan2, math.abs(target_x/a) % 1 < self.line_projection_width
+        # convert quaternion to euler, get 
         # TODO
 
         # 
-        point_array['x'] / pose.orientation % 1 < self.line_projection_width # something like this for xyz
+        point_array['x'] / pose.orientation % 1.0 < self.line_projection_width # something like this for xyz
         on_line = False
         return on_line
 
@@ -193,7 +204,7 @@ class ImageCoordinator(Node):
             )
             # self.get_logger().info("SUCCESS ON TRANSFORM")
         except:
-            self.get_logger().warn("failure to transform pointcloud to map frame")
+            self.get_logger().warn("failure to transform pointcloud to map frame, current frame: {}".format(msg.header.frame_id))
             return msg
 
         msg_canon = self._canonicalize_cloud(msg)
