@@ -84,7 +84,7 @@ def generate_launch_description():
     robot_state_publisher = OpaqueFunction(function=create_robot_state_publisher)
 
     # URDF spawner
-    args = ['-name', 'pontus', '-topic', 'robot_description', '-x', '4.8', '-y', '-2.7']
+    args = ['-name', 'pontus', '-topic', 'robot_description', '-x', '5.2' , '-y', '-2.7']
     spawn = Node(
         package='ros_gz_sim', 
         executable='create', 
@@ -97,7 +97,7 @@ def generate_launch_description():
         package='tf2_ros',
         executable='static_transform_publisher',
         name='static_transform_publisher',
-        arguments = ["--x", "0", "--y", "0", "--z", "0", "--roll", "0", "--pitch", "0", "--yaw", "0.0", "--frame-id", "map", "--child-frame-id", "odom"]
+        arguments = ["--x", "5.2", "--y", "-2.7", "--z", "0", "--roll", "0", "--pitch", "0", "--yaw", "0.0", "--frame-id", "map", "--child-frame-id", "odom"]
     )
     return LaunchDescription([
         gazebo_arg,
