@@ -9,7 +9,7 @@
 #include <cv_bridge/cv_bridge.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
-#include <opencv2/opencv.hpp>
+#include <opencv2/videoio.hpp>
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -49,14 +49,15 @@ public:
     cluster_tolerance_ = this->declare_parameter<double>("cluster_tolerance", 0.15);
     cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 10);
     cluster_max_points_ = this->declare_parameter<int>("cluster_max_points", 200);
+    sonar_request_update_frequency_ms = this->declare_parameter<int>("sonar_freq_ms", 10);
 
     rclcpp::QoS image_qos(rclcpp::KeepLast(1));
     image_qos.best_effort();
 
     configureSonoptix();
-    // Read Sonoptix and generate point cloud every 100ms
-    timer_ = this->create_wall_timer(
-      std::chrono::milliseconds(100),
+    // Read Sonoptix and generate point cloud at specified frequency
+    timer_ = this->create_timer(
+      std::chrono::milliseconds(sonar_request_update_frequency_ms),
       std::bind(&SonoptixDriverNode::publishPointCloud, this)
     );
 
@@ -129,7 +130,7 @@ private:
     // I didn't end up using the onImage() method because it converts to cv::Mat and then calls sonar_image_to_cloud but I already have a cv::Mat
     std_msgs::msg::Header header;
     header.stamp = this->get_clock()->now();
-    header.frame_id = "sonar_0";
+    header.frame_id = frame_id_;
     sensor_msgs::msg::PointCloud2 cloud_msg = sonar_image_to_cloud(frame, header);
     cloud_pub_->publish(cloud_msg);
   }
@@ -400,8 +401,7 @@ private:
   std::string target_frame_;
   double sonar_res_m_;
   double sonar_angle_rad_;
-  cv::VideoCapture image_cap_;
-  rclcpp::TimerBase::SharedPtr timer_;
+  int sonar_request_update_frequency_ms;
   int intensity_min_;
   bool normalize_intensity_;
   double min_depth_m_;
@@ -409,6 +409,10 @@ private:
   double cluster_tolerance_;
   int cluster_min_points_;
   int cluster_max_points_;
+
+  // fields
+  cv::VideoCapture image_cap_;
+  rclcpp::TimerBase::SharedPtr timer_;
 
   // ROS I/O
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr img_sub_;

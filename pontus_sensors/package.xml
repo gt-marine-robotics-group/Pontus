@@ -38,6 +38,8 @@
   <build_export_depend>eigen3_cmake_module</build_export_depend>
   <exec_depend>eigen</exec_depend>
 
+  <build_depend>cpr</build_depend>
+
   <exec_depend>rosidl_default_runtime</exec_depend>
   <exec_depend>ros2launch</exec_depend>
   <exec_depend>microstrain_inertial_driver</exec_depend>
