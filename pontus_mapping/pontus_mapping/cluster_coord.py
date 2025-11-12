@@ -1,4 +1,5 @@
 # from pontus_msgs.srv import AddSemanticObject
+import geometry_msgs
 from pontus_msgs.msg import SemanticObject
 import rclpy
 from rclpy.node import Node
@@ -7,7 +8,7 @@ import sensor_msgs_py.point_cloud2
 from std_msgs.msg import Header
 from builtin_interfaces.msg import Time
 from nav_msgs.msg import OccupancyGrid
-from geometry_msgs.msg import Point, PoseStamped
+from geometry_msgs.msg import Point, PoseStamped, Vector3
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs_py import point_cloud2
 from tf2_ros import TransformListener
@@ -38,6 +39,7 @@ class ImageCoordinator(Node):
         self.latest_pointcloud: np.array = None
         self.line_projection_width = .2 # (m), width of line pointing toward object detected by yolo
         self.confidence_min = 0.5 # object score must be at least this to be added to semantic map
+        self.vector_projection_dist = 20 # (m), how far the line is projected 
         self.cam_model = PinholeCameraModel()
 
         self.tf_buffer = Buffer()
@@ -217,9 +219,33 @@ class ImageCoordinator(Node):
 
         return new_pose
     
+    def get_x_axis_vector_from_pose(self, pose_msg: PoseStamped) -> Vector3:
+        """
+        Extracts the x-axis direction vector from a geometry_msgs/Pose message.
+        """
+        # 1. Define the unit vector along the local x-axis
+        local_x_axis_vector = Vector3(x=1.0, y=0.0, z=0.0)
+
+        # 2. Create a transform using only the orientation of the pose
+        # We use a dummy transform with zero translation for this
+        transform = geometry_msgs.msg.Transform(
+            translation=Point(x=0.0, y=0.0, z=0.0),
+            orientation=pose_msg.orientation
+        )
+        
+        # 3. Create a TransformStamped message for the tf2 utility
+        transform_stamped = geometry_msgs.msg.TransformStamped()
+        transform_stamped.transform = transform
+
+        # 4. Transform the local x-axis vector to the pose's frame of reference
+        # do_transform_vector3 applies the rotation defined by the transform
+        global_x_axis_vector = tf2_geometry_msgs.do_transform_vector3(local_x_axis_vector, transform_stamped)
+        
+        return global_x_axis_vector
+    
     def points_on_line(self, point_array: np.ndarray, pose: PoseStamped) -> np.ndarray:
         """
-        Checks that provided point exists on line defined by pose
+        Checks that provided point exists on line defined by pose, this could be improved
 
         Args:
             point_array (Point): array of points to be checked against
@@ -231,12 +257,20 @@ class ImageCoordinator(Node):
 
         # get indices based on pose orientation, atan2, math.abs(target_x/a) % 1 < self.line_projection_width
         # convert quaternion to euler, get x using pitch and roll
-        # TODO
+        vector_to_object = self.get_x_axis_vector_from_pose(pose)
+        start_point = np.ndarray([pose.pose.position.x, pose.pose.position.y, pose.pose.position.z], dtype=point_array.dtype)
 
-        # 
-        point_array['x'] / pose.orientation % 1.0 < self.line_projection_width # something like this for xyz
-        on_line = False
-        return on_line
+        end_point = np.ndarray([vector_to_object.x*self.vector_projection_dist + pose.pose.position.x,
+                                vector_to_object.y*self.vector_projection_dist + pose.pose.position.y,
+                                vector_to_object.z*self.vector_projection_dist + pose.pose.position.z], dtype=point_array.dtype)
+
+        
+        BA = start_point - end_point
+        BC = point_array - end_point
+
+        distance = np.sum(np.abs(np.cross(BA,BC)),dim=1) / np.sum(np.abs(BA), axis=1)
+
+        return point_array[distance <= self.line_projection_width,:]
 
     @staticmethod
     def _canonicalize_cloud(cloud: PointCloud2) -> PointCloud2:
@@ -288,11 +322,11 @@ class ImageCoordinator(Node):
 
         Args:
         ----
-        msg (PointCloud2): subscribed pointcloud
+        msg (PoseStamped): posestamped in camera frame
 
         Return:
         ----
-        (PointCloud2): The pointedcloud with transformed data
+        (PoseStamped): The posestamped with transformed data
         """
         transform = None
         try:
