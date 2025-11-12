@@ -38,6 +38,7 @@ def generate_launch_description() -> LaunchDescription:
         }],
         remappings=[
             ('input',                 f'{front_camera_topic}/image_raw'),
+            ('input/compressed',      f'{front_camera_topic}/image_raw/compressed'),
             ('results',               f'{front_camera_topic}/yolo_results'),
             ('yolo_debug',            f'{front_camera_topic}/yolo_debug'),
             ('yolo_debug/compressed',
