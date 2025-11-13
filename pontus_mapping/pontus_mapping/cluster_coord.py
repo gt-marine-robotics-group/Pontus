@@ -3,8 +3,8 @@ import geometry_msgs
 from pontus_msgs.msg import SemanticObject
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Point, PoseStamped, Vector3
-from sensor_msgs.msg import PointCloud2
+from geometry_msgs.msg import Point, PoseStamped, Vector3Stamped
+from sensor_msgs.msg import PointCloud2, CameraInfo
 from sensor_msgs_py import point_cloud2
 from tf2_ros import TransformListener
 from tf2_ros.buffer import Buffer
@@ -36,6 +36,8 @@ class ImageCoordinator(Node):
         self.confidence_min = 0.5 # object score must be at least this to be added to semantic map
         self.vector_projection_dist = 20 # (m), how far the line is projected 
         self.cam_model = PinholeCameraModel()
+        self.camera_frame_name = 'camera_front'
+        self.cam_initialized = False
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -55,10 +57,16 @@ class ImageCoordinator(Node):
 
         self.yolo = self.create_subscription(
             Detection2DArray,
-            'results',
+            '/pontus/{}/yolo_results'.format(self.camera_frame_name),
             self.yolo_callback,
             10
         )
+
+        self.info_sub = self.create_subscription(
+            CameraInfo,
+            '/pontus/{}/camera_info'.format(self.camera_frame_name), # Replace with your camera info topic
+            self.info_callback,
+            10)
 
     def yolo_callback(self, msg: Detection2DArray) -> None:
         """Assigns results from yolo to points in latest_pointcloud and publishes all points as list
@@ -68,8 +76,10 @@ class ImageCoordinator(Node):
         """
         for object in msg.detections:
             temp, point_found = self.associate_object_with_point(object, self.latest_pointcloud)
+            print(0)
             if point_found and temp.confidence > self.confidence_min:
                 self.semantic_object_publisher.publish(temp)
+                print(1)
 
     def pointcloud_callback(self, msg: PointCloud2) -> None:
         """
@@ -93,6 +103,14 @@ class ImageCoordinator(Node):
 
         self.latest_pointcloud = points
 
+    def info_callback(self, msg):
+        """
+        Callback for CameraInfo messages. Updates the PinholeCameraModel.
+        """
+        if not self.cam_initialized: # Only update if not initialized or if parameters change
+            self.cam_model.fromCameraInfo(msg)
+            self.cam_initialized = True
+            self.get_logger().info('Camera model initialized with new info.')
 
     def associate_object_with_point(self, object_msg: Detection2D, point_array: np.ndarray) -> tuple:
         """
@@ -107,20 +125,23 @@ class ImageCoordinator(Node):
             placeholder: _description_
         """
         camera_pose = PoseStamped()
-        camera_pose.header.frame_id = 'camera_front'
+        camera_pose.header.frame_id = self.camera_frame_name
 
         # naively find highest confidence object
         center_position = object_msg.bbox.center.position
         max_confidence = -1.0
         highest_class = -1.0
-        for result in object_msg.results:
-            if result.score > max_confidence:
-                max_confidence = result.score
-                highest_class = result.id
+        for i in range(len(object_msg.results)):
+            result = object_msg.results[i]
+            if result.hypothesis.score > max_confidence:
+                max_confidence = result.hypothesis.score
+                highest_class = i
         center_position = object_msg.bbox.center.position
-
+        
         # generate pose in object frame ID to define line, starting point at 0
-        rectified_point = self.cam_model.rectify_point((center_position.x, center_position.y))
+        point = np.array([[center_position.x, center_position.y]])
+        point = np.expand_dims(point, 1)
+        rectified_point = self.cam_model.rectify_point(point)
         ray_unit_vector = self.cam_model.project_pixel_to_3d_ray(rectified_point)
         pose_to_object = self.align_pose_x_with_vector(camera_pose, ray_unit_vector)
 
@@ -131,7 +152,7 @@ class ImageCoordinator(Node):
         relevant_points = self.points_on_line(point_array, transformed_pose)
         named_point = SemanticObject()
 
-        if (relevant_points == []).all():
+        if (relevant_points.shape[0] == 0):
             #no points on line
             return named_point, False
 
@@ -162,7 +183,7 @@ class ImageCoordinator(Node):
 
         return named_point, True
     
-    def align_pose_x_with_vector(pose_msg: PoseStamped, target_vector: list) -> PoseStamped:
+    def align_pose_x_with_vector(self, pose_msg: PoseStamped, target_vector: list) -> PoseStamped:
         """
         Aligns the x-axis of a given Pose orientation with a target 3D vector.
 
@@ -203,7 +224,7 @@ class ImageCoordinator(Node):
         # 4. Update the Pose message
         new_pose = PoseStamped()
         new_pose.header = pose_msg.header
-        new_pose.pose.position = pose_msg.position # Keep the original position, should be all zeros
+        new_pose.pose.position = pose_msg.pose.position # Keep the original position, should be all zeros
         new_pose.pose.orientation.x = quat_new[0]
         new_pose.pose.orientation.y = quat_new[1]
         new_pose.pose.orientation.z = quat_new[2]
@@ -211,18 +232,18 @@ class ImageCoordinator(Node):
 
         return new_pose
     
-    def get_x_axis_vector_from_pose(self, pose_msg: PoseStamped) -> Vector3:
+    def get_x_axis_vector_from_pose(self, pose_msg: PoseStamped) -> Vector3Stamped:
         """
         Extracts the x-axis direction vector from a geometry_msgs/Pose message.
         """
         # 1. Define the unit vector along the local x-axis
-        local_x_axis_vector = Vector3(x=1.0, y=0.0, z=0.0)
+        local_x_axis_vector = Vector3Stamped(x=1.0, y=0.0, z=0.0)
 
         # 2. Create a transform using only the orientation of the pose
         # We use a dummy transform with zero translation for this
         transform = geometry_msgs.msg.Transform(
             translation=Point(x=0.0, y=0.0, z=0.0),
-            orientation=pose_msg.orientation
+            orientation=pose_msg.pose.orientation
         )
         
         # 3. Create a TransformStamped message for the tf2 utility
@@ -250,16 +271,17 @@ class ImageCoordinator(Node):
         # get indices based on pose orientation, atan2, math.abs(target_x/a) % 1 < self.line_projection_width
         # convert quaternion to euler, get x using pitch and roll
         vector_to_object = self.get_x_axis_vector_from_pose(pose)
-        start_point = np.ndarray([pose.pose.position.x, pose.pose.position.y, pose.pose.position.z], dtype=point_array.dtype)
+        print(point_array.dtype)
+        start_point = np.array([pose.pose.position.x, pose.pose.position.y, pose.pose.position.z], dtype=point_array.dtype)
 
-        end_point = np.ndarray([vector_to_object.x*self.vector_projection_dist + pose.pose.position.x,
-                                vector_to_object.y*self.vector_projection_dist + pose.pose.position.y,
-                                vector_to_object.z*self.vector_projection_dist + pose.pose.position.z], dtype=point_array.dtype)
+        end_point = np.array([vector_to_object.vector.x*self.vector_projection_dist + pose.pose.position.x,
+                                vector_to_object.vector.y*self.vector_projection_dist + pose.pose.position.y,
+                                vector_to_object.vector.z*self.vector_projection_dist + pose.pose.position.z], dtype=point_array.dtype)
         
-        BA = start_point - end_point
-        BC = point_array - end_point
+        ba = start_point - end_point
+        bc = point_array - end_point
 
-        distance = np.sum(np.abs(np.cross(BA,BC)),dim=1) / np.sum(np.abs(BA), axis=1)
+        distance = np.sum(np.abs(np.cross(ba, bc)), axis=1) / np.sum(np.abs(ba))
 
         return point_array[distance <= self.line_projection_width,:]
 
