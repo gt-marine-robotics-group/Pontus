@@ -3,11 +3,6 @@ import geometry_msgs
 from pontus_msgs.msg import SemanticObject
 import rclpy
 from rclpy.node import Node
-import sensor_msgs_py
-import sensor_msgs_py.point_cloud2
-from std_msgs.msg import Header
-from builtin_interfaces.msg import Time
-from nav_msgs.msg import OccupancyGrid
 from geometry_msgs.msg import Point, PoseStamped, Vector3
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs_py import point_cloud2
@@ -95,9 +90,6 @@ class ImageCoordinator(Node):
             skip_nans=True
         )
         points[:, 1] = -points[:, 1] #TODO ask why do this?
-
-        # Comment this line if current time is desired
-        self.occupancy_grid.header.stamp = msg.header.stamp
 
         self.latest_pointcloud = points
 
@@ -263,7 +255,6 @@ class ImageCoordinator(Node):
         end_point = np.ndarray([vector_to_object.x*self.vector_projection_dist + pose.pose.position.x,
                                 vector_to_object.y*self.vector_projection_dist + pose.pose.position.y,
                                 vector_to_object.z*self.vector_projection_dist + pose.pose.position.z], dtype=point_array.dtype)
-
         
         BA = start_point - end_point
         BC = point_array - end_point
