@@ -76,10 +76,8 @@ class ImageCoordinator(Node):
         """
         for object in msg.detections:
             temp, point_found = self.associate_object_with_point(object, self.latest_pointcloud)
-            print(0)
             if point_found and temp.confidence > self.confidence_min:
                 self.semantic_object_publisher.publish(temp)
-                print(1)
 
     def pointcloud_callback(self, msg: PointCloud2) -> None:
         """
@@ -155,12 +153,13 @@ class ImageCoordinator(Node):
         if (relevant_points.shape[0] == 0):
             #no points on line
             return named_point, False
+            # relevant_points = point_array # for testing
 
-        pose_array = np.empty(1,dtype=point_array.dtype)
+        pose_array = np.empty(3,dtype=point_array.dtype)
 
-        pose_array['x'] = transformed_pose.position.x
-        pose_array['y'] = transformed_pose.position.y
-        pose_array['z'] = transformed_pose.position.z
+        pose_array[0] = transformed_pose.pose.position.x
+        pose_array[1] = transformed_pose.pose.position.y
+        pose_array[2] = transformed_pose.pose.position.z
 
         dim_diff = relevant_points - pose_array
         index_of_closest_point = np.argmin(np.sum(np.abs(dim_diff), axis= 1))
@@ -168,15 +167,15 @@ class ImageCoordinator(Node):
         # TODO check if point already exists in map (use distance tolerance, as objects are far apart), if so: don't add to map (return false)
 
         selected_point = Point()
-        selected_point.x = relevant_points[index_of_closest_point,'x']
-        selected_point.y = relevant_points[index_of_closest_point,'y']
-        selected_point.z = relevant_points[index_of_closest_point,'z']
+        selected_point.x = relevant_points[index_of_closest_point,0]
+        selected_point.y = relevant_points[index_of_closest_point,1]
+        selected_point.z = relevant_points[index_of_closest_point,2]
 
         # create named point
         named_point = SemanticObject()
         named_point.header = transformed_pose.header
         named_point.object_type = highest_class
-        named_point.pose.position = selected_point
+        named_point.pose.pose.position = selected_point
 
         named_point.confidence = max_confidence
         named_point.last_updated = object_msg.header.stamp
@@ -281,7 +280,7 @@ class ImageCoordinator(Node):
         ba = start_point - end_point
         bc = point_array - end_point
 
-        distance = np.sum(np.abs(np.cross(ba, bc)), axis=1) / np.sum(np.abs(ba))
+        distance = np.sum(np.abs(np.cross(ba, bc)), axis=1) / (np.sum(np.abs(ba)) + 0.000000001)
 
         return point_array[distance <= self.line_projection_width,:]
 
@@ -352,7 +351,7 @@ class ImageCoordinator(Node):
             # self.get_logger().info("SUCCESS ON TRANSFORM")
             return pose_transformed
         except:
-            self.get_logger().warn("failure to transform pointcloud to map frame, current frame: {}".format(msg.header.frame_id))
+            self.get_logger().warn("failure to transform pose to map frame, current frame: {}".format(msg.header.frame_id))
             return msg
 
 
