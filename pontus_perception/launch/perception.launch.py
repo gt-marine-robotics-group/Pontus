@@ -27,6 +27,7 @@ def generate_launch_description() -> LaunchDescription:
 
     # --- Front camera YOLO ---
     front_camera_topic = '/pontus/camera_front'
+    # front_camera_topic = '/pontus/camera_2'
 
     front_camera_YOLO_node: Node = Node(
         package='pontus_perception',
