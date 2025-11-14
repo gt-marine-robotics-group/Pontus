@@ -1,9 +1,10 @@
 # from pontus_msgs.srv import AddSemanticObject
 import geometry_msgs
-from pontus_msgs.msg import SemanticObject
+from pontus_msgs.srv import AddSemanticObject
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Point, PoseStamped, Vector3Stamped
+from rclpy.time import Time
+from geometry_msgs.msg import Point, Pose, PoseStamped, Vector3Stamped
 from sensor_msgs.msg import PointCloud2, CameraInfo
 from sensor_msgs_py import point_cloud2
 from tf2_ros import TransformListener
@@ -39,14 +40,21 @@ class ImageCoordinator(Node):
         self.camera_frame_name = 'camera_front'
         self.cam_initialized = False
 
+        self.name_map = {
+            'gate_side': 0,
+            'red_slalom': 1,
+            'reef_shark': 2,
+            'saw_shark': 3,
+            'white_slalom': 4
+        }
+        
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        self.semantic_object_publisher = self.create_publisher(
-            SemanticObject,
-            '/pontus/add_semantic_object',
-            10
-        )
+        self.cli = self.create_client(AddSemanticObject, '/pontus/add_semantic_object')
+        while not self.cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
+        self.req = AddSemanticObject.Request()
 
         self.cluster = self.create_subscription(
             PointCloud2,
@@ -74,10 +82,23 @@ class ImageCoordinator(Node):
         Args:
             msg (Detection2DArray): _description_
         """
+        if not self.cam_initialized:
+            self.get_logger().warn("camera info not initialized")
+            return
+        elif self.latest_pointcloud is None:
+            self.get_logger().warn("No point cloud found")
+            return
+
         for object in msg.detections:
             temp, point_found = self.associate_object_with_point(object, self.latest_pointcloud)
-            if point_found and temp.confidence > self.confidence_min:
-                self.semantic_object_publisher.publish(temp)
+            if point_found and temp[2] > self.confidence_min:
+                self.get_logger().info("object meets confidence min")
+                success = self.send_request(temp[0],temp[1])
+                if success:
+                    self.get_logger().info("object added to semantic map")
+                else:
+                    self.get_logger().warn("failure to add object to semantic map")
+
 
     def pointcloud_callback(self, msg: PointCloud2) -> None:
         """
@@ -122,18 +143,18 @@ class ImageCoordinator(Node):
         Returns:
             placeholder: _description_
         """
+
         camera_pose = PoseStamped()
-        camera_pose.header.frame_id = self.camera_frame_name
+        camera_pose.header = object_msg.header
 
         # naively find highest confidence object
         center_position = object_msg.bbox.center.position
         max_confidence = -1.0
         highest_class = -1.0
-        for i in range(len(object_msg.results)):
-            result = object_msg.results[i]
+        for result in object_msg.results:
             if result.hypothesis.score > max_confidence:
                 max_confidence = result.hypothesis.score
-                highest_class = i
+                highest_class = self.name_map[result.hypothesis.class_id]
         center_position = object_msg.bbox.center.position
         
         # generate pose in object frame ID to define line, starting point at 0
@@ -148,11 +169,11 @@ class ImageCoordinator(Node):
 
         # find first point lying on line from pose
         relevant_points = self.points_on_line(point_array, transformed_pose)
-        named_point = SemanticObject()
 
         if (relevant_points.shape[0] == 0):
-            #no points on line
-            return named_point, False
+            # no points on line
+            self.get_logger.info("no objects on line")
+            return ([], [], 0.0), False
             # relevant_points = point_array # for testing
 
         pose_array = np.empty(3,dtype=point_array.dtype)
@@ -164,23 +185,17 @@ class ImageCoordinator(Node):
         dim_diff = relevant_points - pose_array
         index_of_closest_point = np.argmin(np.sum(np.abs(dim_diff), axis= 1))
 
-        # TODO check if point already exists in map (use distance tolerance, as objects are far apart), if so: don't add to map (return false)
-
         selected_point = Point()
-        selected_point.x = relevant_points[index_of_closest_point,0]
-        selected_point.y = relevant_points[index_of_closest_point,1]
-        selected_point.z = relevant_points[index_of_closest_point,2]
+        selected_point.x = float(relevant_points[index_of_closest_point,0])
+        selected_point.y = float(relevant_points[index_of_closest_point,1])
+        selected_point.z = float(relevant_points[index_of_closest_point,2])
 
-        # create named point
-        named_point = SemanticObject()
-        named_point.header = transformed_pose.header
-        named_point.object_type = highest_class
-        named_point.pose.pose.position = selected_point
+        # create object stamped pose
+        object_pose = PoseStamped()
+        object_pose.header = transformed_pose.header
+        object_pose.pose.position = selected_point
 
-        named_point.confidence = max_confidence
-        named_point.last_updated = object_msg.header.stamp
-
-        return named_point, True
+        return ([highest_class], [object_pose], max_confidence), True
     
     def align_pose_x_with_vector(self, pose_msg: PoseStamped, target_vector: list) -> PoseStamped:
         """
@@ -270,7 +285,6 @@ class ImageCoordinator(Node):
         # get indices based on pose orientation, atan2, math.abs(target_x/a) % 1 < self.line_projection_width
         # convert quaternion to euler, get x using pitch and roll
         vector_to_object = self.get_x_axis_vector_from_pose(pose)
-        print(point_array.dtype)
         start_point = np.array([pose.pose.position.x, pose.pose.position.y, pose.pose.position.z], dtype=point_array.dtype)
 
         end_point = np.array([vector_to_object.vector.x*self.vector_projection_dist + pose.pose.position.x,
@@ -316,11 +330,12 @@ class ImageCoordinator(Node):
             transform = self.tf_buffer.lookup_transform(
                 target_frame='map',
                 source_frame=msg.header.frame_id,
-                time=rclpy.time.Time()
+                time=Time(seconds = msg.header.stamp.sec, nanoseconds= msg.header.stamp.nanosec)
             )
             # self.get_logger().info("SUCCESS ON TRANSFORM")
-        except:
+        except Exception as e:
             self.get_logger().warn("failure to transform pointcloud to map frame, current frame: {}".format(msg.header.frame_id))
+            self.get_logger().warn(f"exception: {e}")
             return msg
 
         msg_canon = self._canonicalize_cloud(msg)
@@ -345,18 +360,30 @@ class ImageCoordinator(Node):
             transform = self.tf_buffer.lookup_transform(
                 target_frame='map',
                 source_frame=msg.header.frame_id,
-                time=rclpy.time.Time()
+                time=Time(seconds = msg.header.stamp.sec, nanoseconds= msg.header.stamp.nanosec)
             )
-            pose_transformed = tf2_geometry_msgs.do_transform_pose(msg, transform)
+            pose_transformed = tf2_geometry_msgs.do_transform_pose(msg.pose, transform)
             # self.get_logger().info("SUCCESS ON TRANSFORM")
-            return pose_transformed
-        except:
+            pose_stamped_msg = PoseStamped()
+            pose_stamped_msg.header = msg.header
+            pose_stamped_msg.pose = pose_transformed
+            return pose_stamped_msg
+        except Exception as e:
             self.get_logger().warn("failure to transform pose to map frame, current frame: {}".format(msg.header.frame_id))
+            self.get_logger().warn(f"exception: {e}")
             return msg
 
+
+    def send_request(self, class_id, pose):
+        self.req.ids = class_id
+        self.req.positions = pose
+        self.future = self.cli.call_async(self.req)
+        rclpy.spin_until_future_complete(self, self.future)
+        return self.future.result()
 
 def main(args=None):
     rclpy.init(args=args)
     node = ImageCoordinator()
     rclpy.spin(node)
+    node.destroy_client()
     rclpy.shutdown()
