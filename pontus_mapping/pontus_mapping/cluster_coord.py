@@ -1,5 +1,6 @@
 # from pontus_msgs.srv import AddSemanticObject
 import geometry_msgs
+from pontus_msgs.msg import SemanticObject
 from pontus_msgs.srv import AddSemanticObject
 import rclpy
 from rclpy.node import Node
@@ -20,13 +21,9 @@ from sensor_msgs.msg import PointField
 from sensor_msgs_py import point_cloud2 as pc2
 
 import tf_transformations
-from vision_msgs.msg import (
-    Detection2DArray,
-    Detection2D,
-    BoundingBox2D,
-    ObjectHypothesis,
-    ObjectHypothesisWithPose
-)
+from std_msgs.msg import ColorRGBA
+from visualization_msgs.msg import Marker, MarkerArray
+from vision_msgs.msg import Detection2D, Detection2DArray
 
 class ImageCoordinator(Node):
     def __init__(self) -> None:
@@ -41,11 +38,13 @@ class ImageCoordinator(Node):
         self.cam_initialized = False
 
         self.name_map = {
-            'gate_side': 0,
-            'red_slalom': 1,
-            'reef_shark': 2,
-            'saw_shark': 3,
-            'white_slalom': 4
+            'gate_side': SemanticObject.GATE_LEFT,
+            'red_slalom': SemanticObject.SLALOM_RED,
+            'reef_shark': SemanticObject.GATE_IMAGE_SHARK,
+            'saw_shark': SemanticObject.GATE_IMAGE_FISH,
+            'white_slalom': SemanticObject.SLALOM_WHITE,
+            'path_marker': SemanticObject.PATH_MARKER,
+            'vertical pole': SemanticObject.VERTICAL_MARKER
         }
         
         self.tf_buffer = Buffer()
@@ -76,6 +75,13 @@ class ImageCoordinator(Node):
             10
         )
 
+        self.debug_line_pub = self.create_publisher(
+            MarkerArray,
+            '/pontus/{}/debug_lines'.format(self.camera_frame_name),
+            10
+        )
+        self.debug_id = 0
+
     def yolo_callback(self, msg: Detection2DArray) -> None:
         """Assigns results from yolo to points in latest_pointcloud and publishes all points as list
 
@@ -89,15 +95,26 @@ class ImageCoordinator(Node):
             self.get_logger().warn("No point cloud found")
             return
 
+        # TODO: This should be removed when not testing on old bag data
+        msg.header.frame_id = "camera_front_optical_frame"
+
+        array_msg = MarkerArray()
+        marker_msg = Marker()
+        marker_msg.header = msg.header
+        marker_msg.ns = "lines"
+        marker_msg.action = Marker.DELETEALL
+        array_msg.markers.append(marker_msg)
+        self.debug_line_pub.publish(array_msg)
+
         for object in msg.detections:
             temp, point_found = self.associate_object_with_point(object, self.latest_pointcloud)
             if point_found and temp[2] > self.confidence_min:
                 self.get_logger().info("object meets confidence min")
                 success = self.send_request(temp[0],temp[1])
-                if success:
-                    self.get_logger().info("object added to semantic map")
-                else:
-                    self.get_logger().warn("failure to add object to semantic map")
+                # if success:
+                #     self.get_logger().info("object added to semantic map")
+                # else:
+                #     self.get_logger().warn("failure to add object to semantic map")
 
 
     def pointcloud_callback(self, msg: PointCloud2) -> None:
@@ -146,6 +163,7 @@ class ImageCoordinator(Node):
 
         camera_pose = PoseStamped()
         camera_pose.header = object_msg.header
+        camera_pose.header.frame_id = "camera_front_optical_frame"
 
         # naively find highest confidence object
         center_position = object_msg.bbox.center.position
@@ -166,6 +184,26 @@ class ImageCoordinator(Node):
 
         # transform pose to match point cloud frame from camera frame
         transformed_pose = self.transform_camera(pose_to_object)
+
+        # Debug publish lines
+        array_msg = MarkerArray()
+        marker_msg = Marker()
+        marker_msg.header = pose_to_object.header
+        marker_msg.pose = pose_to_object.pose
+        # marker_msg.header = transformed_pose.header
+        # marker_msg.pose = transformed_pose.pose
+        marker_msg.ns = "lines"
+        marker_msg.id = self.debug_id
+        self.debug_id += 1
+        marker_msg.type = Marker.ARROW
+        marker_msg.action = Marker.ADD
+        marker_msg.frame_locked = True
+        marker_msg.scale.x = 15.0
+        marker_msg.scale.y = 0.05
+        marker_msg.scale.z = 0.05
+        marker_msg.color = self.get_debug_line_color(highest_class)
+        array_msg.markers.append(marker_msg)
+        self.debug_line_pub.publish(array_msg)
 
         # find first point lying on line from pose
         relevant_points = self.points_on_line(point_array, transformed_pose)
@@ -289,11 +327,11 @@ class ImageCoordinator(Node):
         # get indices based on pose orientation, atan2, math.abs(target_x/a) % 1 < self.line_projection_width
         # convert quaternion to euler, get x using pitch and roll
         vector_to_object = self.get_x_axis_vector_from_pose(pose)
-        start_point = np.array([pose.pose.position.x, pose.pose.position.y, pose.pose.position.z], dtype=point_array.dtype)
+        start_point = np.array([pose.pose.position.x, pose.pose.position.y, 0.0], dtype=point_array.dtype)
 
         end_point = np.array([vector_to_object.vector.x*self.vector_projection_dist + pose.pose.position.x,
                                 vector_to_object.vector.y*self.vector_projection_dist + pose.pose.position.y,
-                                vector_to_object.vector.z*self.vector_projection_dist + pose.pose.position.z], dtype=point_array.dtype)
+                                0.0], dtype=point_array.dtype)
         
         ba = start_point - end_point
         bc = point_array - end_point
@@ -370,6 +408,7 @@ class ImageCoordinator(Node):
             # self.get_logger().info("SUCCESS ON TRANSFORM")
             pose_stamped_msg = PoseStamped()
             pose_stamped_msg.header = msg.header
+            pose_stamped_msg.header.frame_id = "map"
             pose_stamped_msg.pose = pose_transformed
             return pose_stamped_msg
         except Exception as e:
@@ -383,6 +422,17 @@ class ImageCoordinator(Node):
         req.ids = class_id
         req.positions = pose
         self.cli.call_async(req)
+
+    def get_debug_line_color(self, class_id):
+        match class_id:
+            case SemanticObject.SLALOM_RED:
+                return ColorRGBA(r = 1.0, a = 1.0)
+            case SemanticObject.SLALOM_WHITE:
+                return ColorRGBA(r = 1.0, g = 1.0, b = 1.0, a = 1.0)
+            case SemanticObject.VERTICAL_MARKER:
+                return ColorRGBA(a = 1.0)
+            case default:
+                return ColorRGBA(g = 1.0, a = 1.0)
 
 def main(args=None):
     rclpy.init(args=args)

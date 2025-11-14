@@ -9,6 +9,7 @@ uint8 VERTICAL_MARKER = 6
 uint8 BIN = 7
 uint8 OCTAGON = 8
 uint8 TARGET = 9
+uint8 PATH_MARKER = 10
 
 
 # ------ Fields ------
