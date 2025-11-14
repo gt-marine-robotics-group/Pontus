@@ -4,7 +4,7 @@ from pontus_msgs.srv import AddSemanticObject
 import rclpy
 from rclpy.node import Node
 from rclpy.time import Time
-from geometry_msgs.msg import Point, Pose, PoseStamped, Vector3Stamped
+from geometry_msgs.msg import Point, Pose, PoseStamped, Vector3Stamped, Vector3
 from sensor_msgs.msg import PointCloud2, CameraInfo
 from sensor_msgs_py import point_cloud2
 from tf2_ros import TransformListener
@@ -54,7 +54,6 @@ class ImageCoordinator(Node):
         self.cli = self.create_client(AddSemanticObject, '/pontus/add_semantic_object')
         while not self.cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
-        self.req = AddSemanticObject.Request()
 
         self.cluster = self.create_subscription(
             PointCloud2,
@@ -74,7 +73,8 @@ class ImageCoordinator(Node):
             CameraInfo,
             '/pontus/{}/camera_info'.format(self.camera_frame_name), # Replace with your camera info topic
             self.info_callback,
-            10)
+            10
+        )
 
     def yolo_callback(self, msg: Detection2DArray) -> None:
         """Assigns results from yolo to points in latest_pointcloud and publishes all points as list
@@ -172,7 +172,7 @@ class ImageCoordinator(Node):
 
         if (relevant_points.shape[0] == 0):
             # no points on line
-            self.get_logger.info("no objects on line")
+            self.get_logger().info("no objects on line")
             return ([], [], 0.0), False
             # relevant_points = point_array # for testing
 
@@ -251,7 +251,11 @@ class ImageCoordinator(Node):
         Extracts the x-axis direction vector from a geometry_msgs/Pose message.
         """
         # 1. Define the unit vector along the local x-axis
-        local_x_axis_vector = Vector3Stamped(x=1.0, y=0.0, z=0.0)
+        # local_x_axis_vector = Vector3Stamped(x=1.0, y=0.0, z=0.0)
+
+        local_x_axis_vector = Vector3Stamped()
+        local_x_axis_vector.header = pose_msg.header
+        local_x_axis_vector.vector = Vector3(x=1.0, y=0.0, z=0.0)
 
         # 2. Create a transform using only the orientation of the pose
         # We use a dummy transform with zero translation for this
@@ -375,15 +379,18 @@ class ImageCoordinator(Node):
 
 
     def send_request(self, class_id, pose):
-        self.req.ids = class_id
-        self.req.positions = pose
-        self.future = self.cli.call_async(self.req)
-        rclpy.spin_until_future_complete(self, self.future)
-        return self.future.result()
+        req = AddSemanticObject.Request()
+        req.ids = class_id
+        req.positions = pose
+        self.cli.call_async(req)
 
 def main(args=None):
     rclpy.init(args=args)
     node = ImageCoordinator()
-    rclpy.spin(node)
-    node.destroy_client()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()

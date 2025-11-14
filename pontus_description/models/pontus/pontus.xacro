@@ -121,10 +121,11 @@
   <!-- Sensors -->
 
   <!-- Forward Camera -->
-  <xacro:camera_macro camera_id="2">
+  <xacro:camera_macro camera_id="front">
     <origin xyz="0.305 0 0" rpy="0 0 0" />
   </xacro:camera_macro>
-    <xacro:camera_macro camera_id="3">
+
+  <xacro:camera_macro camera_id="3">
     <origin xyz="0.305 -0.075 0" rpy="0 0 0" />
   </xacro:camera_macro>
 
