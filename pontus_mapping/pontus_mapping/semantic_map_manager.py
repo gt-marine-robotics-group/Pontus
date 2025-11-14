@@ -228,6 +228,7 @@ class SemanticMapManager(Node):
 
             marker_array.markers.append(marker)
 
+        self.publish_semantic_map()
         self.semantic_map_visual_pub.publish(marker_array)
 
     def _set_marker_shape(self, obj: SemanticObject, marker: Marker) -> None:
