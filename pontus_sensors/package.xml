@@ -22,6 +22,7 @@
   <depend>builtin_interfaces</depend>
   <depend>usb_cam</depend>
   <depend>tf_transformations</depend>
+  <depend>libcurl-dev</depend>
 
   <build_depend>pcl_conversions</build_depend>
   <exec_depend>pcl_conversions</exec_depend>

@@ -6,9 +6,10 @@
 #include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 
-#include <cv_bridge/cv_bridge.hpp>
+#include <cv_bridge/cv_bridge.h>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/videoio.hpp>
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -23,6 +24,9 @@
 #include "pcl_ros/transforms.hpp"
 #include <pcl/filters/passthrough.h>
 
+#include <curl/curl.h>
+#include <sstream>
+
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -36,8 +40,14 @@ public:
     // Parameters
     frame_id_ = this->declare_parameter<std::string>("frame_id", "");
     target_frame_ = this->declare_parameter<std::string>("target_frame", "map");
+
+    sonoptix_ip_addr_ = this->declare_parameter<std::string>("sonoptix_ip_addr", "192.168.1.211");
+    sonar_range_ = this->declare_parameter<int>("sonar_range", 15);
+    sonar_gain_ = this->declare_parameter<int>("sonar_gain", -20);
     sonar_res_m_ = this->declare_parameter<double>("sonar_res", 0.0148);
     sonar_angle_rad_ = this->declare_parameter<double>("sonar_angle", M_PI / 3.0);
+    sonar_request_update_frequency_ms_ = this->declare_parameter<int>("sonar_freq_ms", 10);
+
     intensity_min_ = this->declare_parameter<int>("intensity_min", 1);
     normalize_intensity_ = this->declare_parameter<bool>("normalize_intensity", true);
     min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.2);   // keep points at least this deep
@@ -50,12 +60,19 @@ public:
     rclcpp::QoS image_qos(rclcpp::KeepLast(1));
     image_qos.best_effort();
 
+    configureSonoptix();
+    // Read Sonoptix and generate point cloud at specified frequency
+    timer_ = this->create_wall_timer(
+      std::chrono::milliseconds(sonar_request_update_frequency_ms_),
+      std::bind(&SonoptixDriverNode::publishPointCloud, this)
+    );
+
     cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/pontus/sonar/pointcloud", 10);
     clustered_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/pontus/sonar/clustercloud", 10);
-    img_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-      "/pontus/sonar_0/image_debug", image_qos, 
-      std::bind(&SonoptixDriverNode::onImage, this, std::placeholders::_1)
-    );
+    // img_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+    //   "/pontus/sonar_0/image_debug", image_qos, 
+    //   std::bind(&SonoptixDriverNode::onImage, this, std::placeholders::_1)
+    // );
 
     // TF buffer + listener
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
@@ -69,6 +86,70 @@ public:
   }
 
 private:
+  void configureSonoptix() {
+    // Configure Sonoptix 
+    std::string api_url = "http://" + sonoptix_ip_addr_ + ":8000/api/v1";
+    std::string body1 = std::string(R"({"enable": true, "sonar_range": )") + std::to_string(sonar_range_) + "}";
+    long res_code1 = send_request(api_url + "/transponder", body1, "PATCH");
+
+    std::string body2 = std::string(R"({"value": 2})");
+    long res_code2 = send_request(api_url + "/streamtype", body2, "PUT");
+    
+    std::string body3 = std::string(R"({"contrast": 0, "gain": )") + std::to_string(sonar_gain_) + std::string(R"(, "mirror_image": false, "autodetect_orientation": 0)");
+    long res_code3 = send_request(api_url + "/config", body3, "PATCH");
+
+    if (res_code1 != 200 || res_code2 != 200 || res_code3 != 200) {
+        RCLCPP_WARN(get_logger(),
+                    "HTTP request for Sonoptix configuration failed");
+    }
+
+    // Open the RTSP connection
+    std::string rtsp_url = "rtsp://" + sonoptix_ip_addr_ + ":8554/raw";
+    cap_.open(rtsp_url, cv::CAP_FFMPEG);
+    cap_.set(cv::CAP_PROP_BUFFERSIZE, 1);
+  }
+
+  long send_request(const std::string& url, const std::string& json_body, const std::string& method) {
+    CURL* curl = curl_easy_init();
+    if (!curl) return -1;
+    struct curl_slist* headers = nullptr;
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_body.c_str());
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 2000);
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method);
+    CURLcode res = curl_easy_perform(curl);
+    long status_code = -1;
+    if (res == CURLE_OK) {
+      curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status_code);
+    }
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    return status_code;
+  }
+
+  void publishPointCloud() {
+    // Check if connection open
+    if (!cap_.isOpened()) {
+      RCLCPP_WARN(get_logger(), "Cannot read image because RTSP stream not open");
+      return;
+    }
+    // Try to read frame
+    cv::Mat frame;
+    if (!cap_.read(frame)) {
+      RCLCPP_WARN(get_logger(), "Failed to read frame from RTSP");
+      return;
+    }
+    // Process frame and publish point cloud
+    // I didn't end up using the onImage() method because it converts to cv::Mat and then calls sonar_image_to_cloud but I already have a cv::Mat
+    std_msgs::msg::Header header;
+    header.stamp = this->get_clock()->now();
+    header.frame_id = frame_id_;
+    sensor_msgs::msg::PointCloud2 cloud_msg = sonar_image_to_cloud(frame, header);
+    cloud_pub_->publish(cloud_msg);
+  }
+
   // ----------- Image callback -----------
   void onImage(const sensor_msgs::msg::Image::SharedPtr msg) {
     cv::Mat gray;
@@ -333,15 +414,26 @@ private:
   // params
   std::string frame_id_;
   std::string target_frame_;
+
+  std::string sonoptix_ip_addr_;
+  int sonar_range_;
+  int sonar_gain_;
   double sonar_res_m_;
   double sonar_angle_rad_;
+  int sonar_request_update_frequency_ms_;
+
   int intensity_min_;
   bool normalize_intensity_;
   double min_depth_m_;
   double max_depth_m_;
+
   double cluster_tolerance_;
   int cluster_min_points_;
   int cluster_max_points_;
+
+  // fields
+  cv::VideoCapture cap_;
+  rclcpp::TimerBase::SharedPtr timer_;
 
   // ROS I/O
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr img_sub_;

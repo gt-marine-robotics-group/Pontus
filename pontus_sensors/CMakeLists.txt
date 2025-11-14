@@ -28,7 +28,7 @@ find_package(tf2_sensor_msgs REQUIRED)
 find_package(tf2_eigen REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
-
+find_package(CURL REQUIRED)
 
 # C++
 include_directories(
@@ -65,6 +65,7 @@ ament_target_dependencies(sonoptix_driver_node
 target_link_libraries(sonoptix_driver_node 
   ${OpenCV_LIBS}
   ${PCL_LIBRARIES}
+  CURL::libcurl
 )
 
 install(TARGETS 
