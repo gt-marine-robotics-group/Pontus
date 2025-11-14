@@ -6,7 +6,7 @@
 #include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 
-#include <cv_bridge/cv_bridge.hpp>
+#include <cv_bridge/cv_bridge.h>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/videoio.hpp>
@@ -24,7 +24,8 @@
 #include "pcl_ros/transforms.hpp"
 #include <pcl/filters/passthrough.h>
 
-#include <cpr/cpr.h>
+#include <curl/curl.h>
+#include <sstream>
 
 #include <algorithm>
 #include <cmath>
@@ -39,8 +40,14 @@ public:
     // Parameters
     frame_id_ = this->declare_parameter<std::string>("frame_id", "");
     target_frame_ = this->declare_parameter<std::string>("target_frame", "map");
+
+    sonoptix_ip_addr_ = this->declare_parameter<std::string>("sonoptix_ip_addr", "192.168.1.211");
+    sonar_range_ = this->declare_parameter<int>("sonar_range", 15);
+    sonar_gain_ = this->declare_parameter<int>("sonar_gain", -20);
     sonar_res_m_ = this->declare_parameter<double>("sonar_res", 0.0148);
     sonar_angle_rad_ = this->declare_parameter<double>("sonar_angle", M_PI / 3.0);
+    sonar_request_update_frequency_ms_ = this->declare_parameter<int>("sonar_freq_ms", 10);
+
     intensity_min_ = this->declare_parameter<int>("intensity_min", 1);
     normalize_intensity_ = this->declare_parameter<bool>("normalize_intensity", true);
     min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.2);   // keep points at least this deep
@@ -49,15 +56,14 @@ public:
     cluster_tolerance_ = this->declare_parameter<double>("cluster_tolerance", 0.15);
     cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 10);
     cluster_max_points_ = this->declare_parameter<int>("cluster_max_points", 200);
-    sonar_request_update_frequency_ms = this->declare_parameter<int>("sonar_freq_ms", 10);
 
     rclcpp::QoS image_qos(rclcpp::KeepLast(1));
     image_qos.best_effort();
 
     configureSonoptix();
     // Read Sonoptix and generate point cloud at specified frequency
-    timer_ = this->create_timer(
-      std::chrono::milliseconds(sonar_request_update_frequency_ms),
+    timer_ = this->create_wall_timer(
+      std::chrono::milliseconds(sonar_request_update_frequency_ms_),
       std::bind(&SonoptixDriverNode::publishPointCloud, this)
     );
 
@@ -82,36 +88,45 @@ public:
 private:
   void configureSonoptix() {
     // Configure Sonoptix 
-    std::string api_url = "http://" + ip_address + ":8000/api/v1";
-    cpr::Header header{{"Content-Type", "application/json"}};
-    auto res = cpr::Patch(
-        cpr::Url{api_url + "/transponder"},
-        cpr::Body{R"({"enable": true, "sonar_range": )" + std::to_string(range) + "}"},
-        header
-    );
-    auto res2 = cpr::Put(
-      cpr::Url{api_url + "/streamtype"},
-      cpr::Body{R"({"value": 2})"},
-      header
-    );
-    auto res3 = cpr::Patch(
-      cpr::Url{api_url + "/config"},
-      cpr::Body{R"({
-        "contrast": 0,
-        "gain": -20,
-        "mirror_image": false,
-        "autodetect_orientation": 0
-      })"},
-      header
-    );
-    if (res.status_code != 200 || res2.status_code != 200 || res3.status_code != 200) {
-      RCLCPP_WARN(get_logger(), "Sonoptix configuration request failed");
+    std::string api_url = "http://" + sonoptix_ip_addr_ + ":8000/api/v1";
+    std::string body1 = std::string(R"({"enable": true, "sonar_range": )") + std::to_string(sonar_range_) + "}";
+    long res_code1 = send_request(api_url + "/transponder", body1, "PATCH");
+
+    std::string body2 = std::string(R"({"value": 2})");
+    long res_code2 = send_request(api_url + "/streamtype", body2, "PUT");
+    
+    std::string body3 = std::string(R"({"contrast": 0, "gain": )") + std::to_string(sonar_gain_) + std::string(R"(, "mirror_image": false, "autodetect_orientation": 0)");
+    long res_code3 = send_request(api_url + "/config", body3, "PATCH");
+
+    if (res_code1 != 200 || res_code2 != 200 || res_code3 != 200) {
+        RCLCPP_WARN(get_logger(),
+                    "HTTP request for Sonoptix configuration failed");
     }
 
     // Open the RTSP connection
-    std::string rtsp_url = "rtsp://" + ip_address + ":8554/raw";
+    std::string rtsp_url = "rtsp://" + sonoptix_ip_addr_ + ":8554/raw";
     cap_.open(rtsp_url, cv::CAP_FFMPEG);
     cap_.set(cv::CAP_PROP_BUFFERSIZE, 1);
+  }
+
+  long send_request(const std::string& url, const std::string& json_body, const std::string& method) {
+    CURL* curl = curl_easy_init();
+    if (!curl) return -1;
+    struct curl_slist* headers = nullptr;
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_body.c_str());
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 2000);
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method);
+    CURLcode res = curl_easy_perform(curl);
+    long status_code = -1;
+    if (res == CURLE_OK) {
+      curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status_code);
+    }
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    return status_code;
   }
 
   void publishPointCloud() {
@@ -399,19 +414,25 @@ private:
   // params
   std::string frame_id_;
   std::string target_frame_;
+
+  std::string sonoptix_ip_addr_;
+  int sonar_range_;
+  int sonar_gain_;
   double sonar_res_m_;
   double sonar_angle_rad_;
-  int sonar_request_update_frequency_ms;
+  int sonar_request_update_frequency_ms_;
+
   int intensity_min_;
   bool normalize_intensity_;
   double min_depth_m_;
   double max_depth_m_;
+
   double cluster_tolerance_;
   int cluster_min_points_;
   int cluster_max_points_;
 
   // fields
-  cv::VideoCapture image_cap_;
+  cv::VideoCapture cap_;
   rclcpp::TimerBase::SharedPtr timer_;
 
   // ROS I/O
