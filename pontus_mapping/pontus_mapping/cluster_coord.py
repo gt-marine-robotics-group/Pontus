@@ -3,6 +3,7 @@ import geometry_msgs
 from pontus_msgs.msg import SemanticObject
 import rclpy
 from rclpy.node import Node
+from rclpy.time import Time
 from geometry_msgs.msg import Point, PoseStamped, Vector3Stamped
 from sensor_msgs.msg import PointCloud2, CameraInfo
 from sensor_msgs_py import point_cloud2
@@ -74,6 +75,9 @@ class ImageCoordinator(Node):
         Args:
             msg (Detection2DArray): _description_
         """
+        if not self.cam_initialized:
+            return
+
         for object in msg.detections:
             temp, point_found = self.associate_object_with_point(object, self.latest_pointcloud)
             if point_found and temp.confidence > self.confidence_min:
@@ -122,8 +126,9 @@ class ImageCoordinator(Node):
         Returns:
             placeholder: _description_
         """
+
         camera_pose = PoseStamped()
-        camera_pose.header.frame_id = self.camera_frame_name
+        camera_pose.header = object_msg.header
 
         # naively find highest confidence object
         center_position = object_msg.bbox.center.position
@@ -167,9 +172,9 @@ class ImageCoordinator(Node):
         # TODO check if point already exists in map (use distance tolerance, as objects are far apart), if so: don't add to map (return false)
 
         selected_point = Point()
-        selected_point.x = relevant_points[index_of_closest_point,0]
-        selected_point.y = relevant_points[index_of_closest_point,1]
-        selected_point.z = relevant_points[index_of_closest_point,2]
+        selected_point.x = float(relevant_points[index_of_closest_point,0])
+        selected_point.y = float(relevant_points[index_of_closest_point,1])
+        selected_point.z = float(relevant_points[index_of_closest_point,2])
 
         # create named point
         named_point = SemanticObject()
@@ -270,7 +275,6 @@ class ImageCoordinator(Node):
         # get indices based on pose orientation, atan2, math.abs(target_x/a) % 1 < self.line_projection_width
         # convert quaternion to euler, get x using pitch and roll
         vector_to_object = self.get_x_axis_vector_from_pose(pose)
-        print(point_array.dtype)
         start_point = np.array([pose.pose.position.x, pose.pose.position.y, pose.pose.position.z], dtype=point_array.dtype)
 
         end_point = np.array([vector_to_object.vector.x*self.vector_projection_dist + pose.pose.position.x,
@@ -319,8 +323,9 @@ class ImageCoordinator(Node):
                 time=rclpy.time.Time()
             )
             # self.get_logger().info("SUCCESS ON TRANSFORM")
-        except:
+        except Exception as e:
             self.get_logger().warn("failure to transform pointcloud to map frame, current frame: {}".format(msg.header.frame_id))
+            self.get_logger().warn(f"exception: {e}")
             return msg
 
         msg_canon = self._canonicalize_cloud(msg)
@@ -345,13 +350,17 @@ class ImageCoordinator(Node):
             transform = self.tf_buffer.lookup_transform(
                 target_frame='map',
                 source_frame=msg.header.frame_id,
-                time=rclpy.time.Time()
+                time=Time(seconds = msg.header.stamp.sec, nanoseconds= msg.header.stamp.nanosec)
             )
-            pose_transformed = tf2_geometry_msgs.do_transform_pose(msg, transform)
+            pose_transformed = tf2_geometry_msgs.do_transform_pose(msg.pose, transform)
             # self.get_logger().info("SUCCESS ON TRANSFORM")
-            return pose_transformed
-        except:
+            pose_stamped_msg = PoseStamped()
+            pose_stamped_msg.header = msg.header
+            pose_stamped_msg.pose = pose_transformed
+            return pose_stamped_msg
+        except Exception as e:
             self.get_logger().warn("failure to transform pose to map frame, current frame: {}".format(msg.header.frame_id))
+            self.get_logger().warn(f"exception: {e}")
             return msg
 
 
