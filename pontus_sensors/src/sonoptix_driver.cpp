@@ -23,6 +23,8 @@
 #include "pcl_ros/transforms.hpp"
 #include <pcl/filters/passthrough.h>
 
+#include <Eigen/Core>
+
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -47,14 +49,21 @@ public:
     cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 10);
     cluster_max_points_ = this->declare_parameter<int>("cluster_max_points", 200);
 
-    rclcpp::QoS image_qos(rclcpp::KeepLast(1));
-    image_qos.best_effort();
+    rclcpp::QoS qos(rclcpp::KeepLast(1));
+    qos.best_effort();
 
     cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/pontus/sonar/pointcloud", 10);
     clustered_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/pontus/sonar/clustercloud", 10);
+
     img_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-      "/pontus/sonar_0/image_debug", image_qos, 
+      "/pontus/sonar_0/image_debug", qos, 
       std::bind(&SonoptixDriverNode::onImage, this, std::placeholders::_1)
+    );
+
+    sim_cloud_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+      "/pontus/sonar_0/sim",
+      qos,
+      std::bind(&SonoptixDriverNode::onSimPointcloud, this, std::placeholders::_1)
     );
 
     // TF buffer + listener
@@ -69,18 +78,34 @@ public:
   }
 
 private:
-  // ----------- Image callback -----------
+  using CloudI = pcl::PointCloud<pcl::PointXYZI>;
+  using CloudIPtr = CloudI::Ptr;
+
+  // ----------- Callbacks -----------
   void onImage(const sensor_msgs::msg::Image::SharedPtr msg) {
     cv::Mat gray;
     if (!toGray(*msg, gray)) {
       return;
     }
 
-    sensor_msgs::msg::PointCloud2 cloud_msg = sonar_image_to_cloud(gray, msg->header);
+    CloudIPtr cloud = imageToPcl(gray);
+    if(!cloud || cloud->empty()) {
+      return;
+    }
 
-    cloud_pub_->publish(cloud_msg);
+    processAndPublishCloud(cloud, msg->header);
   }
 
+  void onSimPointcloud(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
+    CloudIPtr cloud = simPointcloudToPcl(*msg);
+    if(!cloud || cloud->empty()) {
+      return;
+    }
+
+    processAndPublishCloud(cloud, msg->header);
+  }
+
+  // ------ Front End Conversion --0----
   bool toGray(const sensor_msgs::msg::Image& img, cv::Mat& out_gray) {
     try {
       if (img.encoding == "mono8") {
@@ -101,32 +126,23 @@ private:
     }
   }
 
-  sensor_msgs::msg::PointCloud2 sonar_image_to_cloud(
-    const cv::Mat& gray,
-    const std_msgs::msg::Header& in_header)
-  {
-    sensor_msgs::msg::PointCloud2 cloud_msg;
-
+  CloudIPtr imageToPcl(const cv::Mat& gray) {
     const int rows = gray.rows;
     const int cols = gray.cols;
+
+    CloudIPtr cloud(new CloudI);
+    cloud->height = 1;
+    cloud->is_dense = false;
+    cloud->points.reserve(rows * cols);
+
     if (rows <= 0 || cols <= 0) {
-      cloud_msg.header = in_header;
-      if (!frame_id_.empty()) {
-        cloud_msg.header.frame_id = frame_id_;
-      }
-      return cloud_msg;
+      return cloud;
     }
     
-    const double angle_step = (cols > 0) ? (2.0 * sonar_angle_rad_ / static_cast<double>(cols)) : 0.0;
+    const double angle_step = (cols > 0) ? (2.0 * sonar_angle_rad_ / cols) : 0.0;
     const double angle_min  = -sonar_angle_rad_;
 
     const uint8_t threshold = static_cast<uint8_t>(std::clamp(intensity_min_, 0, 255));
-
-
-    // Allocate PCL cloud
-    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>);
-    cloud->height = 1;  // This makes the pointcloud 2D instead of 3D
-    cloud->is_dense = false;
 
     // Fill points
     for (int r = 0; r < rows; ++r) {
@@ -138,7 +154,7 @@ private:
           continue;
         }
 
-        const double theta = angle_min + static_cast<double>(c) * angle_step;
+        const double theta = angle_min + c * angle_step;
         pcl::PointXYZI point;
         point.x = d_m * std::cos(theta);
         point.y = d_m * std::sin(theta);
@@ -149,82 +165,107 @@ private:
     }
     cloud->width = cloud->points.size();
 
-    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZI>);
+    return cloud;
+}
+
+  CloudIPtr simPointcloudToPcl(const sensor_msgs::msg::PointCloud2& msg) {
+    pcl::PointCloud<pcl::PointXYZ> cloud_xyz;
+    pcl::fromROSMsg(msg, cloud_xyz);
+
+    CloudIPtr cloud(new CloudI);
+    cloud->height = 1;
+    cloud->is_dense = false;
+    cloud->points.reserve(cloud_xyz.points.size());
+
+    for (const auto& p : cloud_xyz.points) {
+      pcl::PointXYZI pi;
+      pi.x = p.x;
+      pi.y = p.y;
+      pi.z = p.z;
+      pi.intensity = 1.0f;
+      cloud->points.push_back(pi);
+    }
+
+    cloud->width = cloud->points.size();
+    return cloud;
+  }
+
+  // ------ Back End Filtering and Processing ------
+  void processAndPublishCloud(const CloudIPtr& cloud_in,
+                                 const std_msgs::msg::Header& in_header)
+  {
+    if (!cloud_in || cloud_in->empty()) {
+      return;
+    }
 
     std_msgs::msg::Header src_header = in_header;
     if (!frame_id_.empty()) {
       src_header.frame_id = frame_id_;
     }
 
-    // Try to transform to map frame
-    const bool tf_ok = transform_pcl_to_map_frame(*cloud, src_header, *cloud_transformed);
+    // Transform to target frame
+    CloudIPtr cloud_transformed(new CloudI);
+    bool tf_ok = transform_pcl_to_map_frame(*cloud_in, src_header, *cloud_transformed);
+
+    sensor_msgs::msg::PointCloud2 cloud_msg;
 
     if (!tf_ok) {
-      pcl::toROSMsg(*cloud, cloud_msg);
+      // publish in source frame as a fallback
+      pcl::toROSMsg(*cloud_in, cloud_msg);
       cloud_msg.header = src_header;
-      return cloud_msg;
+      cloud_pub_->publish(cloud_msg);
+      return;
     }
 
     // Filter in map frame
-    *cloud_transformed = filter_points_pcl(*cloud_transformed, min_depth_m_, max_depth_m_);
+    CloudI cloud_filtered = filter_points_pcl(*cloud_transformed, min_depth_m_, max_depth_m_);
 
     // Convert to ROS PointCloud2
-    pcl::toROSMsg(*cloud_transformed, cloud_msg);
+    pcl::toROSMsg(cloud_filtered, cloud_msg);
     cloud_msg.header = src_header;
     cloud_msg.header.frame_id = target_frame_;
+    cloud_pub_->publish(cloud_msg);
 
-    if(cloud_transformed->size() == 0 || cloud_transformed->size() != cloud_transformed->width * cloud_transformed->height) {
-      return cloud_msg;
+    if (cloud_filtered.empty() || cloud_filtered.size() != cloud_filtered.width * cloud_filtered.height) {
+      return;
     }
-    
 
-    // cloud for clustering
-    pcl::PointCloud<pcl::PointXYZ>::Ptr xyz_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    // Clustering
+    CloudIPtr cloud_filtered_ptr(new CloudI(cloud_filtered));
 
-    // Euclidean clustering
-    std::vector<pcl::PointIndices> clusters = euclideanClustering(cloud_transformed);
-    std::vector<Eigen::Vector4f> centroids = computeClusterCentroids(cloud_transformed, clusters);
+    // Euclidian clustering
+    std::vector<pcl::PointIndices> clusters = euclideanClustering(cloud_filtered_ptr);
+    std::vector<Eigen::Vector4f> centroids = computeClusterCentroids(cloud_filtered_ptr, clusters);
 
     // Allocate PCL cloud
-    pcl::PointCloud<pcl::PointXYZI>::Ptr clustered_cloud(new pcl::PointCloud<pcl::PointXYZI>);
+    CloudIPtr clustered_cloud(new CloudI);
     clustered_cloud->height = 1;
     clustered_cloud->is_dense = false;
 
-    std::size_t num_points2 = 0;
-
-    // Populate the occupied indices from each cluster
+    // Populate the occupied indices for each cluster
     for (const auto& centroid : centroids) {
-        pcl::PointXYZI point;
-        point.x = centroid[0];
-        point.y = centroid[1];
-        point.z = centroid[2];
+      pcl::PointXYZI point;
+      point.x = centroid[0];
+      point.y = centroid[1];
+      point.z = centroid[2];
 
-        point.intensity = 100.0f;
-
-        // these points are not transformed because they are based on an already transformed cloud
-        clustered_cloud->points.push_back(point);
-        num_points2++;
-
+      point.intensity = 100.0f;
+      clustered_cloud->points.push_back(point);
     }
-    clustered_cloud->width = num_points2;
+    clustered_cloud->width = clustered_cloud->points.size();
 
-    // Convert to ROS PointCloud2
-    sensor_msgs::msg::PointCloud2 clustered_msg;
-    pcl::toROSMsg(*clustered_cloud, clustered_msg);
-    clustered_msg.header = cloud_msg.header;
-
-    // publish here, move outside function if desired
-    if (clustered_msg.width > 1) {
-        clustered_pub_->publish(clustered_msg);
+    if (clustered_cloud->points.size() > 1) {
+      sensor_msgs::msg::PointCloud2 clustered_msg;
+      pcl::toROSMsg(*clustered_cloud, clustered_msg);
+      clustered_msg.header = cloud_msg.header;
+      clustered_pub_->publish(clustered_msg);
     }
-
-    return cloud_msg;
   }
 
   bool transform_pcl_to_map_frame(
-    const pcl::PointCloud<pcl::PointXYZI>& cloud_in,
+    const CloudI& cloud_in,
     const std_msgs::msg::Header& src_header,
-    pcl::PointCloud<pcl::PointXYZI>& cloud_out)
+    CloudI& cloud_out)
   {
     if (src_header.frame_id.empty()) {
       RCLCPP_WARN(get_logger(), "transform_pcl_to_map_frame(): empty frame_id; cannot transform to '%s'.",
@@ -274,13 +315,13 @@ private:
     }
   }
 
-  pcl::PointCloud<pcl::PointXYZI> filter_points_pcl(
+  CloudI filter_points_pcl(
     const pcl::PointCloud<pcl::PointXYZI>& cloud_in,
     double min_depth_m,
     double max_depth_m)
   {
-    auto cloudPtr = std::make_shared<pcl::PointCloud<pcl::PointXYZI>>(cloud_in);
-    auto filtered_data = new pcl::PointCloud<pcl::PointXYZI>();
+    auto cloudPtr = std::make_shared<CloudI>(cloud_in);
+    auto filtered_data = std::make_shared<CloudI>();
 
     pcl::PassThrough<pcl::PointXYZI> pass;
     pass.setInputCloud(cloudPtr);
@@ -291,7 +332,7 @@ private:
     return *filtered_data;
   }
 
-  std::vector<pcl::PointIndices> euclideanClustering(const pcl::PointCloud<pcl::PointXYZI>::Ptr& pcl_data) {
+  std::vector<pcl::PointIndices> euclideanClustering(const CloudIPtr& pcl_data) {
 
       pcl::search::KdTree<pcl::PointXYZI>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZI>());
       tree->setInputCloud(pcl_data);
@@ -308,7 +349,7 @@ private:
       return cluster_indices;
   }
 
-  std::vector<Eigen::Vector4f> computeClusterCentroids(const pcl::PointCloud<pcl::PointXYZI>::Ptr& pcl_data, const std::vector<pcl::PointIndices>& cluster_indices) {
+  std::vector<Eigen::Vector4f> computeClusterCentroids(const CloudIPtr& pcl_data, const std::vector<pcl::PointIndices>& cluster_indices) {
       std::vector<Eigen::Vector4f> centroids;
 
       for (const auto& indices : cluster_indices) {
@@ -345,6 +386,7 @@ private:
 
   // ROS I/O
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr img_sub_;
+  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sim_cloud_sub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_pub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr clustered_pub_;
 
