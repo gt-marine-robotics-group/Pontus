@@ -269,12 +269,20 @@ class SemanticMapManager(Node):
                 # marker.mesh_use_embedded_materials = True
 
             case SemanticObject.VERTICAL_MARKER:
-                marker.type = Marker.MESH_RESOURCE
-                marker.mesh_resource = 'package://pontus_mapping/visual_meshes/VerticalMarker.obj'
-                marker.scale.x = 1.0
-                marker.scale.y = 1.0
-                marker.scale.z = 1.0
-                marker.mesh_use_embedded_materials = True
+                # marker.type = Marker.MESH_RESOURCE
+                # marker.mesh_resource = 'package://pontus_mapping/visual_meshes/VerticalMarker.obj'
+                # marker.scale.x = 1.0
+                # marker.scale.y = 1.0
+                # marker.scale.z = 1.0
+                # marker.mesh_use_embedded_materials = True
+                marker.type = Marker.CYLINDER
+                marker.scale.x = 0.25
+                marker.scale.y = 0.25
+                marker.scale.z = 3.0  # height
+                marker.color.r = 0.0
+                marker.color.g = 0.0
+                marker.color.b = 0.0
+                marker.color.a = 1.0
 
             case SemanticObject.GATE_IMAGE_SHARK:
                 marker.type = Marker.MESH_RESOURCE

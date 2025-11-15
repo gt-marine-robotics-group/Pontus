@@ -15,6 +15,13 @@
       <axis xyz="1 0 0"/>
     </joint>
 
+    <joint name="camera_${camera_id}_optical_frame_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="${-pi/2} 0.0 ${-pi/2}" />
+      <parent link="camera_${camera_id}" />
+      <child link="camera_${camera_id}_optical_frame"/>
+    </joint>
+    <link name="camera_${camera_id}_optical_frame"/>
+
     <gazebo reference="camera_${camera_id}">
       <sensor name="camera_${camera_id}" type="camera">
         <camera>
@@ -27,6 +34,8 @@
             <near>0.1</near>
             <far>100</far>
           </clip>
+          <optical_frame_id>camera_${camera_id}_optical_frame</optical_frame_id>
+          <camera_info_topic>pontus/camera_${camera_id}/camera_info</camera_info_topic>
         </camera>
         <always_on>1</always_on>
         <update_rate>30</update_rate>
@@ -71,7 +80,7 @@
         <lidar>
           <scan>
             <horizontal>
-              <samples>256</samples>
+              <samples>1024</samples>
               <resolution>1</resolution>
               <min_angle>-1.0472</min_angle>
               <max_angle>1.0472</max_angle>

@@ -47,6 +47,7 @@ def convert_to_map_frame(
             exc,
         )
         return None
-
-    transformed = do_transform_pose(pose_stamped.pose, transform)
+    if type(pose_stamped) is PoseStamped:
+        pose_stamped = pose_stamped.pose
+    transformed = do_transform_pose(pose_stamped, transform)
     return transformed.pose if hasattr(transformed, 'pose') else transformed
