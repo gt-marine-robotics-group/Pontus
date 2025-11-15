@@ -87,7 +87,10 @@ def generate_launch_description():
 
     # This should only be used in sim
     configure_command_mode = ExecuteProcess(
-            cmd=['ros2', 'topic', 'pub', '--once', '/command_mode', 'pontus_msgs/msg/CommandMode', '\"{command_mode: 6}\"'],
+            cmd=['ros2', 'topic', 'pub',
+                 '--once',
+                 '--qos-durability', 'transient_local',
+                 '/command_mode', 'pontus_msgs/msg/CommandMode', '\"{command_mode: 6}\"'],
             shell=True,
             output='screen'
         )
