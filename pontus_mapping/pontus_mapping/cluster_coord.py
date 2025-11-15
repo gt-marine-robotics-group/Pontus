@@ -25,14 +25,17 @@ from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker, MarkerArray
 from vision_msgs.msg import Detection2D, Detection2DArray
 
+
 class ImageCoordinator(Node):
     def __init__(self) -> None:
         super().__init__('image_to_cluster_coordinator')
 
         self.latest_pointcloud: np.array = None
-        self.line_projection_width = .2 # (m), width of line pointing toward object detected by yolo
-        self.confidence_min = 0.5 # object score must be at least this to be added to semantic map
-        self.vector_projection_dist = 20 # (m), how far the line is projected 
+        # (m), width of line pointing toward object detected by yolo
+        self.line_projection_width = .2
+        # object score must be at least this to be added to semantic map
+        self.confidence_min = 0.5
+        self.vector_projection_dist = 20  # (m), how far the line is projected
         self.cam_model = PinholeCameraModel()
         self.camera_frame_name = 'camera_front'
         self.cam_initialized = False
@@ -44,13 +47,21 @@ class ImageCoordinator(Node):
             'saw_shark': SemanticObject.GATE_IMAGE_FISH,
             'white_slalom': SemanticObject.SLALOM_WHITE,
             'path_marker': SemanticObject.PATH_MARKER,
-            'vertical pole': SemanticObject.VERTICAL_MARKER
+            'vertical pole': SemanticObject.VERTICAL_MARKER,
+
+            # Name from the sim yolo model is different from real apparently
+            'gate_shark': SemanticObject.GATE_IMAGE_SHARK,
+            'gate_fish': SemanticObject.GATE_IMAGE_FISH,
+            'left_gate': SemanticObject.GATE_LEFT,
+            'right_gate': SemanticObject.GATE_LEFT,
+            'vertical_marker' : SemanticObject.VERTICAL_MARKER
         }
-        
+
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        self.cli = self.create_client(AddSemanticObject, '/pontus/add_semantic_object')
+        self.cli = self.create_client(
+            AddSemanticObject, '/pontus/add_semantic_object')
         while not self.cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
 
@@ -70,7 +81,8 @@ class ImageCoordinator(Node):
 
         self.info_sub = self.create_subscription(
             CameraInfo,
-            '/pontus/{}/camera_info'.format(self.camera_frame_name), # Replace with your camera info topic
+            # Replace with your camera info topic
+            '/pontus/{}/camera_info'.format(self.camera_frame_name),
             self.info_callback,
             10
         )
@@ -107,15 +119,15 @@ class ImageCoordinator(Node):
         self.debug_line_pub.publish(array_msg)
 
         for object in msg.detections:
-            temp, point_found = self.associate_object_with_point(object, self.latest_pointcloud)
+            temp, point_found = self.associate_object_with_point(
+                object, self.latest_pointcloud)
             if point_found and temp[2] > self.confidence_min:
                 self.get_logger().info("object meets confidence min")
-                success = self.send_request(temp[0],temp[1])
+                success = self.send_request(temp[0], temp[1])
                 # if success:
                 #     self.get_logger().info("object added to semantic map")
                 # else:
                 #     self.get_logger().warn("failure to add object to semantic map")
-
 
     def pointcloud_callback(self, msg: PointCloud2) -> None:
         """
@@ -135,7 +147,7 @@ class ImageCoordinator(Node):
             transformed_msg, field_names=('x', 'y', 'z'),
             skip_nans=True
         )
-        points[:, 1] = -points[:, 1] #TODO ask why do this?
+        points[:, 1] = -points[:, 1]  # TODO ask why do this?
 
         self.latest_pointcloud = points
 
@@ -143,7 +155,7 @@ class ImageCoordinator(Node):
         """
         Callback for CameraInfo messages. Updates the PinholeCameraModel.
         """
-        if not self.cam_initialized: # Only update if not initialized or if parameters change
+        if not self.cam_initialized:  # Only update if not initialized or if parameters change
             self.cam_model.fromCameraInfo(msg)
             self.cam_initialized = True
             self.get_logger().info('Camera model initialized with new info.')
@@ -174,13 +186,15 @@ class ImageCoordinator(Node):
                 max_confidence = result.hypothesis.score
                 highest_class = self.name_map[result.hypothesis.class_id]
         center_position = object_msg.bbox.center.position
-        
+
         # generate pose in object frame ID to define line, starting point at 0
         point = np.array([[center_position.x, center_position.y]])
         point = np.expand_dims(point, 1)
         rectified_point = self.cam_model.rectify_point(point)
-        ray_unit_vector = self.cam_model.project_pixel_to_3d_ray(rectified_point)
-        pose_to_object = self.align_pose_x_with_vector(camera_pose, ray_unit_vector)
+        ray_unit_vector = self.cam_model.project_pixel_to_3d_ray(
+            rectified_point)
+        pose_to_object = self.align_pose_x_with_vector(
+            camera_pose, ray_unit_vector)
 
         # transform pose to match point cloud frame from camera frame
         transformed_pose = self.transform_camera(pose_to_object)
@@ -214,19 +228,19 @@ class ImageCoordinator(Node):
             return ([], [], 0.0), False
             # relevant_points = point_array # for testing
 
-        pose_array = np.empty(3,dtype=point_array.dtype)
+        pose_array = np.empty(3, dtype=point_array.dtype)
 
         pose_array[0] = transformed_pose.pose.position.x
         pose_array[1] = transformed_pose.pose.position.y
         pose_array[2] = transformed_pose.pose.position.z
 
         dim_diff = relevant_points - pose_array
-        index_of_closest_point = np.argmin(np.sum(np.abs(dim_diff), axis= 1))
+        index_of_closest_point = np.argmin(np.sum(np.abs(dim_diff), axis=1))
 
         selected_point = Point()
-        selected_point.x = float(relevant_points[index_of_closest_point,0])
-        selected_point.y = float(relevant_points[index_of_closest_point,1])
-        selected_point.z = float(relevant_points[index_of_closest_point,2])
+        selected_point.x = float(relevant_points[index_of_closest_point, 0])
+        selected_point.y = float(relevant_points[index_of_closest_point, 1])
+        selected_point.z = float(relevant_points[index_of_closest_point, 2])
 
         # create object stamped pose
         object_pose = PoseStamped()
@@ -234,7 +248,7 @@ class ImageCoordinator(Node):
         object_pose.pose.position = selected_point
 
         return ([highest_class], [object_pose], max_confidence), True
-    
+
     def align_pose_x_with_vector(self, pose_msg: PoseStamped, target_vector: list) -> PoseStamped:
         """
         Aligns the x-axis of a given Pose orientation with a target 3D vector.
@@ -271,19 +285,21 @@ class ImageCoordinator(Node):
             angle = acos(np.dot(initial_x_axis, target_array))
 
         # 3. Convert the axis-angle representation to a quaternion
-        quat_new = tf_transformations.quaternion_about_axis(angle, rotation_axis)
+        quat_new = tf_transformations.quaternion_about_axis(
+            angle, rotation_axis)
 
         # 4. Update the Pose message
         new_pose = PoseStamped()
         new_pose.header = pose_msg.header
-        new_pose.pose.position = pose_msg.pose.position # Keep the original position, should be all zeros
+        # Keep the original position, should be all zeros
+        new_pose.pose.position = pose_msg.pose.position
         new_pose.pose.orientation.x = quat_new[0]
         new_pose.pose.orientation.y = quat_new[1]
         new_pose.pose.orientation.z = quat_new[2]
         new_pose.pose.orientation.w = quat_new[3]
 
         return new_pose
-    
+
     def get_x_axis_vector_from_pose(self, pose_msg: PoseStamped) -> Vector3Stamped:
         """
         Extracts the x-axis direction vector from a geometry_msgs/Pose message.
@@ -301,17 +317,18 @@ class ImageCoordinator(Node):
             translation=Point(x=0.0, y=0.0, z=0.0),
             orientation=pose_msg.pose.orientation
         )
-        
+
         # 3. Create a TransformStamped message for the tf2 utility
         transform_stamped = geometry_msgs.msg.TransformStamped()
         transform_stamped.transform = transform
 
         # 4. Transform the local x-axis vector to the pose's frame of reference
         # do_transform_vector3 applies the rotation defined by the transform
-        global_x_axis_vector = tf2_geometry_msgs.do_transform_vector3(local_x_axis_vector, transform_stamped)
-        
+        global_x_axis_vector = tf2_geometry_msgs.do_transform_vector3(
+            local_x_axis_vector, transform_stamped)
+
         return global_x_axis_vector
-    
+
     def points_on_line(self, point_array: np.ndarray, pose: PoseStamped) -> np.ndarray:
         """
         Checks that provided point exists on line defined by pose, this could be improved
@@ -327,18 +344,20 @@ class ImageCoordinator(Node):
         # get indices based on pose orientation, atan2, math.abs(target_x/a) % 1 < self.line_projection_width
         # convert quaternion to euler, get x using pitch and roll
         vector_to_object = self.get_x_axis_vector_from_pose(pose)
-        start_point = np.array([pose.pose.position.x, pose.pose.position.y, 0.0], dtype=point_array.dtype)
+        start_point = np.array(
+            [pose.pose.position.x, pose.pose.position.y, 0.0], dtype=point_array.dtype)
 
         end_point = np.array([vector_to_object.vector.x*self.vector_projection_dist + pose.pose.position.x,
-                                vector_to_object.vector.y*self.vector_projection_dist + pose.pose.position.y,
-                                0.0], dtype=point_array.dtype)
-        
+                              vector_to_object.vector.y*self.vector_projection_dist + pose.pose.position.y,
+                              0.0], dtype=point_array.dtype)
+
         ba = start_point - end_point
         bc = point_array - end_point
 
-        distance = np.sum(np.abs(np.cross(ba, bc)), axis=1) / (np.sum(np.abs(ba)) + 0.000000001)
+        distance = np.sum(np.abs(np.cross(ba, bc)), axis=1) / \
+            (np.sum(np.abs(ba)) + 0.000000001)
 
-        return point_array[distance <= self.line_projection_width,:]
+        return point_array[distance <= self.line_projection_width, :]
 
     @staticmethod
     def _canonicalize_cloud(cloud: PointCloud2) -> PointCloud2:
@@ -372,11 +391,13 @@ class ImageCoordinator(Node):
             transform = self.tf_buffer.lookup_transform(
                 target_frame='map',
                 source_frame=msg.header.frame_id,
-                time=Time(seconds = msg.header.stamp.sec, nanoseconds= msg.header.stamp.nanosec)
+                time=Time(seconds=msg.header.stamp.sec,
+                          nanoseconds=msg.header.stamp.nanosec)
             )
             # self.get_logger().info("SUCCESS ON TRANSFORM")
         except Exception as e:
-            self.get_logger().warn("failure to transform pointcloud to map frame, current frame: {}".format(msg.header.frame_id))
+            self.get_logger().warn(
+                "failure to transform pointcloud to map frame, current frame: {}".format(msg.header.frame_id))
             self.get_logger().warn(f"exception: {e}")
             return msg
 
@@ -384,7 +405,7 @@ class ImageCoordinator(Node):
         transformed_msg = do_transform_cloud(msg_canon, transform)
 
         return transformed_msg
-    
+
     def transform_camera(self, msg: PoseStamped) -> PoseStamped:
         """
         transforms the frame from sonar to map
@@ -402,9 +423,11 @@ class ImageCoordinator(Node):
             transform = self.tf_buffer.lookup_transform(
                 target_frame='map',
                 source_frame=msg.header.frame_id,
-                time=Time(seconds = msg.header.stamp.sec, nanoseconds= msg.header.stamp.nanosec)
+                time=Time(seconds=msg.header.stamp.sec,
+                          nanoseconds=msg.header.stamp.nanosec)
             )
-            pose_transformed = tf2_geometry_msgs.do_transform_pose(msg.pose, transform)
+            pose_transformed = tf2_geometry_msgs.do_transform_pose(
+                msg.pose, transform)
             # self.get_logger().info("SUCCESS ON TRANSFORM")
             pose_stamped_msg = PoseStamped()
             pose_stamped_msg.header = msg.header
@@ -412,10 +435,10 @@ class ImageCoordinator(Node):
             pose_stamped_msg.pose = pose_transformed
             return pose_stamped_msg
         except Exception as e:
-            self.get_logger().warn("failure to transform pose to map frame, current frame: {}".format(msg.header.frame_id))
+            self.get_logger().warn(
+                "failure to transform pose to map frame, current frame: {}".format(msg.header.frame_id))
             self.get_logger().warn(f"exception: {e}")
             return msg
-
 
     def send_request(self, class_id, pose):
         req = AddSemanticObject.Request()
@@ -426,13 +449,14 @@ class ImageCoordinator(Node):
     def get_debug_line_color(self, class_id):
         match class_id:
             case SemanticObject.SLALOM_RED:
-                return ColorRGBA(r = 1.0, a = 1.0)
+                return ColorRGBA(r=1.0, a=1.0)
             case SemanticObject.SLALOM_WHITE:
-                return ColorRGBA(r = 1.0, g = 1.0, b = 1.0, a = 1.0)
+                return ColorRGBA(r=1.0, g=1.0, b=1.0, a=1.0)
             case SemanticObject.VERTICAL_MARKER:
-                return ColorRGBA(a = 1.0)
+                return ColorRGBA(a=1.0)
             case default:
-                return ColorRGBA(g = 1.0, a = 1.0)
+                return ColorRGBA(g=1.0, a=1.0)
+
 
 def main(args=None):
     rclpy.init(args=args)

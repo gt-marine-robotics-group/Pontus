@@ -80,7 +80,7 @@
         <lidar>
           <scan>
             <horizontal>
-              <samples>256</samples>
+              <samples>1024</samples>
               <resolution>1</resolution>
               <min_angle>-1.0472</min_angle>
               <max_angle>1.0472</max_angle>
