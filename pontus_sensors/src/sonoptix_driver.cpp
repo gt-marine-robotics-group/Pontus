@@ -233,7 +233,7 @@ private:
     // Clustering
     CloudIPtr cloud_filtered_ptr(new CloudI(cloud_filtered));
 
-    // Euclidian clustering
+    // Euclidean clustering
     std::vector<pcl::PointIndices> clusters = euclideanClustering(cloud_filtered_ptr);
     std::vector<Eigen::Vector4f> centroids = computeClusterCentroids(cloud_filtered_ptr, clusters);
 
