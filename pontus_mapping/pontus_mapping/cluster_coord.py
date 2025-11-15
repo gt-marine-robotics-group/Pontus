@@ -50,6 +50,8 @@ class ImageCoordinator(Node):
             'vertical pole': SemanticObject.VERTICAL_MARKER,
 
             # Name from the sim yolo model is different from real apparently
+            'slalom_red': SemanticObject.SLALOM_RED,
+            'slalom_white': SemanticObject.SLALOM_WHITE,
             'gate_shark': SemanticObject.GATE_IMAGE_SHARK,
             'gate_fish': SemanticObject.GATE_IMAGE_FISH,
             'left_gate': SemanticObject.GATE_LEFT,
@@ -202,13 +204,8 @@ class ImageCoordinator(Node):
         # Debug publish lines
         array_msg = MarkerArray()
         marker_msg = Marker()
-        marker_msg.header = pose_to_object.header
-
-        marker_msg.header.frame_id = "camera_front_optical_frame"
-
-        marker_msg.pose = pose_to_object.pose
-        # marker_msg.header = transformed_pose.header
-        # marker_msg.pose = transformed_pose.pose
+        marker_msg.header = transformed_pose.header
+        marker_msg.pose = transformed_pose.pose
         marker_msg.ns = "lines"
         marker_msg.id = self.debug_id
         self.debug_id += 1
@@ -318,7 +315,7 @@ class ImageCoordinator(Node):
         # We use a dummy transform with zero translation for this
         transform = geometry_msgs.msg.Transform(
             translation=Point(x=0.0, y=0.0, z=0.0),
-            orientation=pose_msg.pose.orientation
+            rotation=pose_msg.pose.orientation
         )
 
         # 3. Create a TransformStamped message for the tf2 utility
@@ -344,8 +341,9 @@ class ImageCoordinator(Node):
             np.ndarray: structured numpy array of all points on the line defined by pose
         """
 
-        # get indices based on pose orientation, atan2, math.abs(target_x/a) % 1 < self.line_projection_width
-        # convert quaternion to euler, get x using pitch and roll
+        point2_array = point_array.copy()
+        point2_array[:, 2] = 0
+
         vector_to_object = self.get_x_axis_vector_from_pose(pose)
         start_point = np.array(
             [pose.pose.position.x, pose.pose.position.y, 0.0], dtype=point_array.dtype)
@@ -355,11 +353,12 @@ class ImageCoordinator(Node):
                               0.0], dtype=point_array.dtype)
 
         ba = start_point - end_point
-        bc = point_array - end_point
+        bc = point2_array - end_point
 
         distance = np.sum(np.abs(np.cross(ba, bc)), axis=1) / \
             (np.sum(np.abs(ba)) + 0.000000001)
 
+        # print(distance)
         return point_array[distance <= self.line_projection_width, :]
 
     @staticmethod
