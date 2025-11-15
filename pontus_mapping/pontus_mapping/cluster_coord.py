@@ -124,7 +124,7 @@ class ImageCoordinator(Node):
             temp, point_found = self.associate_object_with_point(
                 object, self.latest_pointcloud)
             if point_found and temp[2] > self.confidence_min:
-                self.get_logger().info("object meets confidence min")
+                self.get_logger().info("making request to add object")
                 success = self.send_request(temp[0], temp[1])
                 # if success:
                 #     self.get_logger().info("object added to semantic map")
@@ -228,19 +228,11 @@ class ImageCoordinator(Node):
             return ([], [], 0.0), False
             # relevant_points = point_array # for testing
 
-        pose_array = np.empty(3, dtype=point_array.dtype)
-
-        pose_array[0] = transformed_pose.pose.position.x
-        pose_array[1] = transformed_pose.pose.position.y
-        pose_array[2] = transformed_pose.pose.position.z
-
-        dim_diff = relevant_points - pose_array
-        index_of_closest_point = np.argmin(np.sum(np.abs(dim_diff), axis=1))
-
+        # relevant_points is sorted by distance from the point to the line
         selected_point = Point()
-        selected_point.x = float(relevant_points[index_of_closest_point, 0])
-        selected_point.y = float(relevant_points[index_of_closest_point, 1])
-        selected_point.z = float(relevant_points[index_of_closest_point, 2])
+        selected_point.x = float(relevant_points[0, 0])
+        selected_point.y = float(relevant_points[0, 1])
+        selected_point.z = float(relevant_points[0, 2])
 
         # create object stamped pose
         object_pose = PoseStamped()
@@ -358,8 +350,11 @@ class ImageCoordinator(Node):
         distance = np.sum(np.abs(np.cross(ba, bc)), axis=1) / \
             (np.sum(np.abs(ba)) + 0.000000001)
 
-        # print(distance)
-        return point_array[distance <= self.line_projection_width, :]
+        keys = np.argsort(distance)
+        sorted_point_array = point_array[keys]
+        sorted_distance_array = np.sort(distance)
+        
+        return sorted_point_array[sorted_distance_array <= self.line_projection_width, :]
 
     @staticmethod
     def _canonicalize_cloud(cloud: PointCloud2) -> PointCloud2:
