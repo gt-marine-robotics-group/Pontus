@@ -147,7 +147,7 @@ class ImageCoordinator(Node):
             transformed_msg, field_names=('x', 'y', 'z'),
             skip_nans=True
         )
-        points[:, 1] = -points[:, 1]  # TODO ask why do this?
+        # points[:, 1] = -points[:, 1]  # TODO ask why do this?
 
         self.latest_pointcloud = points
 
@@ -203,6 +203,9 @@ class ImageCoordinator(Node):
         array_msg = MarkerArray()
         marker_msg = Marker()
         marker_msg.header = pose_to_object.header
+
+        marker_msg.header.frame_id = "camera_front_optical_frame"
+
         marker_msg.pose = pose_to_object.pose
         # marker_msg.header = transformed_pose.header
         # marker_msg.pose = transformed_pose.pose
