@@ -8,8 +8,9 @@ from rclpy.node import Node
 from rclpy.action import ActionServer
 import tf_transformations
 
+from std_msgs.msg import Header
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import Twist, Pose
+from geometry_msgs.msg import Twist, Pose, PoseStamped
 from pontus_msgs.msg import CommandMode
 from pontus_msgs.message_enums import CommandModeEnum
 from pontus_msgs.action import GoToPose
@@ -80,6 +81,13 @@ class PositionController(Node):
             self.cmd_pos_callback,
             10
         )
+        # Rviz/foxglove clicked point subs
+        self.rviz_pose_sub = self.create_subscription(
+            PoseStamped,
+            '/goal_pose',
+            self.rviz_pose_callback,
+            10
+        )
         self.cmd_vel_manual_sub = self.create_subscription(
           Twist,
           '/cmd_vel',
@@ -97,7 +105,7 @@ class PositionController(Node):
             10
         )
         self.debug_pose_pub = self.create_publisher(
-            Pose,
+            PoseStamped,
             '/debug/pose_command',
             10
         )
@@ -196,7 +204,8 @@ class PositionController(Node):
         result.completed = True
         return result
 
-    def cmd_pos_callback(self, msg: Pose, use_relative_pos: bool = False) -> None:
+    def cmd_pos_callback(self, msg: Pose, use_relative_pos: bool = False,
+                         header: Header = None) -> None:
         """
         Stores the commanded pose and configures the position controller
 
@@ -205,6 +214,7 @@ class PositionController(Node):
         msg (Pose): The new commanded pose
         use_relative_pos (bool): Whether or not the controller should move to the commanded position
             in global space or relative to the current position of the vehicle
+        header (Header): header message including frame and timestamp
 
         Return:
         ------
@@ -247,7 +257,19 @@ class PositionController(Node):
         self.cmd_pos_linear = cmd_pos_new
         self.cmd_pos_angular = cmd_ang_new
 
-        self.debug_pose_pub.publish(msg)
+        debug_msg = PoseStamped()
+        if header is not None:
+            debug_msg.header = header
+        else:
+            debug_msg.header.stamp = self.get_clock().now().to_msg()
+            debug_msg.header.frame_id = "map"
+        debug_msg.pose = msg
+        self.debug_pose_pub.publish(debug_msg)
+
+    def rviz_pose_callback(self, msg: PoseStamped):
+        # TODO: technically the command may not be in map frame,
+        #       consider transforming the pose
+        self.cmd_pos_callback(msg.pose, header=msg.header)
 
     def state_debugger(self) -> None:
         if self.previous_state != self.state:

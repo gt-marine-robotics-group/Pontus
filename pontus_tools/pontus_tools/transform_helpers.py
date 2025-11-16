@@ -15,6 +15,7 @@ from tf2_geometry_msgs import do_transform_pose
 
 LOGGER = get_logger(__name__)
 
+
 def convert_to_map_frame(
     pose_stamped: PoseStamped,
     tf_buffer: tf2_ros.Buffer,
@@ -46,6 +47,7 @@ def convert_to_map_frame(
             exc,
         )
         return None
-
+    if type(pose_stamped) is PoseStamped:
+        pose_stamped = pose_stamped.pose
     transformed = do_transform_pose(pose_stamped, transform)
     return transformed.pose if hasattr(transformed, 'pose') else transformed

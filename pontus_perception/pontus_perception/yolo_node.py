@@ -184,23 +184,32 @@ class YOLONode(Node):
         for (x1, y1, x2, y2), conf, cls_id in zip(xyxy, confs, clss):
             if float(conf) < self.threshold:
                 continue
+
             width = float(max(0.0, x2 - x1))
             height = float(max(0.0, y2 - y1))
             cx = float(x1 + width / 2.0)
             cy = float(y1 + height / 2.0)
 
-            bbox = BoundingBox2D(center=Pose2D(
-                x=cx, y=cy, theta=0.0), size_x=width, size_y=height)
+            bbox = BoundingBox2D()
+            bbox.center.theta = 0.0
+            bbox.center.position.x = cx
+            bbox.center.position.y = cy
+            bbox.size_x = width
+            bbox.size_y = height
+
             label = name_map.get(int(cls_id), str(int(cls_id)))
             hypothesis = ObjectHypothesis(class_id=label, score=float(conf))
             hypothesis_with_pose = ObjectHypothesisWithPose(
-                hypothesis=hypothesis, pose=self._default_pose_with_covariance())
+                hypothesis=hypothesis,
+                pose=self._default_pose_with_covariance()
+            )
 
             det = Detection2D()
             det.header = detections_array.header
             det.bbox = bbox
             det.results = [hypothesis_with_pose]
             detections_array.detections.append(det)
+
             kept += 1
 
             # debug draw
