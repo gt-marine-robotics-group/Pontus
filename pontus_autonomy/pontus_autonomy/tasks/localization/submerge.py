@@ -2,7 +2,6 @@ from geometry_msgs.msg import Pose
 
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
 from pontus_autonomy.tasks.base_task import BaseTask
-from pontus_controller.position_controller import MovementMethod
 
 
 class Submerge(BaseTask):
@@ -43,9 +42,7 @@ class Submerge(BaseTask):
         if not self.cmd_sent:
             lower_pose = Pose()
             lower_pose.position.z = self.desired_depth
-            pose_obj = PoseObj(cmd_pose=lower_pose,
-                               skip_orientation=False,
-                               movement_method=MovementMethod.TurnThenForward)
+            pose_obj = PoseObj(cmd_pose=lower_pose)
             self.go_to_pose_client.go_to_pose(pose_obj)
             self.cmd_sent = True
         if self.go_to_pose_client.at_pose():

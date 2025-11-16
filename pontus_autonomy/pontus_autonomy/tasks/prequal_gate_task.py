@@ -290,7 +290,8 @@ class PrequalGateTask(BaseTask):
 
         self.curr_waypoint = cmd_pose
 
-        self.go_to_pose_client.go_to_pose(PoseObj(cmd_pose=cmd_pose))
+        self.go_to_pose_client.go_to_pose(PoseObj(cmd_pose=cmd_pose,
+                                                  skip_orientation=True))
 
     def _send_meta_gate(self, gate_pair: GatePair) -> None:
         """
