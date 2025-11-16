@@ -124,7 +124,7 @@ class ImageCoordinator(Node):
             temp, point_found = self.associate_object_with_point(
                 object, self.latest_pointcloud)
             if point_found and temp[2] > self.confidence_min:
-                self.get_logger().info("making request to add object")
+                # self.get_logger().info("making request to add object")
                 success = self.send_request(temp[0], temp[1])
                 # if success:
                 #     self.get_logger().info("object added to semantic map")
@@ -224,7 +224,7 @@ class ImageCoordinator(Node):
 
         if (relevant_points.shape[0] == 0):
             # no points on line
-            self.get_logger().info("no objects on line")
+            # self.get_logger().info("no objects on line")
             return ([], [], 0.0), False
             # relevant_points = point_array # for testing
 

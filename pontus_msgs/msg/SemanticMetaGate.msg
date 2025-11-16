@@ -1,0 +1,4 @@
+std_msgs/Header header
+
+pontus_msgs/SemanticObject left_gate
+pontus_msgs/SemanticObject right_gate
