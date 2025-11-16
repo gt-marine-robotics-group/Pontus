@@ -134,7 +134,7 @@ class PrequalGateTask(BaseTask):
 
         self.detected_gate_pair = self.detect_gate_pair(msg)
 
-        if self.detected_gate_pair is not None:
+        if self.detected_gate_pair is not None and self.latest_odom is not None:
             path = self.generate_waypoints(self.detected_gate_pair)
 
             if path is not None:

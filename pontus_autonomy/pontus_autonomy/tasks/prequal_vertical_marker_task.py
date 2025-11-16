@@ -1,5 +1,5 @@
 import numpy as np
-from enum import Enum 
+from enum import Enum
 from dataclasses import dataclass
 from typing import Optional
 
@@ -16,12 +16,14 @@ from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
 
 from pontus_msgs.msg import SemanticMap, SemanticObject, SemanticMetaGate
 
+
 class MarkerSide(Enum):
     RIGHT = 0
-    LEFT  = 1
+    LEFT = 1
+
 
 class PrequalVerticalMarkerTask(BaseTask):
-    
+
     def __init__(self):
         super().__init__("prequal_vertical_marker_task")
 
@@ -39,23 +41,28 @@ class PrequalVerticalMarkerTask(BaseTask):
             ]
         )
 
-        self.height_from_bottom_m          : float = float(self.get_parameter('height_from_bottom').value)
-        self.pool_depth                    : float = float(self.get_parameter('pool_depth').value)
-        self.waypoint_dist_from_marker_m   : float = float(self.get_parameter('waypoint_dist_from_marker').value)
-        self.waypoint_dist_from_gate_m     : float = float(self.get_parameter('waypoint_dist_from_gate').value)
-        self.marker_centerline_tolerance_m : float = float(self.get_parameter('marker_centerline_tolerance').value)
-        self.follow_path_period            : float = float(self.get_parameter('follow_path_period').value)
-        
+        self.height_from_bottom_m: float = float(
+            self.get_parameter('height_from_bottom').value)
+        self.pool_depth: float = float(self.get_parameter('pool_depth').value)
+        self.waypoint_dist_from_marker_m: float = float(
+            self.get_parameter('waypoint_dist_from_marker').value)
+        self.waypoint_dist_from_gate_m: float = float(
+            self.get_parameter('waypoint_dist_from_gate').value)
+        self.marker_centerline_tolerance_m: float = float(
+            self.get_parameter('marker_centerline_tolerance').value)
+        self.follow_path_period: float = float(
+            self.get_parameter('follow_path_period').value)
+
         # ------ State Variables ------
-        self.waypoints_are_created : bool = False
-        self.path : list[np.ndarray] = []
+        self.waypoints_are_created: bool = False
+        self.path: list[np.ndarray] = []
 
-        self.curr_waypoint: Pose = None 
+        self.curr_waypoint: Pose = None
 
-        self.execute_path : bool = False
-        
-        self.gate_pair : Optional[SemanticMetaGate] = None
-        self.detected_marker : Optional[np.ndarray] = None
+        self.execute_path: bool = False
+
+        self.gate_pair: Optional[SemanticMetaGate] = None
+        self.detected_marker: Optional[np.ndarray] = None
 
         self.latest_odom = None
 
@@ -99,14 +106,14 @@ class PrequalVerticalMarkerTask(BaseTask):
         """
         When the semantic map is updated check for the conditions to show
         the Marker has been detected.
-        
+
         If it has been detected calculate the waypoints to travel through
         the gate.
-        
+
         Args:
             msg [SemanticMap] : contains semantic information about position
                                 and labels of relavant obstacles in the course 
-        
+
         Return:
             N/A
         """
@@ -119,7 +126,7 @@ class PrequalVerticalMarkerTask(BaseTask):
 
         self.detected_marker = self.detect_marker(msg)
 
-        if self.detected_marker is not None:
+        if self.detected_marker is not None and self.latest_odom is not None:
             path = self.generate_waypoints(self.detected_marker)
 
             if path is not None:
@@ -127,22 +134,22 @@ class PrequalVerticalMarkerTask(BaseTask):
                 self.path = path
                 self.execute_path = True
 
-    def detect_marker(self, sem_map : SemanticMap) -> Optional[np.ndarray]:
+    def detect_marker(self, sem_map: SemanticMap) -> Optional[np.ndarray]:
         """
         Given the semantic map. Check all gate side detections to see if
         any pair meet the conditions to be a vertical marker
-        
+
         - How close does it lie to being in line with going through the 
           centerline of the gate. 
 
         Args:
             sem_map [SemanticMap] : Map containing all detected semantic objects
-        
+
         Return:
             np.ndarray of marker [x, y] in map frame if found,
             otherwise None.
         """
-        
+
         _, gate_unit_norm, gate_midpoint = self._get_gate_unit_normal()
 
         best_candidate_marker: Optional[np.ndarray] = None
@@ -152,7 +159,7 @@ class PrequalVerticalMarkerTask(BaseTask):
             marker_vec: np.ndarray = self._pose_to_nparray(marker.pose.pose)
 
             marker_gate_vec = marker_vec - gate_midpoint
-            
+
             parallel = np.dot(marker_gate_vec, gate_unit_norm) * gate_unit_norm
             perp = marker_gate_vec - parallel
             dist = float(np.linalg.norm(perp))
@@ -167,14 +174,16 @@ class PrequalVerticalMarkerTask(BaseTask):
     def generate_waypoints(self, marker_xy: np.ndarray) -> list[np.ndarray]:
 
         gate_unit_vec, gate_unit_norm, gate_midpoint = self._get_gate_unit_normal()
-        
+
         # Around the marker
         waypoint_vm_1 = marker_xy + gate_unit_vec * self.waypoint_dist_from_marker_m
         waypoint_vm_2 = marker_xy + gate_unit_norm * self.waypoint_dist_from_marker_m
         waypoint_vm_3 = marker_xy - gate_unit_vec * self.waypoint_dist_from_marker_m
 
-        waypoint_return_1 = gate_midpoint + gate_unit_norm * self.waypoint_dist_from_gate_m
-        waypoint_return_2 = gate_midpoint - gate_unit_norm * self.waypoint_dist_from_gate_m
+        waypoint_return_1 = gate_midpoint + \
+            gate_unit_norm * self.waypoint_dist_from_gate_m
+        waypoint_return_2 = gate_midpoint - \
+            gate_unit_norm * self.waypoint_dist_from_gate_m
 
         robot_xy = self._pose_to_nparray(self.latest_odom.pose.pose)
 
@@ -185,12 +194,12 @@ class PrequalVerticalMarkerTask(BaseTask):
             return [waypoint_vm_1, waypoint_vm_2, waypoint_vm_3, waypoint_return_1, waypoint_return_2]
         else:
             return [waypoint_vm_3, waypoint_vm_2, waypoint_vm_1, waypoint_return_1, waypoint_return_2]
-        
+
     def follow_path(self) -> None:
         """
         After we generate the waypoints we switch to execute mode and follow
         the path we have created.
-        
+
         Once we reach the end of this path we exit the task.
         """
 
@@ -205,25 +214,27 @@ class PrequalVerticalMarkerTask(BaseTask):
             target_pos_xy = self.path.pop(0)
             self._send_waypoint_command(target_pos_xy)
 
-    
     def _send_waypoint_command(self, target_pos_xy: np.ndarray) -> None:
         """
         Convert a np.ndarray 2D vector to a command pose and send to pos_controller
         """
         cmd_pose = Pose()
-        
+
         cmd_pose.position.x = target_pos_xy[0]
         cmd_pose.position.y = target_pos_xy[1]
         cmd_pose.position.z = -self.pool_depth + self.height_from_bottom_m
 
         self.curr_waypoint = cmd_pose
 
-        self.go_to_pose_client.go_to_pose(PoseObj(cmd_pose=cmd_pose))
+        self.go_to_pose_client.go_to_pose(PoseObj(cmd_pose=cmd_pose,
+                                                  skip_orientation=True))
 
     def _get_gate_unit_normal(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        
-        g1 : np.ndarray = self._pose_to_nparray(self.gate_pair.left_gate.pose.pose)
-        g2 : np.ndarray = self._pose_to_nparray(self.gate_pair.right_gate.pose.pose)
+
+        g1: np.ndarray = self._pose_to_nparray(
+            self.gate_pair.left_gate.pose.pose)
+        g2: np.ndarray = self._pose_to_nparray(
+            self.gate_pair.right_gate.pose.pose)
 
         # Gate vector from left side to right side
         gate_vec = g2 - g1
@@ -240,7 +251,7 @@ class PrequalVerticalMarkerTask(BaseTask):
     def _pose_to_nparray(self, msg: Pose) -> np.ndarray:
         """
         Convert a Pose into a 2D numpy array
-        
+
         Args:
             msg [Pose]
         Return:
@@ -251,4 +262,3 @@ class PrequalVerticalMarkerTask(BaseTask):
             msg.position.y],
             dtype=float
         )
-        
