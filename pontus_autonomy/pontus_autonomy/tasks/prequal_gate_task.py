@@ -16,6 +16,7 @@ from pontus_autonomy.tasks.base_task import BaseTask
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
 
 from pontus_msgs.msg import SemanticMap, SemanticObject
+from pontus_msgs.srv import AddMetaGate
 
 class GateSide(Enum):
     RIGHT = 0
@@ -89,6 +90,11 @@ class PrequalGateTask(BaseTask):
         # ------ ROS Action / Service Managers ------
         self.go_to_pose_client = GoToPoseClient(self)
 
+        self.add_meta_gate_client = self.create_client(
+            AddMetaGate,
+            '/pontus/add_meta_gate'
+        )
+
         # ------ TF Transforms ------
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -135,6 +141,8 @@ class PrequalGateTask(BaseTask):
                 self.waypoints_are_created = True
                 self.path = path
                 self.execute_path = True
+
+                self._send_meta_gate(self.detected_gate_pair)
                 
 
     def detect_gate_pair(self, sem_map : SemanticMap) -> GatePair | None:
@@ -183,15 +191,17 @@ class PrequalGateTask(BaseTask):
                 body_frame_gate.append(body_frame_side_pose)
 
             if body_frame_gate[0].position.y > body_frame_gate[1].position.y:
-                return GatePair(
+                gate_pair = GatePair(
                     left_gate=candidate_pair[0], 
                     right_gate=candidate_pair[1]
                 )
             else:
-                return GatePair(
+                gate_pair = GatePair(
                     left_gate=candidate_pair[1], 
                     right_gate=candidate_pair[0]
                 )
+            
+            return gate_pair
 
         return None
 
@@ -281,6 +291,24 @@ class PrequalGateTask(BaseTask):
         self.curr_waypoint = cmd_pose
 
         self.go_to_pose_client.go_to_pose(PoseObj(cmd_pose=cmd_pose))
+
+    def _send_meta_gate(self, gate_pair: GatePair) -> None:
+        """
+        Call ROS client to add the GatePair as a meta object to the semantic
+        map
+        """
+
+        if not self.add_meta_gate_client.service_is_ready():
+            self.get_logger().warn(
+                "AddMetaGate service not available"
+            )
+            return
+
+        req = AddMetaGate.Request()
+        req.left_gate = gate_pair.left_gate
+        req.right_gate = gate_pair.right_gate
+
+        self.add_meta_gate_client.call_async(req)
 
     def _pose_to_nparray(self, msg: Pose) -> np.ndarray:
         """

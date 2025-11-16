@@ -1,5 +1,5 @@
 """
-Semantic Map Manager (drop-in replacement)
+Semantic Map Manager
 
 - Maintains a SemanticMap message grouped by object type
 - Fuses duplicate detections with an online mean of positions
@@ -21,8 +21,8 @@ from std_msgs.msg import Header
 from geometry_msgs.msg import Pose, PoseWithCovariance, Point, Quaternion
 from visualization_msgs.msg import Marker, MarkerArray
 
-from pontus_msgs.msg import SemanticObject, SemanticMap
-from pontus_msgs.srv import AddSemanticObject
+from pontus_msgs.msg import SemanticObject, SemanticMap, SemanticMetaGate
+from pontus_msgs.srv import AddSemanticObject, AddMetaGate
 from pontus_tools.transform_helpers import convert_to_map_frame
 
 
@@ -33,6 +33,9 @@ class SemanticMapDC:
 
     semantic_map: SemanticMap = field(default_factory=SemanticMap)
     objects: dict[int, list[SemanticObject]] = field(init=False)
+
+    # ------ Meta Objects ------
+    meta_gate: Optional[SemanticMetaGate] = None
 
     def __post_init__(self):
         self.objects = {
@@ -47,6 +50,9 @@ class SemanticMapDC:
             SemanticObject.OCTAGON:          self.semantic_map.octagon,
             SemanticObject.TARGET:           self.semantic_map.target,
         }
+
+        if self.meta_gate is not None:
+            self.semantic_map.meta_gate = self.meta_gate
 
     @staticmethod
     def check_semantic_object_duplicant(obj1: SemanticObject, obj2: SemanticObject) -> bool:
@@ -96,6 +102,20 @@ class SemanticMapDC:
 
         obj_list.append(obj)
 
+    # ------ Add Meta Objects ------
+    def add_meta_gate(self, left_gate : SemanticObject, right_gate : SemanticObject) -> None:
+        gate = SemanticMetaGate()
+
+        gate.header = Header()
+        gate.header.stamp = left_gate.header.stamp
+        gate.header.frame_id = left_gate.header.frame_id
+        
+        gate.left_gate = left_gate
+        gate.right_gate = right_gate
+
+        self.meta_gate = gate
+        self.semantic_map.meta_gate = self.meta_gate
+
     def create_message(self) -> SemanticMap:
         """Return the SemanticMap ROS message"""
         return self.semantic_map
@@ -119,6 +139,12 @@ class SemanticMapManager(Node):
             AddSemanticObject,
             '/pontus/add_semantic_object',
             self.add_semantic_object_callback,
+        )
+
+        self.add_meta_gate_srv = self.create_service(
+            AddMetaGate,
+            '/pontus/add_meta_gate',
+            self.add_meta_gate_callback,
         )
 
         # Publishers
@@ -192,6 +218,21 @@ class SemanticMapManager(Node):
             obj.duplicant_tolerance_m = 0.1
 
             self.semantic_map.add(obj)
+
+        self.publish_semantic_map()
+
+        response.added = True
+        return response
+
+    def add_meta_gate_callback(self,
+                               request: AddMetaGate.Request,
+                               response: AddMetaGate.Response) -> AddMetaGate.Response:
+        """
+        Add a meta_object that represents the collection of gate_sides and eventually
+        gate_pictures we group together to collectively call a "gate"
+        """
+
+        self.semantic_map.add_meta_gate(request.left_gate, request.right_gate)
 
         self.publish_semantic_map()
 
