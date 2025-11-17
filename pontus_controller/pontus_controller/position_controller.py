@@ -39,6 +39,7 @@ class PositionController(Node):
         self.state = PositionControllerState.Stopped
 
         param_list = (
+            ('default_command_mode', CommandMode.ESTOP),
             ('x_vmax', 0.4), # m/s
             ('y_vmax', 0.2), # m/s
             ('yaw_vmax', 0.35), # radians/s
@@ -127,7 +128,9 @@ class PositionController(Node):
             PID(self.yaw_kp, self.yaw_ki, self.yaw_kd, windup_max=2)
         ]
 
-        self.command_mode = CommandMode.ESTOP
+        self.command_mode = self.default_command_mode
+        if (self.command_mode != CommandMode.ESTOP):
+            self.state = PositionControllerState.MaintainPosition
 
         self.cmd_pos_linear = np.zeros(3)
         self.cmd_pos_angular = np.zeros(3)
@@ -136,7 +139,7 @@ class PositionController(Node):
         self.start_pose = np.zeros(6)
 
         self.current_pose = Pose()
-        self.current_vel = Twist()
+        self.current_twist = Twist()
         self.previous_state = None
 
         # TODO: Find a way for these values to be set by a request
