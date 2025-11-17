@@ -233,6 +233,38 @@ class ImageCoordinator(Node):
         selected_point.x = float(relevant_points[0, 0])
         selected_point.y = float(relevant_points[0, 1])
         selected_point.z = float(relevant_points[0, 2])
+        
+        # Get the camera ray direction in map frame (same x-axis you used to build the line)
+        vector_to_object = self.get_x_axis_vector_from_pose(transformed_pose)
+
+        # Camera position in map frame
+        cam_pos = np.array([
+            transformed_pose.pose.position.x,
+            transformed_pose.pose.position.y,
+            transformed_pose.pose.position.z
+        ], dtype=float)
+
+        # Ray direction in map frame
+        dir_vec = np.array([
+            vector_to_object.vector.x,
+            vector_to_object.vector.y,
+            vector_to_object.vector.z
+        ], dtype=float)
+
+        dir_xy = dir_vec[:2]
+        cam_xy = cam_pos[:2]
+        target_xy = np.array([selected_point.x, selected_point.y], dtype=float)
+
+        denom = float(dir_xy.dot(dir_xy))
+        if denom > 1e-8:
+            # Best t such that ray’s (x, y) is closest to sonar (x, y)
+            t = dir_xy.dot(target_xy - cam_xy) / denom
+
+            if t < 0.0:
+                t = 0.0
+
+            z_est = cam_pos[2] + t * dir_vec[2]
+            selected_point.z = float(z_est) 
 
         # create object stamped pose
         object_pose = PoseStamped()
