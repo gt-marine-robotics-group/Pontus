@@ -3,6 +3,7 @@ import rclpy
 import math
 from math import fabs
 import tf_transformations
+import numpy as np
 
 from geometry_msgs.msg import Pose
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -12,6 +13,7 @@ from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
 
 from pontus_msgs.msg import SemanticMap
 from pontus_msgs.srv import AddSemanticObject
+from pontus_autonomy.helpers.run_info_helpers import SemanticMapObject
 
 class PrequalSearchTask(BaseTask):
     
@@ -23,7 +25,7 @@ class PrequalSearchTask(BaseTask):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('number_of_spins', 0),
+                ('number_of_spins', 2),
                 ('gate_width', 3.048),
                 ('gate_width_tolerance', 0.3),
                 ('pool_depth', 2.0),
@@ -36,7 +38,7 @@ class PrequalSearchTask(BaseTask):
         self.height_from_bottom_m : float = float(self.get_parameter('height_from_bottom').value)
         self.gate_width_m : float = float(self.get_parameter('gate_width').value)
         self.gate_width_tolerance_m : float = float(self.get_parameter('gate_width_tolerance').value)
-        self.fallback_points = fallback_points
+        self.fallback_points = fallback_points[0]
         
         # Local Variables
         self.total_rad = self.number_of_spins * 2 * math.pi
@@ -75,9 +77,45 @@ class PrequalSearchTask(BaseTask):
         Returns:
             N/A
         """
-        if not msg.meta_gate == None:
-            #self.complete(True)
+        if self.detect_gate_pair(msg):
+            self.complete(True)
             pass
+    
+    def detect_gate_pair(self, sem_map : SemanticMap) ->  bool:
+        """
+        Given the semantic map. Check all gate side detections to see if
+        any pair meet the conditions to be a gate pair
+        
+        - Distance between the two gate sides is very close to the known 
+          expected value as given in the RoboSub Team Handbook
+
+        Once the candidate pair is found, we return True. Otherwisse, False
+
+        Args:
+            sem_map [SemanticMap] : Map containing all detected semantic objects
+        
+        Return:
+            bool : If a gate pair exists 
+        """
+
+        gate_list = sem_map.gate_left
+
+        if len(gate_list) < 2:
+            return False
+
+        pair_exists = False
+
+        for i in range(len(gate_list) - 1):
+            for j in range(i+1, len(gate_list)):
+                gate_i_vec : np.ndarray = self._pose_to_nparray(gate_list[i].pose.pose)
+                gate_j_vec : np.ndarray = self._pose_to_nparray(gate_list[j].pose.pose)
+
+                gate_width_est : float = float(np.linalg.norm(gate_i_vec - gate_j_vec))
+
+                if abs(gate_width_est - self.gate_width_m) <= self.gate_width_tolerance_m:
+                    pair_exists = True
+
+        return pair_exists
         
     
     def turn_callback(self) -> None:
@@ -117,8 +155,9 @@ class PrequalSearchTask(BaseTask):
             return
         
         req = AddSemanticObject.Request()
-        req.ids = [self.fallback_points[0][0], self.fallback_points[1][0]]
-        req.positions = [self.fallback_points[0][1], self.fallback_points[1][1]]
+        self.get_logger().info(f"{self.fallback_points}")
+        req.ids = [self.fallback_points[0].label, self.fallback_points[1].label]
+        req.positions = [self.fallback_points[0].get_pose_stamped(), self.fallback_points[1].get_pose_stamped()]
         
         self.add_semantic_object_client.call_async(req)
     
@@ -149,5 +188,20 @@ class PrequalSearchTask(BaseTask):
         cmd_pose.orientation.w = qw
         
         self.go_to_pose_client.go_to_pose(pose_obj=PoseObj(cmd_pose=cmd_pose, skip_orientation=False))
+    
+    def _pose_to_nparray(self, msg: Pose) -> np.ndarray:
+        """
+        Convert a Pose into a 2D numpy array
+        
+        Args:
+            msg [Pose]
+        Return:
+            [np.ndarray] : Vector version of the ROS Pose for easy math
+        """
+        return np.array([
+            msg.position.x,
+            msg.position.y],
+            dtype=float
+        )
         
 
