@@ -13,14 +13,14 @@ GATE_CENTER_Y = -4.0
 DEFAULT_GATE_DEPTH = POOL_DEPTH + 0.6 + 0.3
 
 gate_left = SemanticMapObject(
-    label=SemanticObject.LeftGate,
+    label=SemanticObject.GATE_LEFT,
     x=GATE_CENTER_X + 1.5,
     y=GATE_CENTER_Y - 0.0,
     depth=DEFAULT_GATE_DEPTH
 )
 
 gate_right = SemanticMapObject(
-    label=SemanticObject.RightGate,
+    label=SemanticObject.GATE_RIGHT,
     x=GATE_CENTER_X - 1.5,
     y=GATE_CENTER_Y - 0.0,
     depth=DEFAULT_GATE_DEPTH
@@ -36,21 +36,21 @@ RED_SLALOM_1_Y = -8.23
 
 slalom_set_1 = SlalomSet(
     red_slalom=SemanticMapObject(
-        label=SemanticObject.SlalomRed,
+        label=SemanticObject.SLALOM_RED,
         x=RED_SLALOM_1_X,
         y=RED_SLALOM_1_Y,
         depth=DEFAULT_SLALOM_DEPTH
     ),
 
     white_slalom_left=SemanticMapObject(
-        label=SemanticObject.SlalomWhite,
+        label=SemanticObject.SLALOM_WHITE,
         x=RED_SLALOM_1_X + 1.5,
         y=RED_SLALOM_1_Y - 0.0,
         depth=DEFAULT_SLALOM_DEPTH
     ),
 
     white_slalom_right=SemanticMapObject(
-        label=SemanticObject.SlalomWhite,
+        label=SemanticObject.SLALOM_WHITE,
         x=RED_SLALOM_1_X - 1.5,
         y=RED_SLALOM_1_Y + 0.0,
         depth=DEFAULT_SLALOM_DEPTH
@@ -64,21 +64,21 @@ RED_SLALOM_2_Y = RED_SLALOM_1_Y - 2.0
 
 slalom_set_2 = SlalomSet(
     red_slalom=SemanticMapObject(
-        label=SemanticObject.SlalomRed,
+        label=SemanticObject.SLALOM_RED,
         x=RED_SLALOM_2_X,
         y=RED_SLALOM_2_Y,
         depth=DEFAULT_SLALOM_DEPTH
     ),
 
     white_slalom_left=SemanticMapObject(
-        label=SemanticObject.SlalomWhite,
+        label=SemanticObject.SLALOM_WHITE,
         x=RED_SLALOM_2_X + 1.5,
         y=RED_SLALOM_2_Y - 0.0,
         depth=DEFAULT_SLALOM_DEPTH
     ),
 
     white_slalom_right=SemanticMapObject(
-        label=SemanticObject.SlalomWhite,
+        label=SemanticObject.SLALOM_WHITE,
         x=RED_SLALOM_2_X - 1.5,
         y=RED_SLALOM_2_Y + 0.0,
         depth=DEFAULT_SLALOM_DEPTH
@@ -92,21 +92,21 @@ RED_SLALOM_3_Y = RED_SLALOM_2_Y - 2.0
 
 slalom_set_3 = SlalomSet(
     red_slalom=SemanticMapObject(
-        label=SemanticObject.SlalomRed,
+        label=SemanticObject.SLALOM_RED,
         x=RED_SLALOM_3_X,
         y=RED_SLALOM_3_Y,
         depth=DEFAULT_SLALOM_DEPTH
     ),
 
     white_slalom_left=SemanticMapObject(
-        label=SemanticObject.SlalomWhite,
+        label=SemanticObject.SLALOM_WHITE,
         x=RED_SLALOM_3_X + 1.5,
         y=RED_SLALOM_3_Y - 0.3,
         depth=DEFAULT_SLALOM_DEPTH
     ),
 
     white_slalom_right=SemanticMapObject(
-        label=SemanticObject.SlalomWhite,
+        label=SemanticObject.SLALOM_WHITE,
         x=RED_SLALOM_3_X - 1.5,
         y=RED_SLALOM_3_Y + 0.3,
         depth=DEFAULT_SLALOM_DEPTH
@@ -134,7 +134,7 @@ slalom_travel_2: XY = XY(
 
 # ------- Octagon ------
 octagon = SemanticMapObject(
-    label=SemanticObject.Octagon,
+    label=SemanticObject.OCTAGON,
     x=(RED_SLALOM_3_X + 1.75),
     y=-18.0
 )
@@ -160,6 +160,26 @@ semantic_map: list[SemanticMapObject] = [
     slalom_set_2.red_slalom, slalom_set_2.white_slalom_left, slalom_set_2.white_slalom_right,
     slalom_set_3.red_slalom, slalom_set_3.white_slalom_left, slalom_set_3.white_slalom_right,
     octagon
+]
+
+# ------- Fallback Points ------
+fallback_left = SemanticMapObject(
+    label=SemanticObject.GATE_LEFT,
+    x=GATE_CENTER_X + 1.5,
+    y=GATE_CENTER_Y - 0.0,
+    depth=DEFAULT_GATE_DEPTH
+)
+
+fallback_right = SemanticMapObject(
+    label=SemanticObject.GATE_RIGHT,
+    x=GATE_CENTER_X - 1.5,
+    y=GATE_CENTER_Y - 0.0,
+    depth=DEFAULT_GATE_DEPTH
+)
+
+fallback_points: list[SemanticMapObject] = [
+    fallback_left,
+    fallback_right
 ]
 
 # ------- Waypoints ------

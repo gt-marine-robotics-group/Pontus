@@ -7,7 +7,7 @@ class BaseRun(Node):
     def __init__(self, name: str):
         super().__init__(name)
 
-    def run_task(self, task: BaseTask, args=None) -> bool:
+    def run_task(self, task: BaseTask, *args) -> bool:
         """
         Execute task and return result.
 
@@ -20,7 +20,7 @@ class BaseRun(Node):
         bool: the result of the task
 
         """
-        if args == None:
+        if not args:
             task = task()
         else:
             task = task(args)
