@@ -5,6 +5,7 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.actions import DeclareLaunchArgument, ExecuteProcess
 from launch_ros.actions import Node
+from pontus_msgs.msg import CommandMode
 import os
 
 def generate_launch_description():
@@ -20,6 +21,14 @@ def generate_launch_description():
         default_value='false'
     )
     static = LaunchConfiguration('static')
+
+    default_command_mode_arg = DeclareLaunchArgument(
+        'default_command_mode',
+        default_value= str(CommandMode.POSITION_FACE_TRAVEL)
+    )
+    default_command_mode = LaunchConfiguration('default_command_mode')
+
+
     localization_share = get_package_share_directory('pontus_localization')
 
     description = launch.actions.IncludeLaunchDescription(
@@ -82,18 +91,9 @@ def generate_launch_description():
         ),
         launch_arguments={
             'sim': 'true',
+            'default_command_mode': default_command_mode
         }.items()
     )
-
-    # This should only be used in sim
-    configure_command_mode = ExecuteProcess(
-            cmd=['ros2', 'topic', 'pub',
-                 '--once',
-                 '--qos-durability', 'transient_local',
-                 '/command_mode', 'pontus_msgs/msg/CommandMode', '\"{command_mode: 6}\"'],
-            shell=True,
-            output='screen'
-        )
 
     dvl_republisher = Node(
         package='pontus_sensors',
@@ -103,12 +103,12 @@ def generate_launch_description():
     return LaunchDescription([
         world_arg,
         static_arg,
+        default_command_mode_arg,
         description,
         gzsim,
         spawn_vehicle,
         odom_bridge,
         controls,
-        configure_command_mode,
         dvl_republisher,
         localization
     ])
