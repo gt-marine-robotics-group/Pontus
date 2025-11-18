@@ -187,7 +187,7 @@ class PositionController(Node):
     async def execute_callback(self, goal_handle: any) -> GoToPose.Result:
         request = goal_handle.request
 
-        self.command_mode = request.command_mode
+        self.command_mode_callback(request.command_mode)
         self.cmd_pos_callback(request.desired_pose, request.use_relative_position)
         self.cmd_vel_callback(request.desired_twist)
         self.skip_orientation = request.skip_orientation
