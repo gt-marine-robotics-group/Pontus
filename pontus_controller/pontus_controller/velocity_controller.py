@@ -22,6 +22,7 @@ class VelocityNode(Node):
         self.prev_time = self.get_clock().now()
 
         param_list = (
+            ('default_command_mode', CommandMode.ESTOP),
             ('x_kp', 10.0),
             ('x_ki', 0.0),
             ('x_kd', 0.0),
@@ -73,7 +74,7 @@ class VelocityNode(Node):
           PID(self.yaw_kp, self.yaw_ki, self.yaw_kd, windup_max=1)  # Yaw
         ]
 
-        self.command_mode = CommandMode.ESTOP
+        self.command_mode = self.default_command_mode
 
         # ROS infrastructure
         self.command_mode_sub = self.create_subscription(

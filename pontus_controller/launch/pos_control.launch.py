@@ -22,7 +22,8 @@ def generate_launch_description():
         Node(
             package='pontus_controller',
             executable='velocity_controller',
-            output='screen'
+            output='screen',
+            parameters=[{'default_command_mode': LaunchConfiguration('default_command_mode')}]
         ),
         Node(
             package='pontus_controller',
