@@ -347,7 +347,7 @@ class PositionController(Node):
                 return
             case PositionControllerState.MaintainPosition:
                 state_target_linear = self.cmd_pos_linear
-                state_target_angular = self.cmd_pos_angular
+                state_target_angular = state_target_angular if self.skip_orientation else self.cmd_pos_angular
             case PositionControllerState.ZCorrection:
                 state_target_linear = self.cmd_pos_linear[2]
             case PositionControllerState.FaceTargetPoint:
