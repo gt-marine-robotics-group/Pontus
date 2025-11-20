@@ -16,11 +16,11 @@ class PathMarkerRun(BaseRun):
         self.get_logger().info("Starting Path Marker Task")
 
         # Submerge Task
-        self.get_logger().info("Submerging:")
-        result = self.run_task(Submerge)
-        self.get_logger().info(f"Submerge: {result}")
+        # self.get_logger().info("Submerging:")
+        # result = self.run_task(Submerge)
+        # self.get_logger().info(f"Submerge: {result}")
 
-        # Path Marker Task 
+        # # Path Marker Task 
         self.get_logger().info("Path Marker Task Starting:")
         result = self.run_task(PathMarkerTask)
         self.get_logger().info(f"Path Marker Result: {result}")
