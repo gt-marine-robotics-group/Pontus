@@ -257,7 +257,7 @@ class PathMarkerTask(BaseTask):
         #image x, y axis are swapped with real world x, y
         cmd_twist.linear.x = (-y_diff / self.img_height) * max_speed + math.copysign(min_speed, -y_diff) 
         cmd_twist.linear.y = (x_diff / self.img_width) * max_speed + math.copysign(min_speed, x_diff)
-        # cmd_twist.linear.z = -0.22
+        cmd_twist.linear.z = -0.22
 
         self.get_logger().info(f"Centering with X Speed: {cmd_twist.linear.x} ({x_diff}) and Y Speed: {cmd_twist.linear.y} ({y_diff})")
 
