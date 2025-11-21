@@ -185,7 +185,7 @@ class PositionController(Node):
             self.cmd_vel_pub.publish(msg)
 
     async def execute_callback(self, goal_handle: any) -> GoToPose.Result:
-        request = goal_handle.request
+        request: GoToPose.Goal = goal_handle.request
 
         self.command_mode_callback(request.command_mode)
         self.cmd_pos_callback(request.desired_pose, request.use_relative_position)
@@ -458,11 +458,11 @@ class PositionController(Node):
 
             # Figure out which degrees of freedom to allow the controller to influence
             # and override the request position if they are changed by the incoming velocity command
-            command_indices = []
+            command_indices: List[int] = []
             if self.command_mode == CommandMode.VELOCITY_HOLD_DEPTH:
-                command_indices = [DegreeOfFreedom.Z]
+                command_indices = [DegreeOfFreedom.Z.value]
             elif self.command_mode == CommandMode.VELOCITY_HOLD_DEPTH_HEADING:
-                command_indices = [DegreeOfFreedom.Z, DegreeOfFreedom.YAW]
+                command_indices = [DegreeOfFreedom.Z.value, DegreeOfFreedom.YAW.value]
             elif self.command_mode == CommandMode.VELOCITY_HOLD_POSITION:
                 command_indices = list(range(len(commands)))
 
