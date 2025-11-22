@@ -176,16 +176,17 @@ class PathMarkerTask(BaseTask):
                 return None
             else:
                 contour = result # just contour
-                if cv.contourArea(contour) > 640 * 480 * 0.80: # too close, move up
+                area = cv.contourArea(contour)
+                if area > 640 * 480 * 0.90 or self.sent_pose: # too close, move up
                     cmd_pose = Pose()
                     # cmd_pose.position.x = self.current_pose.position.x
                     # cmd_pose.position.y = self.current_pose.position.y
                     cmd_pose.position.z = 0.3 # move up a little
-                    
                     # if not self.sent_pose:
                     #     self.sent_pose = True
                     if not self.sent_pose:
                         self.sent_pose = True
+                        self.get_logger().info(f"Contour too big, moving up a little (area: {area})")
                         return PoseObj(cmd_pose=cmd_pose, use_relative_position=True)
                     if self.go_to_pose_client.at_pose():
                         self.sent_pose = False
@@ -245,19 +246,16 @@ class PathMarkerTask(BaseTask):
             # self.state = self.State.Done
 
             cmd_pose = Pose()
-            cmd_pose.position.x = self.current_pose.position.x
-            cmd_pose.position.y = self.current_pose.position.y
-            cmd_pose.position.z = self.current_pose.position.z
-
-            return PoseObj(cmd_pose=cmd_pose)
+            return PoseObj(cmd_pose=cmd_pose, use_relative_position=True)
   
-        max_speed =  0.1 # max m / s in each direction
-        min_speed = 0.03 # min m / s in each direction
+        max_speed =  0.2 # max m / s in each direction
+        min_speed = 0.05 # min m / s in each direction
 
+        speed = 0.1
         #image x, y axis are swapped with real world x, y
-        cmd_twist.linear.x = (-y_diff / self.img_height) * max_speed + math.copysign(min_speed, -y_diff) 
-        cmd_twist.linear.y = (x_diff / self.img_width) * max_speed + math.copysign(min_speed, x_diff)
-        cmd_twist.linear.z = -0.22
+        cmd_twist.linear.x = (-y_diff / self.img_height) * max_speed + math.copysign(min_speed, -y_diff)  # math.copysign(speed, -y_diff) # 
+        cmd_twist.linear.y = (x_diff / self.img_width) * max_speed + math.copysign(min_speed, x_diff) # math.copysign(speed, x_diff) # 
+        # cmd_twist.linear.z = -0.22
 
         self.get_logger().info(f"Centering with X Speed: {cmd_twist.linear.x} ({x_diff}) and Y Speed: {cmd_twist.linear.y} ({y_diff})")
 
@@ -304,7 +302,6 @@ class PathMarkerTask(BaseTask):
             self.get_logger().info(f"Marker Angle: {math.degrees(marker_angle)} Desired Yaw: {math.degrees(desired_yaw)}")
             quat = tf_transformations.quaternion_from_euler(0, 0, desired_yaw)
             cmd_pose = Pose()
-            cmd_pose.position.z = self.current_pose.position.z
             cmd_pose.orientation.x = quat[0]
             cmd_pose.orientation.y = quat[1]
             cmd_pose.orientation.z = quat[2]
