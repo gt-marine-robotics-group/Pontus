@@ -18,14 +18,15 @@
 ## Controlling the Vehicle
 ### Command Mode
 The controller system supports several different modes which can be set by publishing a `CommandMode` message to the `/command_mode` topic or modifying the `command_mode` field in a `GoToPose` action to one of the following numbers:
-    0. **E-Stop**: Software level E-Stop that zeroes out the thruster then stops sending commands.
-    1. **Direct Control**: The `/cmd_vel` topic is passed directly into the thrusters
-    2. **Velocity Control**: Feedback from the odometry is used to match the `/cmd_vel` topic.
-    3. **Velocity Hold Depth**: Same as **Velocity Control** but when 0 velocity is commanded for the z-axis the position controller maintains the depth.
-    4. **Velocity Hold Heading**: Same as **Velocity Hold Depth** but also holds the heading.
-    5. **Velocity Hold Position**: Same as **Velocity Hold Depth** but holds every degree of freedom.
-    6. **Position Face Travel**: Standard position controller mode, uses feedback from the odometry to move to the commanded position on the `/cmd_pos` topic. First moves to the commanded depth, points in the direction of the target point, then moves to it. Once it reaches the target point it turns to face the commanded orientation.
-    7. **Position With Strafe**: Uses feedback from the odometry to move directly to the commanded position and orientation.
+
+0. **E-Stop**: Software level E-Stop that zeroes out the thruster then stops sending commands.
+1. **Direct Control**: The `/cmd_vel` topic is passed directly into the thrusters
+2. **Velocity Control**: Feedback from the odometry is used to match the `/cmd_vel` topic.
+3. **Velocity Hold Depth**: Same as **Velocity Control** but when 0 velocity is commanded for the z-axis the position controller maintains the depth.
+4. **Velocity Hold Heading**: Same as **Velocity Hold Depth** but also holds the heading.
+5. **Velocity Hold Position**: Same as **Velocity Hold Depth** but holds every degree of freedom.
+6. **Position Face Travel**: Standard position controller mode, uses feedback from the odometry to move to the commanded position on the `/cmd_pos` topic. First moves to the commanded depth, points in the direction of the target point, then moves to it. Once it reaches the target point it turns to face the commanded orientation.
+7. **Position With Strafe**: Uses feedback from the odometry to move directly to the commanded position and orientation.
 
 ### Usage for manual control
 1. Start the hardware and controller nodes by running the `auv.launch.py` file on the vehicle.
@@ -52,7 +53,7 @@ The `pontus_autonomy` package provides a helper class for controlling the vehicl
 2. Construct a new `PoseObj` object representing the intended command: `pose_obj = PoseObj(cmd_pose, cmd_twist, skip_orientation, use_relative_position, command_mode)`
     * `cmd_pose`: A ROS Pose message containing the intended position and orientation. Defaults to `None` if not provided
     * `cmd_twist`: A ROS Twist message containing the intended linear and angular velocities. Defaults to `None` if not provided
-    * `skip_orientation`: A boolean indicating if the controller should actually turn to the final orientation commanded in the `cmd_pose`. Defaults to `False` if not provided which is useful for intermediate points on a path where the vehicle should immediately begin moving to the next point.
+    * `skip_orientation`: A boolean indicating if the controller should actually turn to the final orientation commanded in the `cmd_pose` which is useful for intermediate points on a path where the vehicle should immediately begin moving to the next point. Defaults to `False` if not provided.
     * `use_relative_position`: A boolean indicating if the controller should interpret the `cmd_pos` as being in the map frame or relative to the vehicles current position. Defaults to `False`
     * `command_mode`: An integer indicating the command mode for the controller to use. Defaults to `CommandMode.POSITION_FACE_TRAVEL` which is the most commonly used mode for autonomy.
 3. Send the command: `self.go_to_pose_client.go_to_pose(pose_obj)`
