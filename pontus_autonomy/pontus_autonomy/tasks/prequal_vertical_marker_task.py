@@ -121,8 +121,11 @@ class PrequalVerticalMarkerTask(BaseTask):
         if self.waypoints_are_created:
             return
 
-        if self.gate_pair is None:
+        if self.gate_pair is None and msg.meta_gate.header.frame_id != "":
             self.gate_pair = msg.meta_gate
+
+        if self.gate_pair is None or self.gate_pair.header.frame_id == "":
+            return
 
         self.detected_marker = self.detect_marker(msg)
 

@@ -24,8 +24,6 @@ class PrequalSearchTask(BaseTask):
             namespace='',
             parameters=[
                 ('number_of_spins', 0),
-                ('gate_width', 3.048),
-                ('gate_width_tolerance', 0.3),
                 ('pool_depth', 2.0),
                 ('height_from_bottom', 0.5)
             ]
@@ -34,8 +32,6 @@ class PrequalSearchTask(BaseTask):
         self.number_of_spins = self.get_parameter('number_of_spins').value
         self.pool_depth : float = float(self.get_parameter('pool_depth').value)
         self.height_from_bottom_m : float = float(self.get_parameter('height_from_bottom').value)
-        self.gate_width_m : float = float(self.get_parameter('gate_width').value)
-        self.gate_width_tolerance_m : float = float(self.get_parameter('gate_width_tolerance').value)
         self.fallback_points = fallback_points
         
         # Local Variables
@@ -75,9 +71,10 @@ class PrequalSearchTask(BaseTask):
         Returns:
             N/A
         """
-        if not msg.meta_gate == None:
+        if msg.meta_gate.header.frame_id != "":
             #self.complete(True)
-            pass
+            self.get_logger().info("Gate pair detected in semantic map")
+            self.complete(True)
         
     
     def turn_callback(self) -> None:
