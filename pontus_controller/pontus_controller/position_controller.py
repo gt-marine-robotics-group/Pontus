@@ -618,17 +618,20 @@ class PositionController(Node):
         """
 
         trajectory_vector = self.cmd_pos_linear[:2] - self.start_pose[:2]
-        trajectory_unit = trajectory_vector / np.linalg.norm(trajectory_vector)
+        if np.linalg.norm(trajectory_vector) >= 0:
+            trajectory_unit = trajectory_vector / np.linalg.norm(trajectory_vector)
 
-        vec = pose_array[:2] - self.start_pose[:2]
+            vec = pose_array[:2] - self.start_pose[:2]
 
-        proj_length = np.dot(vec, trajectory_unit)
-        trajectory_length = np.linalg.norm(trajectory_vector)
-        proj_length = max(0.0, min(proj_length, trajectory_length - self.lookahead_distance))
-        projected_point = self.start_pose[:2] + proj_length * trajectory_unit
+            proj_length = np.dot(vec, trajectory_unit)
+            trajectory_length = np.linalg.norm(trajectory_vector)
+            proj_length = max(0.0, min(proj_length, trajectory_length - self.lookahead_distance))
+            projected_point = self.start_pose[:2] + proj_length * trajectory_unit
 
-        target_point = projected_point + self.lookahead_distance * trajectory_unit
-        target_point = np.append(target_point, self.cmd_pos_linear[2])
+            target_point = projected_point + self.lookahead_distance * trajectory_unit
+            target_point = np.append(target_point, self.cmd_pos_linear[2])
+        else:
+            target_point = self.cmd_pos_linear[:2]
 
         linear_difference = self.cmd_pos_linear - pose_array[0:3]
         orientation_to_target = np.array([0, 0, np.arctan2(linear_difference[1], linear_difference[0])])
