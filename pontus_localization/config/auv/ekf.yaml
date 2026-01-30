@@ -90,7 +90,7 @@ ekf_filter_node:
         # has no pose information, so the first six values would be meaningless in that case. Each vector defaults to all false
         # if unspecified, effectively making this parameter required for each sensor.
         odom0_config: [true,  true,  true,
-                       true, true, true,
+                       false, false, false,
                        true, true, true,
                        false, false, false,
                        false, false, false]
@@ -119,7 +119,7 @@ ekf_filter_node:
         # for all future measurements. While you can achieve the same effect with the differential paremeter, the key
         # difference is that the relative parameter doesn't cause the measurement to be converted to a velocity before
         # integrating it. If you simply want your measurements to start at 0 for a given sensor, set this to true.
-        odom0_relative: true
+        odom0_relative: false
 
         # [ADVANCED] Whether to use the starting pose of child_frame_id as the origin of odometry.
         # Note: this is different from setting odom0_relative to true, as when child_frame is different from 
@@ -146,13 +146,13 @@ ekf_filter_node:
 # sensor_msgs/Imu). To add an input, simply append the next number in the sequence to its "base" name, e.g., odom0,
 # odom1, twist0, twist1, imu0, imu1, imu2, etc. The value should be the topic name. These parameters obviously have no
 # default values, and must be specified.
-        # imu0: /pontus/imu_0
+        # imu0: /pontus/imu_dvl
 
         # imu0_config: [false, false, false,
         #               true,  true,  true,
         #               false, false, false,
-        #               true,  true,  true,
-        #               true,  true,  true]
+        #               false,  false,  false,
+        #               false,  false,  false]
 
         # #        [x_pos   , y_pos    , z_pos,
         # #         roll    , pitch    , yaw,
@@ -162,7 +162,7 @@ ekf_filter_node:
 
         # imu0_nodelay: false
         # imu0_differential: false
-        # imu0_relative: true
+        # imu0_relative: false
         # imu0_queue_size: 7
 
         #imu0_pose_rejection_threshold: 0.8                 # Note the difference in parameter names
