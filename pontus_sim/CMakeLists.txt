@@ -20,7 +20,7 @@ install(DIRECTORY
     DESTINATION share/${PROJECT_NAME}
 )
 
-ament_environment_hooks("${CMAKE_CURRENT_SOURCE_DIR}/env-hooks/${PROJECT_NAME}.sh.in")
+ament_environment_hooks("${CMAKE_CURRENT_SOURCE_DIR}/hooks/gz_sim_paths.dsv.in")
 
 ament_python_install_package(${PROJECT_NAME})
 
