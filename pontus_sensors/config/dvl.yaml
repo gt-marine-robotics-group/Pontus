@@ -1,9 +1,0 @@
-dvl_a50_node:
-  ros__parameters:
-    dvl_ip_address: "192.168.1.210"
-    speed_of_sound: 1475
-    range_mode: "0<=2"
-    periodic_cycling_enabled: true
-    odometry_frame_id: "dvl_a50_link"
-    velocity_frame_id: "dvl_A50/velocity_link"
-    position_frame_id: "dvl_A50/position_link"

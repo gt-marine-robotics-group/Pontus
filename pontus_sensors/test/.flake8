@@ -1,6 +1,0 @@
-[flake8]
-max-line-length = 100
-extend-ignore = ANN101, ANN204, D100, D101, D103, D104, D106, D107, I100, I101, I201, I202, Q000
-
-[flake8-annotations]
-ignore = ANN103
