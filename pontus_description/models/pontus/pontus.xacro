@@ -12,6 +12,10 @@
   <xacro:arg name="static" default="false"/>
 
   <xacro:property name="fluid_density" value="1025"/>
+  <xacro:property name="gravity" value="9.8"/>
+  <xacro:property name="thruster_max_thrust" value="52"/>
+  <xacro:property name="thruster_max_allowed" value="30"/>
+  <xacro:property name="thruster_min_allowed" value="2.6"/>
 
   <xacro:property name="namespace" value="pontus"/>
   <xacro:property name="mass" value="34.0194"/>
@@ -23,9 +27,21 @@
 
   <!-- Create pontus -->
   <link name="base_link">
+    <params
+      mass="${mass}"
+      length="${length}"
+      radius="${radius}"
+      diameter="${2*radius}"
+      volume="${volume}"
+      fluid_density="${fluid_density}"
+      gravity="${gravity}"
+      thruster_max_thrust="${thruster_max_thrust}"
+      thruster_max_allowed="${thruster_max_allowed}"
+      thruster_min_allowed="${thruster_min_allowed}"
+    />
     <inertial>
       <!-- This is calculated for slightly positive buoyancy -->
-      <mass value="${(volume * fluid_density) - 5.0}"/>
+      <mass value="${(volume * fluid_density) - 1.5}"/>
 
       <!-- TODO: insert actual calculations instead of precalculated value -->
       <inertia
@@ -105,10 +121,11 @@
   <!-- Sensors -->
 
   <!-- Forward Camera -->
-  <xacro:camera_macro camera_id="2">
-    <origin xyz="0.305 0 0" rpy="0 0 0" />
+  <xacro:camera_macro camera_id="front">
+    <origin xyz="0.305 0.075 0" rpy="0 0 0" />
   </xacro:camera_macro>
-    <xacro:camera_macro camera_id="3">
+
+  <xacro:camera_macro camera_id="3">
     <origin xyz="0.305 -0.075 0" rpy="0 0 0" />
   </xacro:camera_macro>
 

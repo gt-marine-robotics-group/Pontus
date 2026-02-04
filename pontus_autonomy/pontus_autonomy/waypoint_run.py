@@ -22,9 +22,6 @@ class WaypointRun(BaseRun):
         result = self.run_task(WaitForEnable)
         self.get_logger().info(f"Autonomy switch enable: {result}")
 
-        process = subprocess.Popen(
-            ['ros2', 'launch', 'pontus_bringup', 'auv.launch.py', 'auv:=auv'])
-        time.sleep(10)
         # Submerge Task
         result = self.run_task(WaypointContoller)
         self.get_logger().info(f"WaypointContoller: {result}")

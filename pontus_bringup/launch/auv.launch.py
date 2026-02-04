@@ -12,33 +12,20 @@ def generate_launch_description():
     description_share = get_package_share_directory('pontus_description')
     localization_share = get_package_share_directory('pontus_localization')
 
-    auv_arg = DeclareLaunchArgument('auv', default_value='auv')
-    auv_config = LaunchConfiguration('auv', default='auv')
-
-    gazebo_arg = DeclareLaunchArgument('gazebo', default_value='False')
-    gazebo_config = LaunchConfiguration('gazebo', default='False')
-
     return LaunchDescription([
-        auv_arg,
-        gazebo_arg,
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(description_share, 'launch', 'spawn.launch.py'),
-            ),
-            launch_arguments={'gazebo': gazebo_config}.items()
+                os.path.join(description_share, 'launch', 'description.launch.py'),
+            )
         ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                #os.path.join(controller_share, 'launch', 'direct_control.launch.py')
-                # os.path.join(controller_share, 'launch', 'vel_control.launch.py')
-                os.path.join(controller_share, 'launch', 'los_control.launch.py')
-            ),
-            launch_arguments={'auv': auv_config}.items()
+                os.path.join(controller_share, 'launch', 'pos_control.launch.py')
+            )
         ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(localization_share, 'launch', 'localization.launch.py')
-            ),
-            launch_arguments={'auv': auv_config}.items()
+            )
         ),
     ])

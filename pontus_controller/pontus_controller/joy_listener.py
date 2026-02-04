@@ -2,7 +2,17 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from std_msgs.msg import Bool
-from geometry_msgs.msg import Twist
+from pontus_msgs.msg import CommandMode
+from pontus_msgs.message_enums import CommandModeEnum
+from enum import Enum
+
+# Button mapping is for a Logitech F310 Controller
+class Button(Enum):
+    ESTOP = 2              # B (red)
+    DIRECT = 0             # X (blue)
+    VELOCITY = 3           # Y (Yellow)
+    POSITION_HOLD = 1      # A (green)
+    AUTONOMY_POSITION = 9  # Start
 
 class JoyListener(Node):
     def __init__(self):
@@ -20,71 +30,46 @@ class JoyListener(Node):
             10
         )
 
-        self.autonomy_mode_pub = self.create_publisher(
-            Bool,
-            '/autonomy_mode',
+        self.command_mode_pub = self.create_publisher(
+            CommandMode,
+            '/CommandMode',
             10
         )
 
-        self.cmd_vel_raw_sub = self.create_subscription(
-            Twist,
-            '/cmd_vel_joy_raw',
-            self.cmd_vel_callback,
-            10
-        )
+    def set_estop(self, estop_enabled):
+        estop_msg = Bool()
+        estop_msg.data = estop_enabled
+        self.estop_pub.publish(estop_msg)
+        self.get_logger().info(f"Publishing estop: {str(estop_enabled).upper()}")
 
-        self.cmd_vel_pub = self.create_publisher(
-            Twist,
-            '/cmd_vel_joy',
-            10
-        )
-
-        self.cmd_vel_current = Twist()
-    
-    def cmd_vel_callback(self, msg):
-        self.cmd_vel_current = msg
+    def set_command_mode(self, command_mode):
+        cmd_mode_msg = CommandMode()
+        cmd_mode_msg.command_mode = command_mode
+        self.command_mode_pub.publish(cmd_mode_msg)
+        self.get_logger().info(f"Publishing command mode: {CommandModeEnum(command_mode).name}")
 
     def joy_callback(self, joy_msg):
         buttons = joy_msg.buttons
-        estop_pressed = True if buttons[2] == 1 else False
-        if estop_pressed:
-            estop_msg = Bool()
-            estop_msg.data = True
-            for i in range(0,5):
-                self.estop_pub.publish(estop_msg)
-                self.get_logger().info("Publishing estop: TRUE")
 
-        manual_pressed = True if buttons[8] == 1 else False
-        if not estop_pressed and manual_pressed:
-            estop_msg = Bool()
-            estop_msg.data = False
-            self.estop_pub.publish(estop_msg)
-            self.get_logger().info("Publishing estop: FALSE")
-            autonomy_msg = Bool()
-            autonomy_msg.data = False
-            self.autonomy_mode_pub.publish(autonomy_msg)
-            self.get_logger().info("Publishing autonomy mode: FALSE")
-        
-        autonomy_pressed = True if buttons[9] else False
-        if not estop_pressed and not manual_pressed and autonomy_pressed:
-            estop_msg = Bool()
-            estop_msg.data = False
-            self.estop_pub.publish(estop_msg)
-            self.get_logger().info("Publishing estop: FALSE")
-            autonomy_msg = Bool()
-            autonomy_msg.data = True
-            self.autonomy_mode_pub.publish(autonomy_msg)
-            self.get_logger().info("Publishing autonomy mode: TRUE")
+        if buttons[Button.ESTOP]:
+            self.set_estop(True)
+            self.set_command_mode(CommandMode.ESTOP)
 
-        
-        strafe_pressed = True if buttons[6] == 1 else False
-        if strafe_pressed:
-            self.cmd_vel_current.linear.y = self.cmd_vel_current.angular.z
-            self.cmd_vel_current.angular.z = 0.0
-            
-        self.cmd_vel_pub.publish(self.cmd_vel_current)
+        elif buttons[Button.DIRECT]:
+            self.set_estop(False)
+            self.set_command_mode(CommandMode.DIRECT_CONTROL)
 
+        elif buttons[Button.VELOCITY]:
+            self.set_estop(False)
+            self.set_command_mode(CommandMode.VELOCITY_CONTROL)
         
+        elif buttons[Button.POSITION_HOLD]:
+            self.set_estop(False)
+            self.set_command_mode(CommandMode.VELOCITY_HOLD_POSITION)
+
+        elif buttons[Button.AUTONOMY_POSITION]:
+            self.set_estop(False)
+            self.set_command_mode(CommandMode.POSITION_FACE_TRAVEL)
 
 
 def main(args=None):

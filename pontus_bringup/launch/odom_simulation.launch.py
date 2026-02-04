@@ -3,10 +3,10 @@ import launch
 from launch import LaunchDescription
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, ExecuteProcess
 from launch_ros.actions import Node
+from pontus_msgs.msg import CommandMode
 import os
-
 
 def generate_launch_description():
 
@@ -21,7 +21,26 @@ def generate_launch_description():
         default_value='false'
     )
     static = LaunchConfiguration('static')
+
+    default_command_mode_arg = DeclareLaunchArgument(
+        'default_command_mode',
+        default_value= str(CommandMode.POSITION_FACE_TRAVEL)
+    )
+    default_command_mode = LaunchConfiguration('default_command_mode')
+
+
     localization_share = get_package_share_directory('pontus_localization')
+
+    description = launch.actions.IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                get_package_share_directory('pontus_description'),
+                'launch',
+                'description.launch.py'
+            ])
+        ),
+        launch_arguments={'static': static}.items()
+    )
 
     gzsim = launch.actions.IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -37,7 +56,7 @@ def generate_launch_description():
     spawn_vehicle = launch.actions.IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
-                get_package_share_directory('pontus_description'),
+                get_package_share_directory('pontus_sim'),
                 'launch',
                 'spawn.launch.py'
             ])
@@ -67,12 +86,12 @@ def generate_launch_description():
             PathJoinSubstitution([
                 get_package_share_directory('pontus_controller'),
                 'launch',
-                'los_control.launch.py'
-                # 'hybrid_control.launch.py'
+                'pos_control.launch.py'
             ])
         ),
         launch_arguments={
             'sim': 'true',
+            'default_command_mode': default_command_mode
         }.items()
     )
 
@@ -84,6 +103,8 @@ def generate_launch_description():
     return LaunchDescription([
         world_arg,
         static_arg,
+        default_command_mode_arg,
+        description,
         gzsim,
         spawn_vehicle,
         odom_bridge,

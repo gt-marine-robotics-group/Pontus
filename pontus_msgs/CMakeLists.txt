@@ -8,24 +8,31 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/Blueviewping.msg"
-  "msg/YOLOResult.msg"
-  "msg/YOLOResultArray.msg"
-  "msg/YOLOResultArrayPose.msg"
-  "srv/GetGateLocation.srv"
-  "srv/GetVerticalMarkerLocation.srv"
+  "msg/CommandMode.msg"
+  "msg/SemanticObject.msg"
+  "msg/SemanticMap.msg"
+  "msg/SemanticMetaGate.msg"
   "srv/GateSideInformation.srv"
   "srv/AddSemanticObject.srv"
+  "srv/AddMetaGate.srv"
+  "srv/SetEnum.srv"
   "action/GoToPose.action"
   "action/SearchRegion.action"
   DEPENDENCIES std_msgs geometry_msgs
 )
 
+ament_get_python_install_dir(PYTHON_INSTALL_DIR)
+
+install(
+  DIRECTORY ${PROJECT_NAME}
+  DESTINATION ${PYTHON_INSTALL_DIR}
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

@@ -40,8 +40,7 @@ setup(
             'firmware_cmds = pontus_controller.firmware_cmds:main',
             'stop = pontus_controller.stop:main',
             'position_controller = pontus_controller.position_controller:main',
-            'autonomy_manual_vel_control = pontus_controller.autonomy_manual_vel_control:main',
-            'LOS_controller = pontus_controller.LOS_controller:main',
+            'command_mode_mux = pontus_controller.command_mode_mux:main',
             'joy_listener = pontus_controller.joy_listener:main'
         ],
     },

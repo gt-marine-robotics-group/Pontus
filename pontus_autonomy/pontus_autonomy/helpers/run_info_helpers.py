@@ -1,7 +1,8 @@
 from rclpy.clock import Clock  # new for timestamps
 from geometry_msgs.msg import Pose, PoseStamped
 from geometry_msgs.msg import Pose, PoseStamped, Point
-from pontus_autonomy.helpers.GoToPoseClient import PoseObj, MovementMethod
+from pontus_msgs.msg import CommandMode
+from pontus_autonomy.helpers.GoToPoseClient import PoseObj
 from pontus_mapping.semantic_map_manager import SemanticObject
 from dataclasses import dataclass
 
@@ -59,7 +60,7 @@ def make_waypoint(
     depth: float = DEFAULT_DEPTH_M,
     yaw_degrees: float = None,
     skip_orientation: bool = True,
-    movement_method: MovementMethod = MovementMethod.TurnThenForward,
+    command_mode: CommandMode = CommandMode.POSITION_FACE_TRAVEL,
 ) -> PoseObj:
 
     pose = Pose()
@@ -79,5 +80,5 @@ def make_waypoint(
     return PoseObj(
         cmd_pose=pose,
         skip_orientation=skip_orientation,
-        movement_method=movement_method
+        command_mode=command_mode
     )

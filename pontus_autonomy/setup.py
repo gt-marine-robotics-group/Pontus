@@ -27,11 +27,13 @@ setup(
     entry_points={
         'console_scripts': [
             'prequal_run = pontus_autonomy.prequalification_run_localization:main',
+            'prequal_run_sim = pontus_autonomy.prequal_run_sim:main',
             'semi_run = pontus_autonomy.semi_run_localization:main',
             'search_region_test = pontus_autonomy.helpers.SearchRegionClient:main',
             'waypointing_run = pontus_autonomy.waypoint_run:main',
             'semantic_map_seeder = pontus_autonomy.helpers.semantic_map_seeder:main',
-            'run_info_waypoint_visualizer = pontus_autonomy.helpers.run_info_waypoint_path_publisher:main'
+            'run_info_waypoint_visualizer = pontus_autonomy.helpers.run_info_waypoint_path_publisher:main',
+            'path_marker_run = pontus_autonomy.path_marker_run:main'
         ],
     },
 )

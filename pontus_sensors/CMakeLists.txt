@@ -3,7 +3,7 @@ set(CMAKE_CXX_STANDARD 20) # C++ 20 is required for the blueview driver
 project(pontus_sensors)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
+add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
 # find dependencies
@@ -19,6 +19,15 @@ find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(OpenCV 4.0.0 REQUIRED)
 find_package(pontus_msgs REQUIRED)
+find_package(PCL REQUIRED)
+find_package(pcl_conversions REQUIRED)
+find_package(pcl_ros REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_sensor_msgs REQUIRED)
+find_package(tf2_eigen REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 
 # C++
@@ -29,6 +38,39 @@ include_directories(
   colormaps
 )
 
+add_executable(sonoptix_driver_node
+  src/sonoptix_driver.cpp
+)
+
+target_include_directories(sonoptix_driver_node PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/colormaps
+  ${PCL_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIRS}
+)
+
+ament_target_dependencies(sonoptix_driver_node
+  rclcpp
+  sensor_msgs
+  cv_bridge
+  PCL
+  pcl_conversions
+  pcl_ros
+  tf2
+  tf2_ros 
+  tf2_sensor_msgs
+  tf2_eigen
+)
+
+target_link_libraries(sonoptix_driver_node 
+  ${OpenCV_LIBS}
+  ${PCL_LIBRARIES}
+)
+
+install(TARGETS 
+  sonoptix_driver_node
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 install(DIRECTORY
   launch
@@ -45,7 +87,7 @@ ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
   # add python executable file paths here
   pontus_sensors/camera_republish.py
-  pontus_sensors/imu_republish.py
+  pontus_sensors/camera_info_publisher.py
   pontus_sensors/depth_republish.py
   pontus_sensors/sonoptix_driver.py
   pontus_sensors/dvl_republish.py

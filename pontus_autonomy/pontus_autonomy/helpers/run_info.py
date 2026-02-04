@@ -1,4 +1,3 @@
-from pontus_autonomy.helpers.GoToPoseClient import MovementMethod
 from pontus_mapping.semantic_map_manager import SemanticObject
 from pontus_autonomy.helpers.run_info_helpers import *
 

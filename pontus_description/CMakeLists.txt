@@ -17,6 +17,14 @@ install(DIRECTORY launch models test
     EXCLUDE
 )
 
+ament_python_install_package(${PROJECT_NAME})
+
+# Uncomment this to add new python nodes
+install(PROGRAMS
+  # add python executable file paths here
+  pontus_description/vehicle_parameter_server.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)

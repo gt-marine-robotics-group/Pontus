@@ -1,26 +1,19 @@
 import rclpy
 from rclpy.node import Node
 import numpy as np
-import math
 
 import tf2_ros
 from typing import Optional, List
 from geometry_msgs.msg import Twist
-from std_msgs.msg import Float64
+from std_msgs.msg import Float32MultiArray
 
+from pontus_description.vehicle_params_helper import VehicleParams
 
 class ThrusterController(Node):
     class Thruster:
         def __init__(self,
-                     Node: Node,
-                     thruster_id: int,
-                     max_thrust: float,
                      pos: np.ndarray,
                      quaternion: np.ndarray):
-            thruster_topic_name = 'pontus/thruster_' + str(thruster_id) + '/cmd_thrust'
-            self.pub = Node.create_publisher(Float64, thruster_topic_name, 10)
-
-            self.max_thrust = max_thrust
 
             q = quaternion
             # Our thrusters rotate the propeller around the z axis
@@ -57,45 +50,27 @@ class ThrusterController(Node):
             self.jacobian_column = np.hstack((
                 thrust_effect, torque_effect)).transpose()
 
-        def set_thrust(self, value: float) -> None:
-            """
-            Set the thrust for the thruster.
-
-            Args:
-            ----
-            value (float): the thrust for the thruster
-
-            Return:
-            ------
-            None
-
-            """
-            msg = Float64()
-
-            # Clamp values to max thrust
-            if abs(value) > self.max_thrust:
-                value = math.copysign(self.max_thrust, value)
-
-            msg.data = value
-            self.pub.publish(msg)
-
     def __init__(self):
         super().__init__('thruster_controller')
 
-        # TODO: make these parameters or something
+        self.vehicle_params = VehicleParams(self)
+
         self.vehicle_name = 'pontus'
-        self.max_thrust = 30.0
+        self.max_allowed_thrust = self.vehicle_params.thruster_max_allowed
+        self.thruster_max = self.vehicle_params.thruster_max_thrust
+        self.deadzone = self.vehicle_params.thruster_min_allowed
 
-        # TODO: These could be pulled from the robot description topic
+        if (self.max_allowed_thrust > self.thruster_max):
+            self.max_allowed_thrust = self.thruster_max
 
-        mass = 18.65
+        mass = self.vehicle_params.mass
         # Moments of inertia of the vehicle (these also need to be properly calculated)
-        ixx = 55
-        ixy = 0
-        ixz = 0
-        iyy = 0.585
-        iyz = 0
-        izz = 55
+        ixx = self.vehicle_params.ixx
+        ixy = self.vehicle_params.ixy
+        ixz = self.vehicle_params.ixz
+        iyy = self.vehicle_params.iyy
+        iyz = self.vehicle_params.iyz
+        izz = self.vehicle_params.izz
 
         self.inertial_tensor = np.array([
             [ixx, ixy, ixz],
@@ -122,22 +97,27 @@ class ThrusterController(Node):
           self.cmd_accel_callback,
           10)
 
+        # Thruster command array
+        self.thruster_pub = self.create_publisher(
+          Float32MultiArray,
+          '/thrust_cmds',
+          10)
+
         # TF listener to get the positions of the thrusters
         self.tf_buffer = tf2_ros.Buffer()
         self.listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         # Attempt to generate thrusters from TF once a second
-        # TODO: Should this keep monitoring the TF for updates or just stop once it sees the
-        # initial TF?
         self.tf_timer = self.create_timer(1.0, self.generate_thrusters)
 
     def cmd_accel_callback(self, msg: Twist) -> None:
         """
-        Handle cmd_vel callback to command thrust based on velocity.
+        Handle cmd_accel callback to command thrust to individual thrusters
+        based on the commanded body acceleration.
 
         Args:
         ----
-        msg (Twist): command velocity
+        msg (Twist): command acceleration
 
         Return:
         ------
@@ -159,24 +139,33 @@ class ThrusterController(Node):
         # Calculate individual thruster force to generate desired total force
         thruster_forces = self.inverse_jacobian.dot(force_torque)
 
+        thruster_cmds = Float32MultiArray()
+
         # Handle matching sets of thrusters (vertical and horizontal) independently.
         # Otherwise trying to command full forward velocity could cause our
         # vertical thrusters to decrease their output making us sink
-        for i in range(2):
+        for set_index in range(2):
 
-            start = 4 * i
-            end = (4 * i) + 4
+            start = 4 * set_index
+            end = start + 4
 
             # Calculate the highest commanded output thrust so we can scale
             # all of the thrusters down if we exceed max thrust.
             # This helps pevent issues with multiple thrusters being saturated
             # leading to the vehicle moving in unintended directions
-            max_commanded = np.max(thruster_forces[start:end])
-            scale = (max_commanded / self.max_thrust) if max_commanded > self.max_thrust else 1.0
+            max_commanded = np.max(np.abs(thruster_forces[start:end]))
+            scale = (max_commanded / self.max_allowed_thrust) if max_commanded > self.max_allowed_thrust else 1.0
 
-            # Publish thruster commands
-            for index in range(start, end):
-                self.thrusters[index].set_thrust(thruster_forces[index] / scale)
+            # Scale each thrust and convert to a thruster percentage
+            for i in range(start, end):
+                thrust = thruster_forces[i] / scale
+
+                # Thruster commands are between -1.0 and 1.0 with a small deadzone
+                command = 0.0 if abs(thrust) <= self.deadzone else thrust / self.thruster_max
+                thruster_cmds.data.append(command)
+
+        # Publish thruster commands
+        self.thruster_pub.publish(thruster_cmds)
 
     def generate_thrusters(self) -> None:
         """
@@ -220,7 +209,7 @@ class ThrusterController(Node):
                                       transform.transform.rotation.z,
                                       transform.transform.rotation.w])
 
-            self.thrusters.append(self.Thruster(self, i, self.max_thrust, pos, quaternion))
+            self.thrusters.append(self.Thruster(pos, quaternion))
             self.jacobian_matrix[:, i] = self.thrusters[i].jacobian_column
 
         # Eliminate small values
