@@ -41,11 +41,6 @@ class VelocityNode(Node):
             ('yaw_kp', 0.2),
             ('yaw_ki', 0.0),
             ('yaw_kd', 0.05),
-            ('sub_mass', 34.02), # kg
-            ('sub_diameter', 0.2159), # m
-            ('sub_length', 0.6096), # m
-            ('water_density', 1000.0), # kg/m^3
-            ('gravity', 9.8), # m/s^2
             ('x_C', 0.47),
             ('y_C', 0.82),
             ('z_C', 0.82),
