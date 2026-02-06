@@ -7,6 +7,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionServer
 import tf_transformations
+from scipy.spatial.transform import Rotation
 
 from std_msgs.msg import Header
 from nav_msgs.msg import Odometry
@@ -586,17 +587,17 @@ class PositionController(Node):
         np.ndarray: our linear error in [x, y, z]
 
         """
-        u = np.array([
-            self.current_pose.orientation.x,
-            -self.current_pose.orientation.y,
-            -self.current_pose.orientation.z,
-        ])
-        s = self.current_pose.orientation.w
+
         linear_err = desired_pose - current_pose
-        linear_err = (2.0 * np.dot(u, linear_err) * u
-                      + (s**2 - np.dot(u, u)) * linear_err
-                      + 2.0 * s * np.cross(u, linear_err))
-        return linear_err
+        quat = np.array([
+            self.current_pose.orientation.x,
+            self.current_pose.orientation.y,
+            self.current_pose.orientation.z,
+            self.current_pose.orientation.w,
+        ])
+
+        rotation = Rotation.from_quat(quat)
+        return rotation.inv().apply(linear_err)
 
     def calculate_go_to_point_target(self,
                   pose_array: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -618,7 +619,7 @@ class PositionController(Node):
         """
 
         trajectory_vector = self.cmd_pos_linear[:2] - self.start_pose[:2]
-        if np.linalg.norm(trajectory_vector) >= 0:
+        if np.linalg.norm(trajectory_vector) > 0:
             trajectory_unit = trajectory_vector / np.linalg.norm(trajectory_vector)
 
             vec = pose_array[:2] - self.start_pose[:2]
@@ -657,6 +658,7 @@ class PositionController(Node):
 
             if hasattr(self, "pid_linear") and hasattr(self, "pid_angular"):
                 split = param.name.split("_")
+                if len(split) <= 1: break
                 dof = split[0]
                 gain = split[1]
 

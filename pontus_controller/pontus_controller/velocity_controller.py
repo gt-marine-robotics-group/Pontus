@@ -245,14 +245,14 @@ class VelocityNode(Node):
         f_gravity = self.vehicle_params.mass * self.vehicle_params.gravity
         f_net = f_buoyancy - f_gravity
         world_acceleration_buoyancy = np.array([0.0, 0.0, f_net / self.vehicle_params.mass])
-        body_rotation_matrix = Rotation.from_quat(np.array([
+        body_rotation = Rotation.from_quat(np.array([
             msg.pose.pose.orientation.x,
             msg.pose.pose.orientation.y,
             msg.pose.pose.orientation.z,
             msg.pose.pose.orientation.w,
-        ])).as_matrix()
+        ]))
 
-        body_acceleration_buoyancy = world_acceleration_buoyancy @ body_rotation_matrix.transpose()
+        body_acceleration_buoyancy = body_rotation.inv().apply(world_acceleration_buoyancy)
 
         # TODO: The feed forward terms might also want to take into account Added Mass
 
@@ -291,6 +291,7 @@ class VelocityNode(Node):
 
             if hasattr(self, "pid_linear") and hasattr(self, "pid_angular"):
                 split = param.name.split("_")
+                if len(split) <= 1: break
                 dof = split[0]
                 gain = split[1]
 
