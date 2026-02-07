@@ -15,8 +15,12 @@ import xml.etree.ElementTree as ET
 def generate_launch_description():
 
     # Set up launch arguments
-    # There is no option to set sim false here because
-    # This file is only used in sim
+    sim_arg = DeclareLaunchArgument(
+        'sim',
+        default_value = 'false'
+    )
+    sim = LaunchConfiguration('sim')
+
     static_arg = DeclareLaunchArgument(
         'static',
         default_value = 'false'
@@ -55,7 +59,7 @@ def generate_launch_description():
 
     # Accessing launch arguments as strings is currently very cursed
     def create_urdf_nodes(context):
-        xacro_args = {'sim': 'true', 'static': context.launch_configurations['static']}
+        xacro_args = {'sim': context.launch_configurations['sim'], 'static': context.launch_configurations['static']}
         urdf = xacro.process(xacro_file, mappings=xacro_args)
 
         # parse vehicle parameters out of the URDF file
@@ -107,6 +111,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        sim_arg,
         static_arg,
         urdf_nodes,
         odom_to_map_tf

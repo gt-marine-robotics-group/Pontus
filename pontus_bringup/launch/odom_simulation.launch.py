@@ -39,7 +39,10 @@ def generate_launch_description():
                 'description.launch.py'
             ])
         ),
-        launch_arguments={'static': static}.items()
+        launch_arguments={
+            'static': static,
+            'sim': 'true'
+        }.items()
     )
 
     gzsim = launch.actions.IncludeLaunchDescription(

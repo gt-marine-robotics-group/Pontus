@@ -3,12 +3,14 @@
   <xacro:include filename="$(find pontus_description)/models/pontus/components/thrusters.xacro"/>
   <xacro:include filename="$(find pontus_description)/models/pontus/components/sensors.xacro"/>
   <xacro:include filename="$(find pontus_description)/models/pontus/components/lights.xacro"/>
+  <xacro:include filename="$(find pontus_description)/models/pontus/components/battery_tubes.xacro"/>
 
 
   <!--<xacro:property name="mesh_file" value="file://$(find pontus_description)/models/pontus/meshes/pontus_body_mesh.STL"/>-->
 
 
   <xacro:arg name="sim" default="false"/>
+  <xacro:property name="sim" default="$(arg sim)"/>
   <xacro:arg name="static" default="false"/>
 
   <xacro:property name="fluid_density" value="1025"/>
@@ -18,12 +20,23 @@
   <xacro:property name="thruster_min_allowed" value="2.6"/>
 
   <xacro:property name="namespace" value="pontus"/>
-  <xacro:property name="mass" value="34.0194"/>
 
+  <xacro:property name="battery_tube_length" value="0.324"/>
+  <xacro:property name="battery_tube_radius" value="0.045"/>
+  <xacro:property name="battery_tube_volume" value="${pi*battery_tube_length*(battery_tube_radius**2)}"/>
 
   <xacro:property name="length" value="0.61"/>
   <xacro:property name="radius" value="0.1"/>
-  <xacro:property name="volume" value="${pi*length*(radius)**2}"/>
+  <xacro:property name="volume" value="${(pi*length*(radius**2)) + 2*battery_tube_volume}"/>
+
+  <xacro:if value="${sim == 'false'}">
+    <!-- Use the real vehicles mass -->
+    <xacro:property name="mass" value="34.0194"/>
+  </xacro:if>
+  <xacro:unless value="${sim == 'false'}">
+    <!-- Override the vehicle mass with one that will work well for sim-->
+    <xacro:property name="mass" value="${0.95 * (volume * fluid_density)}"/>
+  </xacro:unless>
 
   <!-- Create pontus -->
   <link name="base_link">
@@ -31,19 +44,22 @@
       mass="${mass}"
       length="${length}"
       radius="${radius}"
-      diameter="${2*radius}"
       volume="${volume}"
       fluid_density="${fluid_density}"
       gravity="${gravity}"
+      battery_tube_length="${battery_tube_length}"
+      battery_tube_radius="${battery_tube_radius}"
+      battery_tube_volume="${battery_tube_volume}"
       thruster_max_thrust="${thruster_max_thrust}"
       thruster_max_allowed="${thruster_max_allowed}"
       thruster_min_allowed="${thruster_min_allowed}"
     />
     <inertial>
       <!-- This is calculated for slightly positive buoyancy -->
-      <mass value="${(volume * fluid_density) - 1.5}"/>
+      <mass value="${mass}"/>
 
       <!-- TODO: insert actual calculations instead of precalculated value -->
+      <!-- TODO: This also needs to be modified to account for the battery tubes -->
       <inertia
         ixx="55" ixy="0" ixz="0"
         iyy="0.585" iyz="0" izz="55"
@@ -68,6 +84,9 @@
         <cylinder length="${length}" radius="${radius}"/>
       </geometry>
     </collision>
+
+    <xacro:battery_tube_macro tube_id="0" length="0.324" radius="0.045" x="0.0" y="-0.1" z="0.13" />
+    <xacro:battery_tube_macro tube_id="1" length="0.324" radius="0.045" x="0.0" y="0.1" z="0.13" />
   </link>
 
   <!-- Thrusters -->

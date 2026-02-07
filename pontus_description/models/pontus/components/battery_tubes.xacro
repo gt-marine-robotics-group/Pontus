@@ -1,0 +1,50 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!-- No visual mesh yet 
+  <xacro:property name="battery_tube_mesh" value="file://$(find pontus_description)/models/pontus/meshes/Battery_Tube.STL"/>
+  -->
+
+  <!-- This must be used within an existing link to add a battery tube to it -->
+  <xacro:macro name="battery_tube_macro" params="tube_id length radius x y z">
+    <!-- Tube -->
+    <collision>
+      <origin xyz = "${x} ${y} ${z}" rpy= "0 ${90*pi/180} 0"/>
+      <geometry>
+        <cylinder length="${length}" radius="${radius}"/>
+      </geometry>
+    </collision>
+
+    <visual>
+      <origin xyz = "${x} ${y} ${z}" rpy= "0 ${90*pi/180} 0"/>
+      <geometry>
+        <cylinder length="${length}" radius="${radius}"/>
+        <!-- <mesh filename="${battery_tube_mesh}"/> -->
+      </geometry>
+
+      <material name="acrylic">
+        <color rgba="0.9 0.9 0.9 0.4"/>
+      </material>
+    </visual>
+
+
+    <!-- Front Dome (Currently unused)
+    <collision>
+      <origin xyz = "${x + (length/2)} ${y} ${z}" rpy= "0 0 0"/>
+      <geometry>
+        <sphere radius="${0.75 * radius}"/>
+      </geometry>
+    </collision>
+
+    <visual>
+      <origin xyz = "${x + (length/2)} ${y} ${z}" rpy= "0 0 0"/>
+      <geometry>
+        <sphere radius="${0.75 * radius}"/>
+      </geometry>
+
+      <material name="acrylic">
+        <color rgba="0.9 0.9 0.9 0.4"/>
+      </material>
+    </visual>
+    -->
+  </xacro:macro>
+</robot>
