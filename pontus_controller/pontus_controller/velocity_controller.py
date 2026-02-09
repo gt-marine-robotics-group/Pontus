@@ -41,9 +41,9 @@ class VelocityNode(Node):
             ('yaw_kp', 0.2),
             ('yaw_ki', 0.0),
             ('yaw_kd', 0.05),
-            ('x_C', 0.47),
-            ('y_C', 0.82),
-            ('z_C', 0.82),
+            ('x_C', 0.82),
+            ('y_C', 1.2),
+            ('z_C', 1.2),
             ('r_C', 0.0),
             ('p_C', 0.0),
             ('yaw_C', 4.0),
@@ -251,18 +251,6 @@ class VelocityNode(Node):
 
         body_acceleration_buoyancy = body_rotation.inv().apply(world_acceleration_buoyancy)
 
-        linear_vel = np.array([
-            odom.twist.twist.linear.x,
-            odom.twist.twist.linear.y,
-            odom.twist.twist.linear.z,
-        ])
-
-        angular_vel = np.array([
-            odom.twist.twist.angular.x,
-            odom.twist.twist.angular.y,
-            odom.twist.twist.angular.z,
-        ])
-
         # TODO: The feed forward terms might also want to take into account Added Mass
 
         # Linear Drag: F = 1/2 CpAv^2
@@ -276,8 +264,8 @@ class VelocityNode(Node):
         angular_f_drag = np.copysign(C[3:] * self.cmd_angular ** 2, self.cmd_angular)
 
         # Compute Feed Forward Terms
-        linear_ff = -body_acceleration_buoyancy + (self.linear_drag_gain * linear_f_drag)
-        angular_ff = (self.angular_drag_gain * angular_f_drag)
+        linear_ff = -body_acceleration_buoyancy + (self.linear_drag_gain * linear_f_drag / self.vehicle_params.mass)
+        angular_ff = (self.angular_drag_gain * angular_f_drag / self.vehicle_params.mass)
 
         return linear_ff, angular_ff
 
