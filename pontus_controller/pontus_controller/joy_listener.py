@@ -51,23 +51,23 @@ class JoyListener(Node):
     def joy_callback(self, joy_msg):
         buttons = joy_msg.buttons
 
-        if buttons[Button.ESTOP]:
+        if buttons[Button.ESTOP.value]:
             self.set_estop(True)
             self.set_command_mode(CommandMode.ESTOP)
 
-        elif buttons[Button.DIRECT]:
+        elif buttons[Button.DIRECT.value]:
             self.set_estop(False)
             self.set_command_mode(CommandMode.DIRECT_CONTROL)
 
-        elif buttons[Button.VELOCITY]:
+        elif buttons[Button.VELOCITY.value]:
             self.set_estop(False)
             self.set_command_mode(CommandMode.VELOCITY_CONTROL)
         
-        elif buttons[Button.POSITION_HOLD]:
+        elif buttons[Button.POSITION_HOLD.value]:
             self.set_estop(False)
             self.set_command_mode(CommandMode.VELOCITY_HOLD_POSITION)
 
-        elif buttons[Button.AUTONOMY_POSITION]:
+        elif buttons[Button.AUTONOMY_POSITION.value]:
             self.set_estop(False)
             self.set_command_mode(CommandMode.POSITION_FACE_TRAVEL)
 
