@@ -201,6 +201,8 @@
       filename="gz-sim-hydrodynamics-system"
       name="gz::sim::systems::Hydrodynamics">
       <link_name> base_link </link_name>
+      <water_density>${fluid_density}</water_density>
+
       <!-- Incorrect Added Mass values causing crashes -->
       <!--<xDotU>-4.876161</xDotU>
         <yDotV>-126.324739</yDotV>
