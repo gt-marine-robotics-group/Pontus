@@ -25,7 +25,9 @@ def generate_launch_description():
         ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(localization_share, 'launch', 'localization.launch.py')
-            )
-        ),
+                os.path.join(localization_share, 'launch',
+                            'localization.launch.py')
+            ),
+            launch_arguments={'auv': 'auv'}.items()
+        )
     ])
