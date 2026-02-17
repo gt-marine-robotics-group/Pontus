@@ -1426,5 +1426,12 @@
       <pose>10.5 2.0 -1.3716 0 0 1.57</pose>
     </include>
 
+    <!--BIN TASK-->
+        <!-- Path Marker -->
+    <include>
+      <uri>Bin</uri>
+      <pose>4.5 -3.0 -1.9 1.57 0 0.4</pose>
+    </include>
+
   </world>
 </sdf>

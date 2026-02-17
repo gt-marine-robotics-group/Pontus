@@ -1,0 +1,9 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <world name="test_world">
+    <include>
+      <uri>model://Bin</uri>
+      <pose>0 0 0 1.57 0 0</pose>
+    </include>
+  </world>
+</sdf>
