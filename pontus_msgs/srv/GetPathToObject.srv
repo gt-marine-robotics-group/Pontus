@@ -1,0 +1,4 @@
+geometry_msgs/PoseStamped goal
+---
+bool found
+nav_msgs/Path path_to_object
