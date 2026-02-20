@@ -16,3 +16,4 @@ pontus_msgs/SemanticObject[] target
 # ------ Meta Objects ------
 
 pontus_msgs/SemanticMetaGate meta_gate
+pontus_msgs/SemanticMetaSlalom meta_slalom
