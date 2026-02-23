@@ -119,6 +119,7 @@ class path_planner(Node):
         open_cells = [] # scale float by 1000 then turn to int, heapq.heappush(open_cells, (int(priority*1000), index) )
         closed_cells = set()
         cell_record = dict()
+        response.found = False
 
         response_path = Path()
         response_path.header.frame_id = "map"
@@ -132,7 +133,7 @@ class path_planner(Node):
             self.latest_occupancy_grid[goal_index]
         except IndexError as e:
             self.get_logger().warn("Index out of bounds: ", e)
-            response = response_path
+            response.path_to_object = response_path
             return response
 
         path_list = []
@@ -184,8 +185,6 @@ class path_planner(Node):
 
                             cell_record[index] = temp_node
 
-        # convert indices to PoseStamped msgs TODO
-
         if goal_not_explored:
             self.get_logger().warn("Goal index not found")
         else:
@@ -203,7 +202,8 @@ class path_planner(Node):
 
                 response_path.poses.append(temp_pose)
 
-            response = response_path
+            response.path_to_object = response_path
+            response.found = True
         return response
 
     def get_adjacency(self, index: tuple[int], array: np.ndarray, eight_way: bool = False) -> list[tuple[int]]:
