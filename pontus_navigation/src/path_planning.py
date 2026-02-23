@@ -1,7 +1,5 @@
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Header
-from builtin_interfaces.msg import Time
 from nav_msgs.msg import OccupancyGrid
 from nav_msgs.msg import MapMetaData
 from nav_msgs.msg import Path
@@ -56,7 +54,7 @@ class path_planner(Node):
         self.height_min = 0.0 # if robot below height, path to target height
         self.height_max = 100.0
         self.target_height = (self.height_max + self.height_min) / 2 # currently avg b/w min and max height
-        self.threshold = 0.1 # occupancy grid applies score to cells with cluster points inside, if score is higher than threshold, we consider it occupied
+        self.score_threshold = 0.1 # occupancy grid applies score to cells with cluster points inside, if score is higher than threshold, we consider it occupied
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -217,7 +215,6 @@ class path_planner(Node):
         Returns:
             list[tuple[int]]: _description_
         """
-        # modify occupancy grid to mark occupied spaces. easier and useful outside of path planning TODO
         adjacent_cells = []
         directions = [[0,1], [1,0], [0,-1], [-1,0]] # cardinal directions
         if eight_way:
@@ -232,7 +229,7 @@ class path_planner(Node):
             index[1] + direction[1] >= 0 and \
                 index[0] + direction[0] < max_width and \
                     index[1] + direction[1] < max_height and \
-                        array[index[0] + direction[0], index[1] + direction[1]] <= self.threshold: # unoccupied cell
+                        array[index[0] + direction[0], index[1] + direction[1]] <= self.score_threshold: # unoccupied cell
                 adjacent_cells.append((index[0] + direction[0], index[1]+direction[1]))
         return adjacent_cells
     
@@ -251,7 +248,7 @@ class path_planner(Node):
         x_pos = float(self.map_info.resolution*index[0] + self.map_info.origin.position.x)
         y_pos = float(self.map_info.resolution*index[1] + self.map_info.origin.position.y)
         return (x_pos, y_pos)
-    
+
     def remove_item_from_heap(self, item_list, item): # lin search, sue me
         for i in range(len(item_list)):
             if item == item_list[i][1]:
