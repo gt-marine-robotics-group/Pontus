@@ -33,7 +33,8 @@ setup(
             'waypointing_run = pontus_autonomy.waypoint_run:main',
             'semantic_map_seeder = pontus_autonomy.helpers.semantic_map_seeder:main',
             'run_info_waypoint_visualizer = pontus_autonomy.helpers.run_info_waypoint_path_publisher:main',
-            'path_marker_run = pontus_autonomy.path_marker_run:main'
+            'path_marker_run = pontus_autonomy.path_marker_run:main',
+            'slalom_run = pontus_autonomy.slalom_run:main',
         ],
     },
 )
