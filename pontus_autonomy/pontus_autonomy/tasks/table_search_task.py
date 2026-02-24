@@ -45,6 +45,8 @@ class TableSearchTask(BaseTask):
         
         #Local Variables
         self.total_rad = self.number_of_spins * 2 *  math.pi
+        self.ascent = False
+        self.gather_data = False
         self.start_turn = False
         self.current_rad = 0
         self.yolo_detections : Detection2DArray = None
@@ -54,7 +56,7 @@ class TableSearchTask(BaseTask):
         self.rays = []
         self.curr_waypoint : Pose = None
         self.fallback_point : Pose = fallback_point
-        self.vectors = [np.array([0.0, 1.0, 0.0]), np.array([0.0, -2.0, 0.0])]
+        self.vectors = [np.array([0.0, 0.707, 0.707]), np.array([0.0, -0.707, -0.707])]
         
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -85,9 +87,9 @@ class TableSearchTask(BaseTask):
         
         #Timers
         self.turn_timer = None
-        self.position_timer = None
-        self.ray_timer = None
         self.data_timer = None
+        self.position_timer = None
+        self.delay_timer = None
         
         self.get_logger().info("Finished Setting Up")
 
@@ -113,7 +115,7 @@ class TableSearchTask(BaseTask):
             msg (Detection2DArray): message with YOLO results
         """
         self.yolo_detections = msg
-        if not self.approaching_object and self.camera_initialized:
+        if not self.gather_data and self.camera_initialized:
             self.object_detection()
     
     def object_detection(self):
@@ -125,12 +127,16 @@ class TableSearchTask(BaseTask):
         for detection in self.yolo_detections.detections:
             for result in detection.results:
                 #self.get_logger().info(f"Class id: {result.hypothesis.class_id}, comparison: {SemanticObject.GATE_IMAGE_FISH}, score: {result.hypothesis.score}, threshold: {self.id_threshold}")
-                if result.hypothesis.class_id == "vertical_marker" and result.hypothesis.score >= self.id_threshold:
-                    #self._begin_approach()
-                    self.approaching_object = True
+                if result.hypothesis.class_id == "gate_shark" and result.hypothesis.score >= self.id_threshold:
+                    self.gather_data = True
                     self.turn_timer.destroy()
-                    self.data_timer = self.create_timer(5, self._gather_more_data, self.service_callback_group)
+                    self.delay_timer = self.create_timer(1, self._create_timer, self.service_callback_group)
                     self.get_logger().info("Found Object")
+    
+    def _create_timer(self):
+        self.data_timer = self.create_timer(0.3, self._gather_more_data, self.service_callback_group)
+        self.delay_timer.destroy() 
+        
     
     def _gather_more_data(self):
         """
@@ -139,27 +145,45 @@ class TableSearchTask(BaseTask):
         #self.get_logger().info("Starting Data Gathering Stage")
 
         if self.curr_waypoint is None or self.go_to_pose_client.at_pose():
-            self.update_rays()
+            if not self.update_rays():
+                return
             if len(self.vectors) == 0:
-                self._begin_approach()
                 self.data_timer.destroy()
                 self.curr_waypoint = None
+                self.calculate_obj_location()
+                self.position_timer = self.create_timer(0.2, self._close_to_object, self.service_callback_group)
                 return
             curr_vector = self.vectors.pop(0)
-            curr_vector = curr_vector * 1
+            if self.curr_waypoint is not None   :
+                curr_vector = curr_vector * 2
 
             self.curr_waypoint = curr_vector
             self.move_command(curr_vector)
     
-    def _begin_approach(self):
+    def _close_to_object(self):
         """
-        Begins approach stage and ends the turn stage
+        Detects if the sub is close to the final object position
         """
-        self.get_logger().info("Begun Approach")
-        self.approaching_object = True
-        self.position_timer = self.create_timer(self.pos_update_timer, self.calculate_obj_location, self.service_callback_group)
-        self.ray_timer = self.create_timer(self.ray_update_timer, self.update_rays, self.service_callback_group)
-        self.update_rays()
+        
+        if self.curr_waypoint is None:
+            return
+        if not self.ascent:
+            curr_waypoint = self._pose_to_array(self.curr_waypoint)
+            curr_pose = self._get_current_position()
+            if curr_pose is None:
+                return
+            curr_position = self._pose_to_array(curr_pose)
+            
+            diff = np.linalg.norm(curr_waypoint - curr_position)
+            if (diff < 2): #TODO: Find a constant for the difference
+                self.move_command(np.array([0.0, 0.0, 1.0]))
+                self.ascent = True
+                self.get_logger().info("Starting Ascent")
+        elif self.ascent and self.go_to_pose_client.at_pose():
+            self.move_command(np.array([0.0, 0.0, -2.0]))
+            self.position_timer.destroy()
+        
+    
                 
     def semantic_map_callback(self, msg: SemanticMap):
         """
@@ -195,8 +219,6 @@ class TableSearchTask(BaseTask):
             curr_waypoint = self._pose_to_array(self.curr_waypoint) #3x1 matrix 
             self.get_logger().info(f"curr_waypoint: {curr_waypoint}")
         
-            estimated_position[2] = curr_waypoint[2]
-        
             distance = np.linalg.norm(estimated_position - curr_waypoint)
             if distance >= self.pose_threshold or self.go_to_pose_client.at_pose():
                 self._send_waypoint_command(estimated_position)
@@ -231,21 +253,26 @@ class TableSearchTask(BaseTask):
         cmd_pose = Pose()
         cmd_pose.position.x = target_pos[0]
         cmd_pose.position.y = target_pos[1]
-        cmd_pose.position.z = -self.pool_depth + self.height_from_bottom
+        cmd_pose.position.z = target_pos[2] -0.44 #Adding a constant value
         self.get_logger().info(f"Sending the location pose: {cmd_pose}")
     
         self.go_to_pose_client.go_to_pose(pose_obj=PoseObj(cmd_pose=cmd_pose, skip_orientation=True))
         self.curr_waypoint = cmd_pose
         
         
-    def update_rays(self):
+    def update_rays(self) -> bool:
         """
         adds a new ray if it exists.
+        
+        Returns:
+            bool: whether a new ray has been added
         """
+        new_ray = False
         for detection in self.yolo_detections.detections:
             for result in detection.results:
                 #TODO: Replace with actual table enumeration
-                if result.hypothesis.class_id == "vertical_marker" and result.hypothesis.score >= self.id_threshold:
+                if result.hypothesis.class_id == "gate_shark" and result.hypothesis.score >= self.id_threshold:
+                    self.get_logger().info("Found Object in image. Updating rays")
                     center_position = detection.bbox.center.position
                     point = np.array([[center_position.x, center_position.y]])
                     point = np.expand_dims(point, 1)
@@ -263,7 +290,8 @@ class TableSearchTask(BaseTask):
                     #self.get_logger().info(f"After Ray Transform {ray_unit_vector}")
                     
                     self.rays.append([camera_pos, ray_unit_vector])
-                    
+                    new_ray = True
+        return new_ray
     
     def transform_ray(self, ray) -> Pose | None:
         try:
@@ -287,6 +315,34 @@ class TableSearchTask(BaseTask):
             
         except:
             self.get_logger().warn("Transform Ray to World Pose failed")
+            return None
+    
+    def _get_current_position(self) -> Pose | None:
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                target_frame="map",
+                source_frame="base_link",
+                time = rclpy.time.Time()
+            )
+            
+            current_pose = Pose()
+            current_pose.position.x = 0
+            current_pose.position.y = 0
+            current_pose.position.z = 0
+            
+            current_pose.orientation.x = 0
+            current_pose.orientation.y = 0
+            current_pose.orientation.z = 0
+            current_pose.orientation.w = 1.0
+            
+            pose_transformed = tf2_geometry_msgs.do_transform_pose(
+                current_pose, transform
+            )
+            
+            return pose_transformed
+            
+        except:
+            self.get_logger().warn("Transform to get current position failed")
             return None
         
     
@@ -342,7 +398,6 @@ class TableSearchTask(BaseTask):
             if self.total_rad == 0:
                 self.get_logger().info("We've completed all rotations and found no table")
                 self._send_waypoint_command(self.fallback_point)
-                self._begin_approach()
                 #TODO: Include backup point logic and movement
             else:
                 self.turn_command(self.current_rad)
@@ -358,7 +413,7 @@ class TableSearchTask(BaseTask):
         current_pose = Pose()
         current_pose.position.x = movement_vector[0]
         current_pose.position.y = movement_vector[1]
-        current_pose.position.z = movement_vector[2]
+        current_pose.position.z = movement_vector[2] - 0.44
         
         current_pose.orientation.x = 0.0
         current_pose.orientation.y = 0.0
@@ -368,7 +423,7 @@ class TableSearchTask(BaseTask):
         self.get_logger().info(f"Transformed Pose: {current_pose.position}")
         self.get_logger().info(f"Transformed Rotation: {current_pose.orientation}")
         
-        self.go_to_pose_client.go_to_pose(pose_obj=PoseObj(cmd_pose=current_pose, use_relative_position=True, skip_orientation=True))
+        self.go_to_pose_client.go_to_pose(pose_obj=PoseObj(cmd_pose=current_pose, use_relative_position=True, skip_orientation=False))
         
     
     def turn_command(self, target_angle_rad: float) -> None:
@@ -390,11 +445,11 @@ class TableSearchTask(BaseTask):
         # HTODO: ow can we provide the current position so that it doens't change?
         cmd_pose.position.x = 0.0
         cmd_pose.position.y = 0.0
-        cmd_pose.position.z = -self.pool_depth + self.height_from_bottom
+        cmd_pose.position.z = -0.44
         
         cmd_pose.orientation.x = qx
         cmd_pose.orientation.y = qy
         cmd_pose.orientation.z = qz
         cmd_pose.orientation.w = qw
         
-        self.go_to_pose_client.go_to_pose(pose_obj=PoseObj(cmd_pose=cmd_pose, skip_orientation=False))
+        self.go_to_pose_client.go_to_pose(pose_obj=PoseObj(cmd_pose=cmd_pose, use_relative_position=True, skip_orientation=False))
