@@ -7,7 +7,7 @@ import tf2_geometry_msgs
 
 from pontus_autonomy.tasks.base_task import BaseTask
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
-from geometry_msgs.msg import Pose, Vector3Stamped
+from geometry_msgs.msg import Pose, PoseStamped, Vector3Stamped
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
 from vision_msgs.msg import Detection2DArray
 from sensor_msgs.msg import CameraInfo
@@ -54,6 +54,7 @@ class TableSearchTask(BaseTask):
         self.rays = []
         self.curr_waypoint : Pose = None
         self.fallback_point : Pose = fallback_point
+        self.vectors = [np.array([0.0, 1.0, 0.0]), np.array([0.0, -2.0, 0.0])]
         
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -86,6 +87,7 @@ class TableSearchTask(BaseTask):
         self.turn_timer = None
         self.position_timer = None
         self.ray_timer = None
+        self.data_timer = None
         
         self.get_logger().info("Finished Setting Up")
 
@@ -101,7 +103,7 @@ class TableSearchTask(BaseTask):
             self.camera_model.fromCameraInfo(msg)
             self.camera_initialized = True
             self.get_logger().info("Set up camera with information")
-            self.turn_timer = self.create_timer(1, self.turn_callback, self.service_callback_group)
+            self.turn_timer = self.create_timer(2, self.turn_callback, self.service_callback_group)
     
     def yolo_callback(self, msg: Detection2DArray) -> None:
         """
@@ -119,12 +121,35 @@ class TableSearchTask(BaseTask):
         iterates through YOLO results for if table has been detected
         """
         #For now, using 4 as a stand-in for slalom red. TODO: Change this to a actual constant.
-        self.get_logger().info("Starting Object Detection")
+        #self.get_logger().info("Starting Object Detection")
         for detection in self.yolo_detections.detections:
             for result in detection.results:
                 #self.get_logger().info(f"Class id: {result.hypothesis.class_id}, comparison: {SemanticObject.GATE_IMAGE_FISH}, score: {result.hypothesis.score}, threshold: {self.id_threshold}")
                 if result.hypothesis.class_id == "vertical_marker" and result.hypothesis.score >= self.id_threshold:
-                    self._begin_approach()
+                    #self._begin_approach()
+                    self.approaching_object = True
+                    self.turn_timer.destroy()
+                    self.data_timer = self.create_timer(5, self._gather_more_data, self.service_callback_group)
+                    self.get_logger().info("Found Object")
+    
+    def _gather_more_data(self):
+        """
+        Moves the sub left adn right to gather more diverse ray data
+        """
+        #self.get_logger().info("Starting Data Gathering Stage")
+
+        if self.curr_waypoint is None or self.go_to_pose_client.at_pose():
+            self.update_rays()
+            if len(self.vectors) == 0:
+                self._begin_approach()
+                self.data_timer.destroy()
+                self.curr_waypoint = None
+                return
+            curr_vector = self.vectors.pop(0)
+            curr_vector = curr_vector * 1
+
+            self.curr_waypoint = curr_vector
+            self.move_command(curr_vector)
     
     def _begin_approach(self):
         """
@@ -132,7 +157,6 @@ class TableSearchTask(BaseTask):
         """
         self.get_logger().info("Begun Approach")
         self.approaching_object = True
-        self.turn_timer.destroy()
         self.position_timer = self.create_timer(self.pos_update_timer, self.calculate_obj_location, self.service_callback_group)
         self.ray_timer = self.create_timer(self.ray_update_timer, self.update_rays, self.service_callback_group)
         self.update_rays()
@@ -264,6 +288,7 @@ class TableSearchTask(BaseTask):
         except:
             self.get_logger().warn("Transform Ray to World Pose failed")
             return None
+        
     
     def transform_camera(self) -> Pose | None:
         """
@@ -322,6 +347,29 @@ class TableSearchTask(BaseTask):
             else:
                 self.turn_command(self.current_rad)
                 self.total_rad -= (0.25 * 2 * math.pi)
+                
+    def move_command(self, movement_vector: np.ndarray) -> None:
+        """
+        Issues a movement command in the movement vector direction
+        """
+        self.get_logger().info(f"Movement Vector: {movement_vector}")
+    
+        
+        current_pose = Pose()
+        current_pose.position.x = movement_vector[0]
+        current_pose.position.y = movement_vector[1]
+        current_pose.position.z = movement_vector[2]
+        
+        current_pose.orientation.x = 0.0
+        current_pose.orientation.y = 0.0
+        current_pose.orientation.z = 0.0
+        current_pose.orientation.w = 1.0
+        
+        self.get_logger().info(f"Transformed Pose: {current_pose.position}")
+        self.get_logger().info(f"Transformed Rotation: {current_pose.orientation}")
+        
+        self.go_to_pose_client.go_to_pose(pose_obj=PoseObj(cmd_pose=current_pose, use_relative_position=True, skip_orientation=True))
+        
     
     def turn_command(self, target_angle_rad: float) -> None:
         """
@@ -339,7 +387,7 @@ class TableSearchTask(BaseTask):
         qx, qy, qz, qw = tf_transformations.quaternion_from_euler(
             0.0, 0.0, yaw_abs)
 
-        #How can we provide the current position so that it doens't change?
+        # HTODO: ow can we provide the current position so that it doens't change?
         cmd_pose.position.x = 0.0
         cmd_pose.position.y = 0.0
         cmd_pose.position.z = -self.pool_depth + self.height_from_bottom
