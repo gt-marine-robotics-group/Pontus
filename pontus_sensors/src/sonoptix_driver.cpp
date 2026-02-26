@@ -22,6 +22,10 @@
 #include <pcl/common/transforms.h>
 #include "pcl_ros/transforms.hpp"
 #include <pcl/filters/passthrough.h>
+#include <pcl/ModelCoefficients.h>
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/filters/extract_indices.h>
+
 
 #include <Eigen/Core>
 
@@ -48,6 +52,10 @@ public:
     cluster_tolerance_ = this->declare_parameter<double>("cluster_tolerance", 0.15);
     cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 10);
     cluster_max_points_ = this->declare_parameter<int>("cluster_max_points", 200);
+
+    line_dist_threshold_ = this->declare_parameter<double>("line_dist_threshold", 0.10);   // m
+    line_min_inliers_    = this->declare_parameter<int>("line_min_inliers", 150);         // "big" lines
+    line_min_length_m_   = this->declare_parameter<double>("line_min_length", 1.0);       // length in meters
 
     rclcpp::QoS qos(rclcpp::KeepLast(1));
     qos.best_effort();
@@ -220,6 +228,8 @@ private:
     // Filter in map frame
     CloudI cloud_filtered = filter_points_pcl(*cloud_transformed, min_depth_m_, max_depth_m_);
 
+    cloud_filtered = filter_lines_pcl(cloud_filtered);
+
     // Convert to ROS PointCloud2
     pcl::toROSMsg(cloud_filtered, cloud_msg);
     cloud_msg.header = src_header;
@@ -332,6 +342,94 @@ private:
     return *filtered_data;
   }
 
+  CloudI filter_lines_pcl(const CloudI& cloud_in)
+  {
+    CloudIPtr cloud(new CloudI(cloud_in));
+    if (cloud->empty()) {
+      return *cloud;
+    }
+
+    pcl::SACSegmentation<pcl::PointXYZI> seg;
+    seg.setOptimizeCoefficients(true);
+    seg.setModelType(pcl::SACMODEL_LINE);
+    seg.setMethodType(pcl::SAC_RANSAC);
+    seg.setDistanceThreshold(line_dist_threshold_);
+    seg.setMaxIterations(500);
+
+    pcl::ExtractIndices<pcl::PointXYZI> extract;
+
+    while (true) {
+      if (cloud->size() < static_cast<size_t>(line_min_inliers_)) {
+        break;  // not enough points left to contain a “large” line
+      }
+
+      pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
+      pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients());
+
+      seg.setInputCloud(cloud);
+      seg.segment(*inliers, *coefficients);
+
+      if (inliers->indices.empty()) {
+        // No line found
+        break;
+      }
+
+      if (static_cast<int>(inliers->indices.size()) < line_min_inliers_) {
+        // line exists but small, keep it
+        break;
+      }
+
+      // Coeffs for line: point (x0, y0, z0), direction (dx, dy, dz)
+      const double x0 = coefficients->values[0];
+      const double y0 = coefficients->values[1];
+      const double z0 = coefficients->values[2];
+      const double dx = coefficients->values[3];
+      const double dy = coefficients->values[4];
+      const double dz = coefficients->values[5];
+
+      Eigen::Vector3d p0(x0, y0, z0);
+      Eigen::Vector3d dir(dx, dy, dz);
+      const double dir_norm = dir.norm();
+      if (dir_norm < 1e-6) {
+        break;  // degenerate direction
+      }
+      Eigen::Vector3d dir_unit = dir / dir_norm;
+
+      // Estimate line segment length along the direction
+      double t_min = std::numeric_limits<double>::infinity();
+      double t_max = -std::numeric_limits<double>::infinity();
+
+      for (int idx : inliers->indices) {
+        const auto& pt = cloud->points[idx];
+        Eigen::Vector3d p(pt.x, pt.y, pt.z);
+        double t = (p - p0).dot(dir_unit);  // projection scalar
+        t_min = std::min(t_min, t);
+        t_max = std::max(t_max, t);
+      }
+
+      double segment_length = (t_max - t_min);          // in “t” units
+      double line_length_m  = std::fabs(segment_length); // since dir_unit is unit, t has meters
+
+      if (line_length_m < line_min_length_m_) {
+        // Long-enough line not found; treat remaining as non-wall
+        break;
+      }
+
+      // Remove this line from the cloud
+      extract.setInputCloud(cloud);
+      extract.setIndices(inliers);
+      extract.setNegative(true);  // keep everything except the line
+      CloudIPtr cloud_without_line(new CloudI);
+      extract.filter(*cloud_without_line);
+
+      cloud.swap(cloud_without_line);
+
+      // Loop to strip multiple walls if they exist
+    }
+
+    return *cloud;
+  }
+
   std::vector<pcl::PointIndices> euclideanClustering(const CloudIPtr& pcl_data) {
 
       pcl::search::KdTree<pcl::PointXYZI>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZI>());
@@ -383,6 +481,9 @@ private:
   double cluster_tolerance_;
   int cluster_min_points_;
   int cluster_max_points_;
+  double line_dist_threshold_;
+  int    line_min_inliers_;
+  double line_min_length_m_;
 
   // ROS I/O
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr img_sub_;

@@ -7,7 +7,7 @@ class BaseRun(Node):
     def __init__(self, name: str):
         super().__init__(name)
 
-    def run_task(self, task: BaseTask) -> bool:
+    def run_task(self, task: BaseTask, args=None) -> bool:
         """
         Execute task and return result.
 
@@ -20,7 +20,10 @@ class BaseRun(Node):
         bool: the result of the task
 
         """
-        task = task()
+        if args == None:
+            task = task()
+        else:
+            task = task(args)
         rclpy.spin_until_future_complete(task, task.wait_for_task())
         result = task.task_future.result()
         task.destroy_node()

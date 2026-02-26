@@ -1,5 +1,5 @@
 """
-Semantic Map Manager (drop-in replacement)
+Semantic Map Manager
 
 - Maintains a SemanticMap message grouped by object type
 - Fuses duplicate detections with an online mean of positions
@@ -9,20 +9,24 @@ Semantic Map Manager (drop-in replacement)
 
 # ------ Libraries ------
 from dataclasses import dataclass, field
-from typing import Iterator, Optional
+from typing import Iterator, Optional, List
 import math
+import numpy as np
 
 import rclpy
 from rclpy.node import Node
+from rclpy.time import Time
 
 import tf2_ros
+import tf2_geometry_msgs
 
-from std_msgs.msg import Header
-from geometry_msgs.msg import Pose, PoseWithCovariance, Point, Quaternion
+from std_msgs.msg import Header, String
+from geometry_msgs.msg import Pose, PoseWithCovariance, Point, Quaternion, PoseStamped
 from visualization_msgs.msg import Marker, MarkerArray
+from sensor_msgs.msg import PointCloud2
 
-from pontus_msgs.msg import SemanticObject, SemanticMap
-from pontus_msgs.srv import AddSemanticObject
+from pontus_msgs.msg import SemanticObject, SemanticMap, SemanticMetaGate, SemanticMetaSlalomRow, SemanticMetaSlalom
+from pontus_msgs.srv import AddSemanticObject, AddMetaGate
 from pontus_tools.transform_helpers import convert_to_map_frame
 
 
@@ -34,6 +38,9 @@ class SemanticMapDC:
     semantic_map: SemanticMap = field(default_factory=SemanticMap)
     objects: dict[int, list[SemanticObject]] = field(init=False)
 
+    # ------ Meta Objects ------
+    meta_gate: Optional[SemanticMetaGate] = None
+    meta_slalom: Optional[SemanticMetaSlalom] = None
     def __post_init__(self):
         self.objects = {
             SemanticObject.GATE_IMAGE_SHARK: self.semantic_map.gate_image_shark,
@@ -47,6 +54,12 @@ class SemanticMapDC:
             SemanticObject.OCTAGON:          self.semantic_map.octagon,
             SemanticObject.TARGET:           self.semantic_map.target,
         }
+
+        if self.meta_gate is not None:
+            self.semantic_map.meta_gate = self.meta_gate
+
+        if self.meta_slalom:
+            self.semantic_map.meta_slalom = self.meta_slalom
 
     @staticmethod
     def check_semantic_object_duplicant(obj1: SemanticObject, obj2: SemanticObject) -> bool:
@@ -96,6 +109,33 @@ class SemanticMapDC:
 
         obj_list.append(obj)
 
+    # ------ Add Meta Objects ------
+    def add_meta_gate(self, left_gate: SemanticObject, right_gate: SemanticObject) -> None:
+        gate = SemanticMetaGate()
+
+        gate.header = Header()
+        gate.header.stamp = left_gate.header.stamp
+        gate.header.frame_id = left_gate.header.frame_id
+
+        gate.left_gate = left_gate
+        gate.right_gate = right_gate
+
+        self.meta_gate = gate
+        self.semantic_map.meta_gate = self.meta_gate
+
+    def add_meta_slalom(self, slalom_rows: List[SemanticMetaSlalomRow]) -> None:
+        slalom = SemanticMetaSlalom()
+
+        slalom.header = Header()
+        slalom.header.stamp = slalom_rows[0].slalom_red.header.stamp
+        slalom.header.frame_id = slalom_rows[0].slalom_red.header.frame_id
+
+        slalom.meta_slalom_rows = slalom_rows
+
+        self.meta_slalom = slalom
+        self.semantic_map.meta_slalom = self.meta_slalom 
+        
+
     def create_message(self) -> SemanticMap:
         """Return the SemanticMap ROS message"""
         return self.semantic_map
@@ -114,6 +154,29 @@ class SemanticMapManager(Node):
 
         super().__init__('semantic_map_manager')
 
+        # ------ Parameters ------
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('gate_width', 3.048),          # RoboSub handbook
+                ('gate_width_tolerance', 0.3),  # tolerance for pairing
+                ("slalom_white_to_white_width", 3.0), 
+                ("slalom_white_to_red_width", 1.5), 
+                ("slalom_width_tolerance", 0.3), # slalom pairing tolerance
+                ("slalom_row_tolerance", 0.3) # red slalom row deviation tolerance
+            ]
+        )
+
+        self.gate_width_m = float(self.get_parameter('gate_width').value)
+        self.gate_width_tolerance_m = float(self.get_parameter('gate_width_tolerance').value)
+        
+        self.slalom_white_to_white_width = float(self.get_parameter('slalom_white_to_white_width').value)
+        self.slalom_white_to_red_width = float(self.get_parameter('slalom_white_to_red_width').value)
+        self.slalom_width_tolerance = float(self.get_parameter("slalom_width_tolerance").value)
+        self.slalom_row_tolerance = float(self.get_parameter("slalom_row_tolerance").value)
+
+        self.row_candidates = []
+
         # Map Services
         self.add_semantic_object_srv = self.create_service(
             AddSemanticObject,
@@ -131,6 +194,12 @@ class SemanticMapManager(Node):
         self.semantic_map_visual_pub = self.create_publisher(
             MarkerArray,
             '/pontus/semantic_map_visual',
+            10
+        )
+
+        self.semantic_map_debug_pub = self.create_publisher(
+            String,
+            '/pontus/semantic_map_debug',
             10
         )
 
@@ -193,6 +262,24 @@ class SemanticMapManager(Node):
 
             self.semantic_map.add(obj)
 
+        self._update_meta_gate()
+        self._update_meta_slalom()
+
+        self.publish_semantic_map()
+
+        response.added = True
+        return response
+    
+    def add_meta_gate_callback(self,
+                               request: AddMetaGate.Request,
+                               response: AddMetaGate.Response) -> AddMetaGate.Response:
+        """
+        Add a meta_object that represents the collection of gate_sides and eventually
+        gate_pictures we group together to collectively call a "gate"
+        """
+
+        self.semantic_map.add_meta_gate(request.left_gate, request.right_gate)
+
         self.publish_semantic_map()
 
         response.added = True
@@ -230,6 +317,218 @@ class SemanticMapManager(Node):
 
         self.publish_semantic_map()
         self.semantic_map_visual_pub.publish(marker_array)
+        self.publish_semantic_map_debug()
+
+    def publish_semantic_map_debug(self) -> None:
+        """Publish a debug string listing how many objects are in each SemanticMap list."""
+        sm = self.semantic_map.semantic_map
+
+        debug_msg = String()
+        debug_msg.data = (
+            "SemanticMap counts | "
+            f"gate_image_shark={len(sm.gate_image_shark)}, "
+            f"gate_image_fish={len(sm.gate_image_fish)}, "
+            f"gate_left={len(sm.gate_left)}, "
+            f"gate_right={len(sm.gate_right)}, "
+            f"slalom_red={len(sm.slalom_red)}, "
+            f"slalom_white={len(sm.slalom_white)}, "
+            f"vertical_marker={len(sm.vertical_marker)}, "
+            f"bin={len(sm.bin)}, "
+            f"octagon={len(sm.octagon)}, "
+            f"target={len(sm.target)}, "
+            f"meta_gate_set={sm.meta_gate.header.frame_id != ''},"
+            f"meta_slalom_row_count={len(sm.meta_slalom.meta_slalom_rows)}"
+        )
+
+        self.semantic_map_debug_pub.publish(debug_msg)
+
+    def _update_meta_gate(self) -> None:
+        """
+        Look at gate side detections and, if a valid pair is found,
+        update the SemanticMetaGate in the semantic map.
+
+        Criteria:
+        - Use gate_left list
+        - Require distance between poles to be ~ gate_width_m within gate_width_tolerance_m.
+        - Use body_frame transform to decide which is left vs right.
+        """
+
+        # Lock Check: First meta_gate we find we keep set
+        if self.semantic_map.semantic_map.meta_gate.header.frame_id != "":
+            return
+
+        gate_list = self.semantic_map.semantic_map.gate_left
+
+        if len(gate_list) < 2:
+            return
+
+        candidate_pair: list[SemanticObject] | None = None
+
+        # Find a pair whose distance matches the expected gate width
+        for i in range(len(gate_list) - 1):
+            for j in range(i + 1, len(gate_list)):
+                g1 = self._pose_to_vec2(gate_list[i].pose.pose)
+                g2 = self._pose_to_vec2(gate_list[j].pose.pose)
+
+                gate_width_est = float(np.linalg.norm(g1 - g2))
+
+                if abs(gate_width_est - self.gate_width_m) <= self.gate_width_tolerance_m:
+                    candidate_pair = [gate_list[i], gate_list[j]]
+
+        if candidate_pair is None:
+            return
+
+        # Decide which is left/right relative to the robot (body_frame)
+        body_frame_poses: list[Pose] = []
+        for side in candidate_pair:
+            body_frame_side_pose = self._transform_sem_obj_to_body(side)
+            body_frame_poses.append(body_frame_side_pose)
+
+        # Higher y in body_frame is "left"
+        if body_frame_poses[0].position.y > body_frame_poses[1].position.y:
+            left_gate = candidate_pair[0]
+            right_gate = candidate_pair[1]
+        else:
+            left_gate = candidate_pair[1]
+            right_gate = candidate_pair[0]
+
+        # Actually store it in the DC + message
+        self.semantic_map.add_meta_gate(left_gate, right_gate)
+        self.get_logger().info(
+            f"Meta gate updated: left_gate at ({left_gate.pose.pose.position.x:.2f}, "
+            f"{left_gate.pose.pose.position.y:.2f}), "
+            f"right_gate at ({right_gate.pose.pose.position.x:.2f}, "
+            f"{right_gate.pose.pose.position.y:.2f})"
+        )
+
+    def _update_meta_slalom(self) -> None:
+        """
+        Look at detected slalom poles, and use expected widths and tolerances to determine slalom rows
+        """
+        
+        # TODO: implement behaviour for gate not detected or don't rely on distance to gate for ordering at all
+        if self.semantic_map.semantic_map.meta_gate.header.frame_id == "":
+            # self.get_logger().info("no gate detected")
+            return
+        
+        # if we've detected all slalom rows, don't update
+        if len(self.semantic_map.semantic_map.meta_slalom.meta_slalom_rows) == 3:
+            return
+
+        red_list = self.semantic_map.semantic_map.slalom_red
+        white_list = self.semantic_map.semantic_map.slalom_white
+
+        slalom_rows = []
+
+        if (not red_list):
+            return
+        
+        if (len(white_list) < 2):
+            return
+        
+        # TODO: Use detected sonar clusters that have correct spacing to detect slalom markers and row
+
+        left_gate = self._pose_to_vec2(self.semantic_map.semantic_map.meta_gate.left_gate.pose.pose)
+        flag = False
+        for i in range(len(white_list)):
+            for j in range(i+1, len(white_list)):
+                white1 = self._pose_to_vec2(white_list[i].pose.pose)
+                white2 = self._pose_to_vec2(white_list[j].pose.pose)
+
+                w1_to_w2_vec = white1 - white2
+                white_width = np.linalg.norm(w1_to_w2_vec)
+
+                white_diff = abs(white_width - self.slalom_white_to_white_width)
+                # skip current white pair if distances do not make sense
+                if (not white_diff <= self.slalom_width_tolerance):
+                    continue
+                
+                # self.get_logger().info(f"Valid white pair: {white_diff} width diff")
+
+                for k in range(len(red_list)):
+                    red = self._pose_to_vec2(red_list[k].pose.pose)
+                    
+                    w1_to_red = np.linalg.norm(white1 - red)
+                    w2_to_red = np.linalg.norm(white2 - red)
+
+                    w1_to_red_diff = abs(w1_to_red - self.slalom_white_to_red_width)
+                    w2_to_red_diff = abs(w2_to_red - self.slalom_white_to_red_width)
+
+                    # skip current red middle candidate if distances do not make sense
+                    if (not (w1_to_red_diff <= self.slalom_width_tolerance and w2_to_red_diff <= self.slalom_width_tolerance)):
+                        continue
+
+                    # self.get_logger().info(f"Valid red widths: \n\t{w1_to_red_diff} w1 to red diff\n\t{w2_to_red_diff} w2 to red diff")
+
+                    perp_vec = np.array([-w1_to_w2_vec[1], w1_to_w2_vec[0]])
+                    
+                    perp_unit_vec = perp_vec / white_width
+
+                    off_dist = np.dot(perp_unit_vec, red - white1)
+                    
+                    # if the slalom is close enough to the vector between white poles, we believe its in the row.
+                    if (abs(off_dist) <= self.slalom_row_tolerance):
+
+                        # self.get_logger().info(f"Valid red offset: \n\t{off_dist}")
+
+                        white_poles = [white_list[i], white_list[j]]
+
+                        red_to_gate_dist = np.linalg.norm(red - left_gate)
+
+                        slalom_row = (red_to_gate_dist, white_poles, red_list[k])
+
+                        slalom_rows.append(slalom_row)
+
+                        flag = True
+                        break
+                    
+                if flag:
+                    continue
+            if flag:
+                flag = False
+                continue
+        
+        if (not slalom_rows):
+            return
+
+        if (len(slalom_rows) > 3):
+            self.get_logger().error("PANIC: Detecting more than 3 slalom rows")
+            return
+
+        # order slaloms by distance to the gate
+        slalom_rows.sort()
+
+
+       
+            
+        log_message = "Meta slalom updated:"
+        for i in range(len(slalom_rows)):
+            
+            log_message += "\n"
+            log_message += f"\t[{i}]: \n"
+            white_one_pos = f"({slalom_rows[i][1][0].pose.pose.position.x:.2f},{slalom_rows[i][1][0].pose.pose.position.y:.2f})"
+            white_two_pos = f"({slalom_rows[i][1][1].pose.pose.position.x:.2f},{slalom_rows[i][1][1].pose.pose.position.y:.2f})"
+            red_pos = f"({slalom_rows[i][2].pose.pose.position.x:.2f},{slalom_rows[i][2].pose.pose.position.y:.2f})"
+            log_message += f"\t\twhite poles at: {white_one_pos}, {white_two_pos}"
+            log_message += "\n"
+            log_message += f"\t\tred pole at: {red_pos}"
+
+            row = SemanticMetaSlalomRow()
+            row.header = Header()
+
+            row.slaloms_white = slalom_rows[i][1]
+            row.slalom_red = slalom_rows[i][2]
+            
+            row.header.stamp = row.slalom_red.header.stamp
+            row.header.frame_id = row.slalom_red.header.frame_id
+                
+            slalom_rows[i] = row
+
+        # log it when we have more rows
+        if len(slalom_rows) > len(self.semantic_map.semantic_map.meta_slalom.meta_slalom_rows):
+            self.get_logger().info(log_message)
+        # add to semantic map
+        self.semantic_map.add_meta_slalom(slalom_rows)
 
     def _set_marker_shape(self, obj: SemanticObject, marker: Marker) -> None:
         GATE_DIAMETER_VISUAL = 0.15
@@ -356,6 +655,46 @@ class SemanticMapManager(Node):
             case _:
                 self.get_logger().info('Found marker with unknown object type, skipping')
                 marker.action = Marker.DELETE
+
+    def _pose_to_vec2(self, pose: Pose) -> np.ndarray:
+        """Convert a Pose into 2D np.array [x, y] for planar distance calculations."""
+        return np.array([pose.position.x, pose.position.y], dtype=float)
+
+    def _transform_sem_obj_to_body(self, obj: SemanticObject) -> Pose:
+        """
+        Transform a SemanticObject's pose to the robot's body_frame.
+
+        This mimics the logic in PrequalGateTask so meta_gate.left/right
+        are defined in the same way (left/right in the body frame).
+        """
+        pose_stamped = PoseStamped()
+        pose_stamped.header = obj.header
+        pose_stamped.pose = obj.pose.pose
+
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                target_frame='body_frame',
+                source_frame=pose_stamped.header.frame_id,
+                time=Time(
+                    seconds=pose_stamped.header.stamp.sec,
+                    nanoseconds=pose_stamped.header.stamp.nanosec,
+                )
+            )
+
+            pose_transformed_stamped = tf2_geometry_msgs.do_transform_pose(
+                pose_stamped,
+                transform
+            )
+
+            return pose_transformed_stamped.pose
+
+        except Exception as e:
+            self.get_logger().warn(
+                f"Failed to transform semantic object to body_frame "
+                f"(current frame: {obj.header.frame_id})"
+            )
+            self.get_logger().warn(f"exception: {e}")
+            return pose_stamped.pose
 
 
 def main(args=None):
