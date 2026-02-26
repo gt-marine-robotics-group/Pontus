@@ -1,0 +1,12 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <world name="test">
+
+    <!-- Your Octagon model at the origin -->
+    <include>
+      <uri>Octagon</uri>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+
+  </world>
+</sdf>
