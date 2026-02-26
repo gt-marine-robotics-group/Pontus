@@ -42,6 +42,26 @@
         <visualize>true</visualize>
         <topic>pontus/camera_${camera_id}/image_raw</topic>
       </sensor>
+
+      <!-- Bounding box camera that provides simulated yolo output -->
+      <sensor name="camera_${camera_id}_bounding_box" type="boundingbox_camera">
+        <topic>pontus/camera_${camera_id}/results</topic>
+        <camera>
+          <box_type>2d</box_type>
+          <horizontal_fov>1.0472</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+          </image>
+          <clip>
+            <near>0.1</near>
+            <far>100</far>
+          </clip>
+        </camera>
+         <always_on>1</always_on>
+         <update_rate>12</update_rate>
+         <visualize>true</visualize>
+       </sensor>
     </gazebo>
   </xacro:macro>
 

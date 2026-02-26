@@ -56,7 +56,21 @@ class ImageCoordinator(Node):
             'gate_fish': SemanticObject.GATE_IMAGE_FISH,
             'left_gate': SemanticObject.GATE_LEFT,
             'right_gate': SemanticObject.GATE_LEFT,
-            'vertical_marker' : SemanticObject.VERTICAL_MARKER
+            'vertical_marker' : SemanticObject.VERTICAL_MARKER,
+
+            # Names from simulator bounding box cameras have to be integers so we also map the
+            # label numbers
+            str(SemanticObject.SLALOM_RED): SemanticObject.SLALOM_RED,
+            str(SemanticObject.SLALOM_WHITE): SemanticObject.SLALOM_WHITE,
+            str(SemanticObject.GATE_IMAGE_SHARK): SemanticObject.GATE_IMAGE_SHARK,
+            str(SemanticObject.GATE_IMAGE_FISH): SemanticObject.GATE_IMAGE_FISH,
+            str(SemanticObject.GATE_LEFT): SemanticObject.GATE_LEFT,
+            str(SemanticObject.GATE_RIGHT): SemanticObject.GATE_RIGHT,
+            str(SemanticObject.VERTICAL_MARKER): SemanticObject.VERTICAL_MARKER,
+            str(SemanticObject.BIN): SemanticObject.BIN,
+            str(SemanticObject.OCTAGON): SemanticObject.OCTAGON,
+            str(SemanticObject.TARGET): SemanticObject.TARGET,
+            str(SemanticObject.PATH_MARKER): SemanticObject.PATH_MARKER
         }
 
         self.tf_buffer = Buffer()
@@ -188,6 +202,8 @@ class ImageCoordinator(Node):
                 max_confidence = result.hypothesis.score
                 highest_class = self.name_map[result.hypothesis.class_id]
         center_position = object_msg.bbox.center.position
+
+        self.get_logger().warn("Detected {}, {}".format(result.hypothesis.class_id, highest_class))
 
         # generate pose in object frame ID to define line, starting point at 0
         point = np.array([[center_position.x, center_position.y]])
