@@ -19,7 +19,7 @@ import heapq
 
 class path_planner(Node):
     def __init__(self) -> None:
-        super().__init__('occupancy_grid_manager')
+        super().__init__('path_planner')
 
         self.get_path_to_object_srv = self.create_service(
             GetPathToObject,
@@ -59,7 +59,7 @@ class path_planner(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        self.get_logger().info("Occupancy Grid started")
+        self.get_logger().info("Path Planning Service started")
 
     def occupancy_grid_callback(self, msg: OccupancyGrid) -> None:
         """
@@ -78,7 +78,6 @@ class path_planner(Node):
 
             self.latest_occupancy_grid = msg.data
             self.map_info = msg.info
-            self.current_path_update() #comment this line if you want to use a timer update time
 
     def current_pose_callback(self, msg: PoseStamped) -> None:
         """
@@ -104,7 +103,6 @@ class path_planner(Node):
         self.current_stamp = msg.header.stamp
 
         self.current_position = (msg.pose.position.x, msg.pose.position.y, msg.pose.position.z)
-        self.current_path_update() #comment this line if you want to use a timer update time
            
     def get_path_to_pose_callback(self, request: GetPathToObject.Request, response: GetPathToObject.Response) -> GetPathToObject.Response:
         """
@@ -121,7 +119,17 @@ class path_planner(Node):
 
         response_path = Path()
         response_path.header.frame_id = "map"
-        response_path.header.stamp = self.current_stamp
+        if self.current_stamp is not None:
+            response_path.header.stamp = self.current_stamp
+
+        if self.latest_occupancy_grid is None:
+            self.get_logger().warn("Occupancy Grid not initialized")
+            response.path_to_object = response_path
+            return response
+        elif self.current_position is None:
+            self.get_logger().warn("Position not initialized")
+            response.path_to_object = response_path
+            return response
 
         current_index = self.position_to_index(self.current_position[0], self.current_position[1])
         goal_position = (request.goal.pose.position.x, request.goal.pose.position.y)

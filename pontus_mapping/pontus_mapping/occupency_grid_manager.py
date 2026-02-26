@@ -158,9 +158,11 @@ class OccupancyGridManager(Node):
 
     def add_score_to_cells_within_range(self, score: np.ndarray): 
         # creates box of clearance around each point with a score in score array, could be optimized with circle of indices about a point
-        temp_score = np.zeros_like(score)
-        for i in range(score.shape[0]):
-            for j in range(score.shape[1]):
+        score_copy = np.copy(score)
+        score_copy = score_copy.reshape((self.map_width, self.map_height))
+        temp_score = np.zeros_like(score_copy)
+        for i in range(score_copy.shape[0]):
+            for j in range(score_copy.shape[1]):
                 min_x = math.floor(i - self.clearance/self.resolution)
                 min_y = math.floor(j - self.clearance/self.resolution)
                 max_x = math.ceil(i + self.clearance/self.resolution)
@@ -169,12 +171,13 @@ class OccupancyGridManager(Node):
                     min_x = 0
                 if min_y < 0: 
                     min_y = 0
-                if max_x > score.shape[0]: 
-                    max_x = score.shape[0]
-                if max_y > score.shape[1]: 
-                    max_y = score.shape[1]
+                if max_x > score_copy.shape[0]: 
+                    max_x = score_copy.shape[0]
+                if max_y > score_copy.shape[1]: 
+                    max_y = score_copy.shape[1]
 
-                temp_score[min_x:max_x, min_y:max_y] += score[i,j]
+                temp_score[min_x:max_x, min_y:max_y] += score_copy[i,j]
+        temp_score = temp_score.reshape(score.shape)
         return temp_score
 
     @staticmethod
