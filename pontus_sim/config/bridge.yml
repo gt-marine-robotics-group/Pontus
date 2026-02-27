@@ -19,6 +19,12 @@
   gz_type_name: "gz.msgs.CameraInfo"
   direction: GZ_TO_ROS
 
+- ros_topic_name: "/pontus/camera_front/yolo_results"
+  gz_topic_name: "/pontus/camera_front/results"
+  ros_type_name: "vision_msgs/msg/Detection2DArray"
+  gz_type_name: "gz.msgs.AnnotatedAxisAligned2DBox_V"
+  direction: GZ_TO_ROS
+
 # Camera Forward Right
 - ros_topic_name: "/pontus/camera_3/image_raw"
   gz_topic_name: "/pontus/camera_3/image_raw"
