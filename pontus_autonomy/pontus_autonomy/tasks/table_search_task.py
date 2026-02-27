@@ -30,6 +30,8 @@ class TableSearchTask(BaseTask):
                 ('identification_threshold', 0.4),
                 ("distance_thresh", 0.8),
                 ("convergence_thresh", 0.01),
+                ("min_rays_to_exit", 5),
+                ("min_distance_exit", 0.2)
             ]
         )
         
@@ -37,6 +39,8 @@ class TableSearchTask(BaseTask):
         self.id_threshold = self.get_parameter("identification_threshold").value
         self.distance_thresh = self.get_parameter("distance_thresh").value #The distance before getting another ray data
         self.convergance_thresh = self.get_parameter("convergence_thresh").value #Threshold of ray convergence
+        self.min_rays_to_exit = self.get_parameter("min_rays_to_exit").value #Minimum rays to capture before exiting is possible
+        self.min_distance_exit = self.get_parameter("min_distance_exit").value #min distance from current point before forfetting
         self.additional_rays = additional_rays
         self.target_object = target_object
         
@@ -239,19 +243,31 @@ class TableSearchTask(BaseTask):
                     self.finding_ray = self.update_rays()
                     self.calculate_obj_location()
                     
-        
-        #self._close_to_object()
+        if len(self.rays) <= self.min_rays_to_exit:
+            self._close_to_object()
 
     
     def _close_to_object(self):
         """
-        Detects if the sub is close to the final object position
+        Detects if the sub is close to the final object position. Ifthe difference is less than the threshold, we assume the point is wrong and exit.
+        TODO: This threshold needs to be tuned as the range of the semantic map vs how many iterations we need to recalculate the approximate convergence is unknonw
         
-        Used for simulation debugging
+        Commented code block used for simualtion object
         """
         
         if self.curr_waypoint is None:
             return
+        
+        curr_waypoint = self._pose_to_array(self.curr_waypoint)
+        curr_pose = self._get_current_position()
+        if curr_pose is None:
+            return
+        curr_position = self._pose_to_array(curr_pose)
+        diff = np.linalg.norm(curr_waypoint - curr_position)
+        if diff < self.min_distance_exit:
+            self.complete(False)
+        
+        '''       
         if not self.ascent:
             curr_waypoint = self._pose_to_array(self.curr_waypoint)
             curr_pose = self._get_current_position()
@@ -267,6 +283,7 @@ class TableSearchTask(BaseTask):
         elif self.ascent and self.go_to_pose_client.at_pose():
             self.move_command(np.array([0.0, 0.0, -2.0]))
             self.position_timer.destroy()
+        '''
         
     
                 
