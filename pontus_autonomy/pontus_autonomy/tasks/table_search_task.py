@@ -282,7 +282,7 @@ class TableSearchTask(BaseTask):
         object = getattr(msg, field)
         #self.get_logger().info(f"field: {field} type: {type(object)[0]} type: {type(msg.gate_image_fish[0].header.frame_id)}")
         if object[0].header.frame_id != "":
-            self.get_logger().info("Object detected")
+            self.get_logger().info("Object detected in semantic map")
             self.complete(True)
             
     
@@ -397,7 +397,7 @@ class TableSearchTask(BaseTask):
             for result in detection.results:
                 #TODO: Replace with actual table enumeration
                 if result.hypothesis.class_id == self.target_object and result.hypothesis.score >= self.id_threshold:
-                    self.get_logger().info(f"Rays Number: {len(self.rays)}")
+                    #self.get_logger().info(f"Rays Number: {len(self.rays)}")
                     center_position = detection.bbox.center.position
                     point = np.array([[center_position.x, center_position.y]])
                     point = np.expand_dims(point, 1)
