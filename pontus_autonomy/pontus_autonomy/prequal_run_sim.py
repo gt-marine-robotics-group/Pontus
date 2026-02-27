@@ -28,17 +28,17 @@ class PrequalificationRun(BaseRun):
         # self.get_logger().info(f"Prequal Gate Task: {result}")
 
         #Table Search Task
-        result = self.run_task(TableSearchTask)
-        self.get_logger().info(f"Table Search Task: {result}")
+        #result = self.run_task(TableSearchTask)
+        #self.get_logger().info(f"Table Search Task: {result}")
         
 
         # Gate Task Prequal
-        #result = self.run_task(PrequalGateTask)
-        #self.get_logger().info(f"Prequal Gate Task: {result}")
+        result = self.run_task(PrequalGateTask)
+        self.get_logger().info(f"Prequal Gate Task: {result}")
 
         # Marker Task Prequal
-        #result = self.run_task(PrequalVerticalMarkerTask)
-        #self.get_logger().info(f"Prequal Vertical Marker Task: {result}")
+        result = self.run_task(PrequalVerticalMarkerTask)
+        self.get_logger().info(f"Prequal Vertical Marker Task: {result}")
 
     def _define_fallback_points(self) -> list:
         """
