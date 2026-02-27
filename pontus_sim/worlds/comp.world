@@ -1429,13 +1429,24 @@
     <!--BIN TASK-->
     <include>
       <uri>Bin</uri>
-      <pose> 15.1 -3.05 -2 1.57 0 0.0</pose>
+      <pose> 15.1 -5.05 -2 1.57 0 0.0</pose>
     </include>
 
     <!--OCTAGON TASK-->
     <include>
       <uri>Octagon</uri>
       <pose> 14.1 -4.55 0 0 0 0.0</pose>
+    </include>
+
+    <include>
+      <uri>Table</uri>
+      <pose>15.1 -3.05 -1 0 0 0.0</pose>
+    </include>
+
+    <!--TORPEDO TAGGING TASK-->
+    <include>
+      <uri>TorpedoTag</uri>
+      <pose> 16.5 -5.0 -1.9 1.57 0 0</pose>
     </include>
 
   </world>

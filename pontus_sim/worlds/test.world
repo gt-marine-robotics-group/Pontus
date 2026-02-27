@@ -2,10 +2,10 @@
 <sdf version="1.9">
   <world name="test">
 
-    <!-- Your Octagon model at the origin -->
+    <!-- Your Torpedo Tagging model at the origin -->
     <include>
-      <uri>Octagon</uri>
-      <pose>0 0 0 0 0 0</pose>
+      <uri>TorpedoTag</uri>
+      <pose>0 0 0 1.57 0 0</pose>
     </include>
 
   </world>
