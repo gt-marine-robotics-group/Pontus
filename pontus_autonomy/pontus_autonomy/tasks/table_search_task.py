@@ -6,18 +6,19 @@ import rclpy
 import tf2_geometry_msgs
 
 from pontus_autonomy.tasks.base_task import BaseTask
+from rclpy.clock import Clock
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
-from geometry_msgs.msg import Pose, PoseStamped, Vector3Stamped
+from geometry_msgs.msg import Pose, Vector3Stamped, PoseStamped
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
 from vision_msgs.msg import Detection2DArray
 from sensor_msgs.msg import CameraInfo
 from tf2_ros.buffer import Buffer
 from tf2_ros import TransformListener
-from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
 from pontus_msgs.msg import SemanticMap, SemanticObject
+from pontus_msgs.srv import AddSemanticObject
 
 class TableSearchTask(BaseTask):
-    def __init__(self, fallback_point : Pose = None):
+    def __init__(self, fallback_point : Pose = None, additional_rays: bool = False, target_object: str = "gate_shark"):
         super().__init__("table_search_task")
         self.service_callback_group = MutuallyExclusiveCallbackGroup()
     
@@ -26,22 +27,19 @@ class TableSearchTask(BaseTask):
             namespace='',
             parameters=[
                 ("number_of_spins", 2),
-                ("pool_depth", 2.0),
-                ('height_from_bottom', 0.5),
                 ('identification_threshold', 0.4),
-                ('pose_threshold', 5),
-                ("ray_update_timer", 0.4),
-                ("pos_update_timer", 2)
+                ("distance_thresh", 0.8),
+                ("convergence_thresh", 0.01),
             ]
         )
         
         self.number_of_spins = self.get_parameter("number_of_spins").value
-        self.pool_depth = self.get_parameter("pool_depth").value
-        self.height_from_bottom = self.get_parameter("height_from_bottom").value
         self.id_threshold = self.get_parameter("identification_threshold").value
-        self.pose_threshold = self.get_parameter("pose_threshold").value
-        self.ray_update_timer = self.get_parameter("ray_update_timer").value
-        self.pos_update_timer = self.get_parameter("pos_update_timer").value
+        self.distance_thresh = self.get_parameter("distance_thresh").value #The distance before getting another ray data
+        self.convergance_thresh = self.get_parameter("convergence_thresh").value #Threshold of ray convergence
+        self.additional_rays = additional_rays
+        self.target_object = target_object
+        
         
         #Local Variables
         self.total_rad = self.number_of_spins * 2 *  math.pi
@@ -52,11 +50,51 @@ class TableSearchTask(BaseTask):
         self.yolo_detections : Detection2DArray = None
         self.camera_model = PinholeCameraModel()
         self.camera_initialized = False
-        self.approaching_object = False
         self.rays = []
         self.curr_waypoint : Pose = None
         self.fallback_point : Pose = fallback_point
         self.vectors = [np.array([0.0, 0.707, 0.707]), np.array([0.0, -0.707, -0.707])]
+        self.prev_position : np.array = None
+        self.finding_ray : bool = False
+        self.convergance : bool = False
+        
+        self.name_map = {
+            'gate_side': SemanticObject.GATE_LEFT,
+            'red_slalom': SemanticObject.SLALOM_RED,
+            'reef_shark': SemanticObject.GATE_IMAGE_SHARK,
+            'saw_shark': SemanticObject.GATE_IMAGE_FISH,
+            'white_slalom': SemanticObject.SLALOM_WHITE,
+            'path_marker': SemanticObject.PATH_MARKER,
+            'vertical pole': SemanticObject.VERTICAL_MARKER,
+
+            # Name from the sim yolo model is different from real apparently
+            'slalom_red': SemanticObject.SLALOM_RED,
+            'slalom_white': SemanticObject.SLALOM_WHITE,
+            'gate_shark': SemanticObject.GATE_IMAGE_SHARK,
+            'gate_fish': SemanticObject.GATE_IMAGE_FISH,
+            'left_gate': SemanticObject.GATE_LEFT,
+            'right_gate': SemanticObject.GATE_LEFT,
+            'vertical_marker' : SemanticObject.VERTICAL_MARKER
+        }
+        
+        self.field_map = {
+            'gate_side': 'gate_left',
+            'red_slalom': 'slalom_red',
+            'reef_shark': 'gate_image_shark',
+            'saw_shark': 'gate_image_fish',
+            'white_slalom': 'slalom_white',
+            'path_marker': 'path_marker',
+            'vertical pole': 'vertical_marker',
+
+            # Name from the sim yolo model is different from real apparently
+            'slalom_red': 'slalom_red',
+            'slalom_white': 'slalom_white',
+            'gate_shark': 'gate_image_shark',
+            'gate_fish': 'gate_image_fish',
+            'left_gate': 'gate_left',
+            'right_gate':  'gate_left',
+            'vertical_marker' : 'vertical_marker'
+        }
         
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -83,6 +121,11 @@ class TableSearchTask(BaseTask):
             '/pontus/semantic_map',
             self.semantic_map_callback,
             10
+        )
+        
+        self.add_semantic_object_client = self.create_client(
+            AddSemanticObject,
+            '/pontus/add_semantic_object',
         )
         
         #Timers
@@ -122,47 +165,89 @@ class TableSearchTask(BaseTask):
         """
         iterates through YOLO results for if table has been detected
         """
-        #For now, using 4 as a stand-in for slalom red. TODO: Change this to a actual constant.
         #self.get_logger().info("Starting Object Detection")
         for detection in self.yolo_detections.detections:
             for result in detection.results:
                 #self.get_logger().info(f"Class id: {result.hypothesis.class_id}, comparison: {SemanticObject.GATE_IMAGE_FISH}, score: {result.hypothesis.score}, threshold: {self.id_threshold}")
-                if result.hypothesis.class_id == "gate_shark" and result.hypothesis.score >= self.id_threshold:
+                if result.hypothesis.class_id == self.target_object and result.hypothesis.score >= self.id_threshold:
                     self.gather_data = True
                     self.turn_timer.destroy()
+                    #self.data_timer = self.create_timer(0.3, self._gather_more_data, self.service_callback_group)
                     self.delay_timer = self.create_timer(1, self._create_timer, self.service_callback_group)
                     self.get_logger().info("Found Object")
     
     def _create_timer(self):
+        """
+        Exists just for debugging since often times the object is detected before the sub fully sinks. 
+        
+        For real scenarios, comment the delay_timer line and uncomment the data_timer above
+        """
         self.data_timer = self.create_timer(0.3, self._gather_more_data, self.service_callback_group)
         self.delay_timer.destroy() 
         
     
     def _gather_more_data(self):
         """
-        Moves the sub left adn right to gather more diverse ray data
+        Moves the sub left and right to gather more diverse ray data
         """
         #self.get_logger().info("Starting Data Gathering Stage")
-
+        if not self.additional_rays:
+            if self.update_rays():
+                self.begin_approach()
+                return
         if self.curr_waypoint is None or self.go_to_pose_client.at_pose():
             if not self.update_rays():
                 return
             if len(self.vectors) == 0:
-                self.data_timer.destroy()
-                self.curr_waypoint = None
-                self.calculate_obj_location()
-                self.position_timer = self.create_timer(0.2, self._close_to_object, self.service_callback_group)
+                self.begin_approach()
                 return
             curr_vector = self.vectors.pop(0)
-            if self.curr_waypoint is not None   :
+            if self.curr_waypoint is not None:
                 curr_vector = curr_vector * 2
 
             self.curr_waypoint = curr_vector
             self.move_command(curr_vector)
     
+    def begin_approach(self):
+        """
+        Transitions from finding object to moving toward estimated points
+        """
+        self.data_timer.destroy()
+        self.curr_waypoint = None
+        self.calculate_obj_location()
+        self.position_timer = self.create_timer(0.2, self.approach, self.service_callback_group)
+        self.prev_position = self._pose_to_array(self._get_current_position())
+        
+    def approach(self):
+        """
+        Attempts to approach object and gather new ray data
+        """
+        if len(self.rays) <= 2:
+            #For the beginning, we need data. If we immediatly start moving, we need more than 1 ray and will add two for quick access
+            self.update_rays()
+            self.calculate_obj_location()
+        
+        curr_position = self._get_current_position()
+        if not curr_position is None:
+            if self.finding_ray:
+                self.finding_ray = self.update_rays()
+                self.calculate_obj_location()
+            else:
+                distance = np.linalg.norm(self._pose_to_array(curr_position) - self.prev_position)
+                if distance >= self.distance_thresh:
+                    self.prev_position = self._pose_to_array(curr_position)
+                    self.finding_ray = self.update_rays()
+                    self.calculate_obj_location()
+                    
+        
+        #self._close_to_object()
+
+    
     def _close_to_object(self):
         """
         Detects if the sub is close to the final object position
+        
+        Used for simulation debugging
         """
         
         if self.curr_waypoint is None:
@@ -175,7 +260,7 @@ class TableSearchTask(BaseTask):
             curr_position = self._pose_to_array(curr_pose)
             
             diff = np.linalg.norm(curr_waypoint - curr_position)
-            if (diff < 2): #TODO: Find a constant for the difference
+            if (diff < 1.5):
                 self.move_command(np.array([0.0, 0.0, 1.0]))
                 self.ascent = True
                 self.get_logger().info("Starting Ascent")
@@ -192,10 +277,13 @@ class TableSearchTask(BaseTask):
         Args:
             msg (SemanticMap): Semantic Map message
         """
-        #TODO: Change to value of Table object
-        #if msg.gate_image_fish.header.frame_id != "":
-        #    self.get_logger().info("Object detected")
-        #    self.complete(True)
+        #TODO: Find object using the string
+        field = self.field_map[self.target_object]
+        object = getattr(msg, field)
+        #self.get_logger().info(f"field: {field} type: {type(object)[0]} type: {type(msg.gate_image_fish[0].header.frame_id)}")
+        if object[0].header.frame_id != "":
+            self.get_logger().info("Object detected")
+            self.complete(True)
             
     
     def calculate_obj_location(self):
@@ -205,7 +293,7 @@ class TableSearchTask(BaseTask):
         A = np.zeros((3, 3))
         B = np.zeros((3, 1))
         
-        self.get_logger().info("Calculating Object Location")
+        #self.get_logger().info("Calculating Object Location")
         
         for ray in self.rays:
             projection = np.identity(3) - np.matrix(ray[1]).T @ np.matrix(ray[1])
@@ -213,16 +301,30 @@ class TableSearchTask(BaseTask):
             B += projection @  self._pose_to_matrix(ray[0]).T
         
         estimated_position = np.linalg.lstsq(A, B)[0].T[0]
-        self.get_logger().info(f"{estimated_position}")
+        #self.get_logger().info(f"{estimated_position}")
         if not self.curr_waypoint is None:
             #self.get_logger().info(f"self waypoint: {self.curr_waypoint} matrix: {self._pose_to_matrix(self.curr_waypoint)}")
             curr_waypoint = self._pose_to_array(self.curr_waypoint) #3x1 matrix 
-            self.get_logger().info(f"curr_waypoint: {curr_waypoint}")
         
             distance = np.linalg.norm(estimated_position - curr_waypoint)
-            if distance >= self.pose_threshold or self.go_to_pose_client.at_pose():
+            #self.get_logger().info(f"Distance: {distance}")
+            cmd_pose = Pose()
+            cmd_pose.position.x = estimated_position[0]
+            cmd_pose.position.y = estimated_position[1]
+            cmd_pose.position.z = estimated_position[2]
+            self.curr_waypoint = cmd_pose
+            if self.go_to_pose_client.at_pose():
                 self._send_waypoint_command(estimated_position)
+            if distance < self.convergance_thresh and not self.convergance:
+                self.convergance = True
+                #self.get_logger().info("Convergance Achieved")
+                self._send_semantic_object()
         else:
+            cmd_pose = Pose()
+            cmd_pose.position.x = estimated_position[0]
+            cmd_pose.position.y = estimated_position[1]
+            cmd_pose.position.z = estimated_position[2]
+            self.curr_waypoint = cmd_pose
             self._send_waypoint_command(estimated_position)
 
     
@@ -231,7 +333,7 @@ class TableSearchTask(BaseTask):
         converts a give pose to a 1x3 np.matrix
         
         Args:
-            pose (Pose): message with camera information
+            pose (Pose): Pose of information
         
         Returns:
             np.matrix: A matrix of the pose position
@@ -239,25 +341,48 @@ class TableSearchTask(BaseTask):
         return np.matrix([pose.position.x, pose.position.y, pose.position.z])
     
     def _pose_to_array(self, pose: Pose) -> np.array:
+        """
+        Converts a given pose to np.array
+        
+        Args:
+            pose (Pose): Pose containing position data
+        
+        Returns:
+            np.array: A array of the position data
+        """
         return np.array([pose.position.x, pose.position.y, pose.position.z])
 
+    def _send_semantic_object(self) -> None:
+        """
+        Sends a semantic object based on the current waypoint
+        """
+        req = AddSemanticObject.Request()
+        req.ids = [self.name_map[self.target_object]]
+        
+        pose_stamp = PoseStamped()
+        pose_stamp.pose = self.curr_waypoint
+        pose_stamp.header.frame_id = "world"
+        pose_stamp.header.stamp = Clock().now().to_msg()
+        
+        req.positions = [pose_stamp]
+        self.add_semantic_object_client.call_async(req)
+        #self.get_logger().info("Sent object to semantic map")
     
     def _send_waypoint_command(self, target_pos: np.ndarray) -> None:
         """
-        sends new command for sub to travel to new position
+        sends new command for sub to travel to new position based on absolute point.
         
         Args:
             target_pos (np.ndarray): position to travel to
         """
-        self.get_logger().info(f"Going to location: {target_pos}")
+        #self.get_logger().info(f"Going to location: {target_pos}")
         cmd_pose = Pose()
         cmd_pose.position.x = target_pos[0]
         cmd_pose.position.y = target_pos[1]
         cmd_pose.position.z = target_pos[2] -0.44 #Adding a constant value
-        self.get_logger().info(f"Sending the location pose: {cmd_pose}")
+        #self.get_logger().info(f"Sending the location pose: {cmd_pose}")
     
         self.go_to_pose_client.go_to_pose(pose_obj=PoseObj(cmd_pose=cmd_pose, skip_orientation=True))
-        self.curr_waypoint = cmd_pose
         
         
     def update_rays(self) -> bool:
@@ -271,8 +396,8 @@ class TableSearchTask(BaseTask):
         for detection in self.yolo_detections.detections:
             for result in detection.results:
                 #TODO: Replace with actual table enumeration
-                if result.hypothesis.class_id == "gate_shark" and result.hypothesis.score >= self.id_threshold:
-                    self.get_logger().info("Found Object in image. Updating rays")
+                if result.hypothesis.class_id == self.target_object and result.hypothesis.score >= self.id_threshold:
+                    self.get_logger().info(f"Rays Number: {len(self.rays)}")
                     center_position = detection.bbox.center.position
                     point = np.array([[center_position.x, center_position.y]])
                     point = np.expand_dims(point, 1)
@@ -293,7 +418,16 @@ class TableSearchTask(BaseTask):
                     new_ray = True
         return new_ray
     
-    def transform_ray(self, ray) -> Pose | None:
+    def transform_ray(self, ray : np.array) -> np.array | None:
+        """
+        Transforms the ray from camera frame to map frame
+        
+        Args:
+            ray (np.array) : the unit vector ray
+
+        Returns:
+            np.array | None : Returns the transformed ray as np.array or None if transform fails
+        """
         try:
             transform = self.tf_buffer.lookup_transform(
                 target_frame = "map",
@@ -318,6 +452,12 @@ class TableSearchTask(BaseTask):
             return None
     
     def _get_current_position(self) -> Pose | None:
+        """
+        Returns the current position of the sub
+        
+        Returns:
+            Pose | None : Pose of the current position or None if transform fails
+        """
         try:
             transform = self.tf_buffer.lookup_transform(
                 target_frame="map",
@@ -397,17 +537,19 @@ class TableSearchTask(BaseTask):
             
             if self.total_rad == 0:
                 self.get_logger().info("We've completed all rotations and found no table")
+                if self.fallback_point is None:
+                    self.complete(False)
                 self._send_waypoint_command(self.fallback_point)
-                #TODO: Include backup point logic and movement
+                self.begin_approach()
             else:
                 self.turn_command(self.current_rad)
                 self.total_rad -= (0.25 * 2 * math.pi)
                 
     def move_command(self, movement_vector: np.ndarray) -> None:
         """
-        Issues a movement command in the movement vector direction
+        Issues a movement command in the movement vector direction with relative movement
         """
-        self.get_logger().info(f"Movement Vector: {movement_vector}")
+        #self.get_logger().info(f"Movement Vector: {movement_vector}")
     
         
         current_pose = Pose()
@@ -420,8 +562,8 @@ class TableSearchTask(BaseTask):
         current_pose.orientation.z = 0.0
         current_pose.orientation.w = 1.0
         
-        self.get_logger().info(f"Transformed Pose: {current_pose.position}")
-        self.get_logger().info(f"Transformed Rotation: {current_pose.orientation}")
+        #self.get_logger().info(f"Transformed Pose: {current_pose.position}")
+        #self.get_logger().info(f"Transformed Rotation: {current_pose.orientation}")
         
         self.go_to_pose_client.go_to_pose(pose_obj=PoseObj(cmd_pose=current_pose, use_relative_position=True, skip_orientation=False))
         
@@ -442,7 +584,6 @@ class TableSearchTask(BaseTask):
         qx, qy, qz, qw = tf_transformations.quaternion_from_euler(
             0.0, 0.0, yaw_abs)
 
-        # HTODO: ow can we provide the current position so that it doens't change?
         cmd_pose.position.x = 0.0
         cmd_pose.position.y = 0.0
         cmd_pose.position.z = -0.44

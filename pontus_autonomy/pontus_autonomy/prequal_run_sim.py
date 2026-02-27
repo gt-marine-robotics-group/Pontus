@@ -27,7 +27,10 @@ class PrequalificationRun(BaseRun):
         # result = self.run_task(PrequalSearchTask, fallback_points)
         # self.get_logger().info(f"Prequal Gate Task: {result}")
 
+        #Table Search Task
         result = self.run_task(TableSearchTask)
+        self.get_logger().info(f"Table Search Task: {result}")
+        
 
         # Gate Task Prequal
         #result = self.run_task(PrequalGateTask)
