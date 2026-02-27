@@ -3,11 +3,20 @@ from rclpy.node import Node
 from nav_msgs.msg import OccupancyGrid
 from nav_msgs.msg import MapMetaData
 from nav_msgs.msg import Path
+from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped
 from tf2_ros import TransformListener
 from tf2_ros.buffer import Buffer
 
 from pontus_msgs.srv import GetPathToObject
+# from pontus_tools.pontus_tools import transform_helpers # what's the correct way to do this?
+
+import tf2_ros # replace this and helper function with above import
+from tf2_geometry_msgs import do_transform_pose 
+from rclpy.logging import get_logger
+from typing import Optional
+from rclpy.time import Time
+from geometry_msgs.msg import Pose
 
 import numpy as np
 import math
@@ -15,6 +24,7 @@ from copy import copy
 import heapq
 
 # PSA: Times are currently set based on the message time. This may cause issues during real running. Change the times to current time
+LOGGER = get_logger(__name__) # replace this when import is fixed
 
 
 class path_planner(Node):
@@ -34,8 +44,8 @@ class path_planner(Node):
             10
         )
 
-        self.current_pose = self.create_subscription(
-            PoseStamped,
+        self.current_odom = self.create_subscription(
+            Odometry,
             '/pontus/odometry',
             self.current_pose_callback,
             10
@@ -51,8 +61,8 @@ class path_planner(Node):
         self.current_position: tuple = None
         self.current_stamp = None
         
-        self.height_min = 0.0 # if robot below height, path to target height
-        self.height_max = 100.0
+        self.height_min = -2.0 # if robot below height, path to target height
+        self.height_max = 1.0
         self.target_height = (self.height_max + self.height_min) / 2 # currently avg b/w min and max height
         self.score_threshold = 0.1 # occupancy grid applies score to cells with cluster points inside, if score is higher than threshold, we consider it occupied
 
@@ -76,33 +86,35 @@ class path_planner(Node):
             # Comment this line if current time is desired
             self.current_stamp = msg.header.stamp
 
-            self.latest_occupancy_grid = msg.data
+            self.latest_occupancy_grid = np.array(msg.data).reshape((msg.info.width, msg.info.height))
+
             self.map_info = msg.info
 
-    def current_pose_callback(self, msg: PoseStamped) -> None:
+    def current_pose_callback(self, msg: Odometry) -> None:
         """
         Saves received PoseStamped to current_position
         Args:
         ----
         msg (PoseStamped): subscribed PoseStamped
         """
-
+        pose_msg = PoseStamped()
+        pose_msg.header = msg.header
+        pose_msg.pose = msg.pose.pose
+        
         if msg.header.frame_id != 'map':
             # transform into map frame
             try:
-                msg = self.tf_buffer.transform(
-                    msg,
-                    target_frame='map',
-                )
+                temp_pose_msg = self.convert_to_map_frame(pose_msg, self.tf_buffer)
+                pose_msg.pose = temp_pose_msg
                 # self.get_logger().info("SUCCESS ON TRANSFORM")
             except Exception as e:
-                self.get_logger().warn("failure to transform pose to map frame")
+                self.get_logger().warn(f"failure to transform pose to map frame, current pose frame: {msg.header.frame_id}, error: {str(e)}")
                 return
             
         # Comment this line if current time is desired
         self.current_stamp = msg.header.stamp
 
-        self.current_position = (msg.pose.position.x, msg.pose.position.y, msg.pose.position.z)
+        self.current_position = (pose_msg.pose.position.x, pose_msg.pose.position.y, pose_msg.pose.position.z)
            
     def get_path_to_pose_callback(self, request: GetPathToObject.Request, response: GetPathToObject.Response) -> GetPathToObject.Response:
         """
@@ -131,25 +143,25 @@ class path_planner(Node):
             response.path_to_object = response_path
             return response
 
-        current_index = self.position_to_index(self.current_position[0], self.current_position[1])
+        current_index = self.position_to_index((self.current_position[0], self.current_position[1]))
         goal_position = (request.goal.pose.position.x, request.goal.pose.position.y)
         goal_index = self.position_to_index(goal_position)
 
         try:
-            self.latest_occupancy_grid[goal_index]
+            self.latest_occupancy_grid[goal_index[0],goal_index[1]]
         except IndexError as e:
-            self.get_logger().warn("Index out of bounds: ", e)
+            self.get_logger().warn(f"Index out of bounds: {e}. Goal not within map")
             response.path_to_object = response_path
             return response
 
         path_list = []
 
-        if self.current_position[2] < self.min_height or self.current_position[2] > self.max_height: # just to be safe, adjust height
+        if self.current_position[2] < self.height_min or self.current_position[2] > self.height_max: # just to be safe, adjust height
             path_list.append(self.current_position[0], self.current_position[1], self.target_height)
          
         current_node = pathSearchRecord(current_index, path_list, 0.0, self.get_heuristic(current_index, goal_index))
 
-        heapq.heappush(open_cells,(0, current_index.node_index))
+        heapq.heappush(open_cells,(0, current_node.node_index))
         cell_record[current_node.node_index] = current_node
 
         goal_not_explored = True
@@ -170,7 +182,7 @@ class path_planner(Node):
                         if not cell_record.__contains__(index):
                             f_value = cost_so_far + self.get_heuristic(index, goal_index)
 
-                            temp_list = copy(current_node)
+                            temp_list = copy(current_node.path_to_cell)
                             temp_list.append(index)
 
                             temp_node = pathSearchRecord(index, temp_list, cost_so_far, f_value)
@@ -181,7 +193,7 @@ class path_planner(Node):
                         elif cost_so_far < cell_record[index].cost_to_reach:
                             f_value = cost_so_far + self.get_heuristic(index, goal_index)
 
-                            temp_list = copy(current_node)
+                            temp_list = copy(current_node.path_to_cell)
                             temp_list.append(index)
 
                             temp_node = pathSearchRecord(index, temp_list, cost_so_far, f_value)
@@ -248,8 +260,8 @@ class path_planner(Node):
         return math.sqrt( (adjacent_index[0] - goal_index[0])**2 + (adjacent_index[1] - goal_index[1])**2 )
     
     def position_to_index(self, position: tuple[float]) -> tuple[int]: # TODO
-        x_index = (position[0] - self.map_info.origin.position.x) // self.map_info.resolution
-        y_index = (position[1] - self.map_info.origin.position.y) // self.map_info.resolution
+        x_index = int((position[0] - self.map_info.origin.position.x) // self.map_info.resolution)
+        y_index = int((position[1] - self.map_info.origin.position.y) // self.map_info.resolution)
         return (x_index, y_index)
     
     def index_to_position(self, index: tuple[int]) -> tuple[float]:
@@ -263,6 +275,42 @@ class path_planner(Node):
                 del item_list[i]
                 break
         return item_list
+    
+    def convert_to_map_frame(self,
+        pose_stamped: PoseStamped,
+        tf_buffer: tf2_ros.Buffer,
+        target_frame: str = 'map',
+    ) -> Optional[Pose]:
+        """Transform a pose into the target frame (defaults to ``map``).
+
+        Args:
+            pose_stamped: Pose to transform.
+            tf_buffer: TF2 buffer used to look up transforms.
+            target_frame: Desired frame for the resulting pose.
+
+        Returns:
+            The transformed pose in the target frame, or ``None`` if the
+            transform was unavailable.
+        """
+        try:
+            transform = tf_buffer.lookup_transform(
+                target_frame,
+                pose_stamped.header.frame_id,
+                Time())
+        except (tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException) as exc:
+            LOGGER.warning(
+                'Failed to lookup transform from %s to %s: %s',
+                pose_stamped.header.frame_id,
+                target_frame,
+                exc,
+            )
+            return None
+        if type(pose_stamped) is PoseStamped:
+            pose_stamped = pose_stamped.pose
+        transformed = do_transform_pose(pose_stamped, transform)
+        return transformed.pose if hasattr(transformed, 'pose') else transformed
 
 class pathSearchRecord:
     def __init__(self, node_index: tuple[int], path_to_cell: list[tuple[int]], cost_to_reach: float, estimated_total_cost: float):
