@@ -18,6 +18,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/SemanticObject.msg"
   "msg/SemanticMap.msg"
   "msg/SemanticMetaGate.msg"
+  "msg/SemanticMetaSlalomRow.msg"
+  "msg/SemanticMetaSlalom.msg"
   "srv/GateSideInformation.srv"
   "srv/AddSemanticObject.srv"
   "srv/AddMetaGate.srv"
