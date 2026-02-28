@@ -138,13 +138,13 @@ class PrequalSearchTask(BaseTask):
         #How can we provide the current position so that it doens't change?
         cmd_pose.position.x = 0.0
         cmd_pose.position.y = 0.0
-        cmd_pose.position.z = -self.pool_depth + self.height_from_bottom_m
+        cmd_pose.position.z = 0.0
         
         cmd_pose.orientation.x = qx
         cmd_pose.orientation.y = qy
         cmd_pose.orientation.z = qz
         cmd_pose.orientation.w = qw
         
-        self.go_to_pose_client.go_to_pose(pose_obj=PoseObj(cmd_pose=cmd_pose, skip_orientation=False))
+        self.go_to_pose_client.go_to_pose(pose_obj=PoseObj(cmd_pose=cmd_pose, use_relative_position=True, skip_orientation=False))
         
 
