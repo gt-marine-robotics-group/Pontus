@@ -24,6 +24,9 @@
                 <cast_shadows>false</cast_shadows>
             </visual>
         </link>
+        <plugin filename="gz-sim-label-system" name="gz::sim::systems::Label">
+            <label>8</label>
+        </plugin>
         <static>true</static>
     </model>
 </sdf>
