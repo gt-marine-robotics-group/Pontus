@@ -65,7 +65,7 @@ class ImageCoordinator(Node):
             str(SemanticObject.GATE_IMAGE_SHARK): SemanticObject.GATE_IMAGE_SHARK,
             str(SemanticObject.GATE_IMAGE_FISH): SemanticObject.GATE_IMAGE_FISH,
             str(SemanticObject.GATE_LEFT): SemanticObject.GATE_LEFT,
-            str(SemanticObject.GATE_RIGHT): SemanticObject.GATE_RIGHT,
+            str(SemanticObject.GATE_RIGHT): SemanticObject.GATE_LEFT, # we currently don't distinguish between gate sides
             str(SemanticObject.VERTICAL_MARKER): SemanticObject.VERTICAL_MARKER,
             str(SemanticObject.BIN): SemanticObject.BIN,
             str(SemanticObject.OCTAGON): SemanticObject.OCTAGON,
