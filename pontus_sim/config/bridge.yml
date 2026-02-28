@@ -25,7 +25,7 @@
   gz_type_name: "gz.msgs.AnnotatedAxisAligned2DBox_V"
   direction: GZ_TO_ROS
 
-- ros_topic_name: "pontus/camera_front/image_raw/yolo_debug"
+- ros_topic_name: "pontus/camera_front/yolo_debug"
   gz_topic_name: "/pontus/bounding_box_camera_front/results_image"
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
