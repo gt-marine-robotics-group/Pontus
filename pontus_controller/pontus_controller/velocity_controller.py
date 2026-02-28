@@ -41,17 +41,14 @@ class VelocityNode(Node):
             ('yaw_kp', 0.2),
             ('yaw_ki', 0.0),
             ('yaw_kd', 0.05),
-            ('sub_mass', 34.02), # kg
-            ('sub_diameter', 0.2159), # m
-            ('sub_length', 0.6096), # m
-            ('water_density', 1000.0), # kg/m^3
-            ('gravity', 9.8), # m/s^2
-            ('x_C', 0.47),
-            ('y_C', 0.82),
-            ('z_C', 0.82),
+            ('x_C', 0.82),
+            ('y_C', 1.2),
+            ('z_C', 1.2),
             ('r_C', 0.0),
             ('p_C', 0.0),
             ('yaw_C', 4.0),
+            ('linear_drag_gain', 1.0),
+            ('angular_drag_gain', 1.0),
             ('direct_mode_linear_gain', 12.0),
             ('direct_mode_angular_gain', 0.35)
         )
@@ -205,7 +202,7 @@ class VelocityNode(Node):
 
         self.cmd_accel_pub.publish(msg)
 
-    def calculate_feedforward(self, msg: Twist) -> tuple[np.ndarray, np.ndarray]:
+    def calculate_feedforward(self, odom: Odometry) -> tuple[np.ndarray, np.ndarray]:
         """
         Calculates the feedforward term for each degree of freedom
 
@@ -221,11 +218,11 @@ class VelocityNode(Node):
         """
         # Sub Coefficients
         cross_sectional_area = np.array([
-           np.pi * (0.5 * self.vehicle_params.diameter) ** 2,
-           self.vehicle_params.length * self.vehicle_params.diameter,
-           self.vehicle_params.length * self.vehicle_params.diameter
+           np.pi * (self.vehicle_params.radius) ** 2,
+           2.0 * self.vehicle_params.length * self.vehicle_params.radius,
+           2.0 * self.vehicle_params.length * self.vehicle_params.radius
         ])
-        sub_volume = cross_sectional_area[0] * self.vehicle_params.length
+        sub_volume = self.vehicle_params.volume
 
         # Drag Coefficients
         # Values taken from: https://phys.libretexts.org/Bookshelves/Classical_Mechanics/Classical_Mechanics_(Dourmashkin)/08%3A_Applications_of_Newtons_Second_Law/8.06%3A_Drag_Forces_in_Fluids  # noqa: E501
@@ -245,14 +242,14 @@ class VelocityNode(Node):
         f_gravity = self.vehicle_params.mass * self.vehicle_params.gravity
         f_net = f_buoyancy - f_gravity
         world_acceleration_buoyancy = np.array([0.0, 0.0, f_net / self.vehicle_params.mass])
-        body_rotation_matrix = Rotation.from_quat(np.array([
-            msg.pose.pose.orientation.x,
-            msg.pose.pose.orientation.y,
-            msg.pose.pose.orientation.z,
-            msg.pose.pose.orientation.w,
-        ])).as_matrix()
+        body_rotation = Rotation.from_quat(np.array([
+            odom.pose.pose.orientation.x,
+            odom.pose.pose.orientation.y,
+            odom.pose.pose.orientation.z,
+            odom.pose.pose.orientation.w,
+        ]))
 
-        body_acceleration_buoyancy = world_acceleration_buoyancy @ body_rotation_matrix.transpose()
+        body_acceleration_buoyancy = body_rotation.inv().apply(world_acceleration_buoyancy)
 
         # TODO: The feed forward terms might also want to take into account Added Mass
 
@@ -267,8 +264,8 @@ class VelocityNode(Node):
         angular_f_drag = np.copysign(C[3:] * self.cmd_angular ** 2, self.cmd_angular)
 
         # Compute Feed Forward Terms
-        linear_ff = -body_acceleration_buoyancy + linear_f_drag
-        angular_ff = angular_f_drag
+        linear_ff = -body_acceleration_buoyancy + (self.linear_drag_gain * linear_f_drag / self.vehicle_params.mass)
+        angular_ff = (self.angular_drag_gain * angular_f_drag / self.vehicle_params.mass)
 
         return linear_ff, angular_ff
 
@@ -291,6 +288,7 @@ class VelocityNode(Node):
 
             if hasattr(self, "pid_linear") and hasattr(self, "pid_angular"):
                 split = param.name.split("_")
+                if len(split) <= 1: break
                 dof = split[0]
                 gain = split[1]
 

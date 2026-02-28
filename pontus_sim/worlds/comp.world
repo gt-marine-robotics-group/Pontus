@@ -1391,7 +1391,7 @@
     <!-- GATE TASK -->
     <include>
       <uri>Gate</uri>
-        <pose>4 0 -1.5 0.0 3.14 1.57</pose>
+      <pose>4 0 -1.5 0.0 3.14 1.57</pose>
       <!-- <pose>3.7 0.5 -1.8 1.8 0 1.57</pose> -->
       <!-- Right side -->
       <!-- <pose>4.0 -3.0 -1.5 0.0 3.14 1.0</pose> -->
@@ -1401,6 +1401,22 @@
       <!-- <pose>2.0 -5.0 -1.5 0.0 3.14 0.9</pose> -->
       <!-- Left Side -->
       <!-- <pose>3.6 3.3 -1.5 0.0 3.14 1.65</pose> -->
+    </include>
+    <include>
+      <uri>GateLeftLabel</uri>
+      <pose>4 0 -1.5 0.0 3.14 1.57</pose>
+    </include>
+    <include>
+      <uri>GateRightLabel</uri>
+      <pose>4 0 -1.5 0.0 3.14 1.57</pose>
+    </include>
+    <include>
+      <uri>GateLeftImageLabel</uri>
+      <pose>4 0 -1.5 0.0 3.14 1.57</pose>
+    </include>
+    <include>
+      <uri>GateRightImageLabel</uri>
+      <pose>4 0 -1.5 0.0 3.14 1.57</pose>
     </include>
 
     <!-- Path Marker -->
@@ -1416,14 +1432,61 @@
       <pose>6.5 3.3 -1.3716 0 0 1.57</pose>
     </include>
     <include>
+      <uri>SlalomLeftLabel</uri>
+      <name>Slalom_1_Left</name>
+      <pose>6.5 0.0 -1.3716 0 0 1.57</pose>
+    </include>
+    <include>
+      <uri>SlalomCenterLabel</uri>
+      <name>Slalom_1_Center</name>
+      <pose>6.5 0.0 -1.3716 0 0 1.57</pose>
+    </include>
+    <include>
+      <uri>SlalomRightLabel</uri>
+      <name>Slalom_1_Right</name>
+      <pose>6.5 0.0 -1.3716 0 0 1.57</pose>
+    </include>
+
+    <include>
       <uri>Slalom</uri>
       <name>Slalom_2</name>
       <pose>8.5 4.3 -1.3716 0 0 1.57</pose>
     </include>
     <include>
+      <uri>SlalomLeftLabel</uri>
+      <name>Slalom_2_Left</name>
+      <pose>8.5 1.0 -1.3716 0 0 1.57</pose>
+    </include>
+    <include>
+      <uri>SlalomCenterLabel</uri>
+      <name>Slalom_2_Center</name>
+      <pose>8.5 1.0 -1.3716 0 0 1.57</pose>
+    </include>
+    <include>
+      <uri>SlalomRightLabel</uri>
+      <name>Slalom_2_Right</name>
+      <pose>8.5 1.0 -1.3716 0 0 1.57</pose>
+    </include>
+
+    <include>
       <uri>Slalom</uri>
       <name>Slalom_3</name>
       <pose>10.5 5.3 -1.3716 0 0 1.57</pose>
+    </include>
+    <include>
+      <uri>SlalomLeftLabel</uri>
+      <name>Slalom_3_Left</name>
+      <pose>10.5 2.0 -1.3716 0 0 1.57</pose>
+    </include>
+    <include>
+      <uri>SlalomCenterLabel</uri>
+      <name>Slalom_3_Center</name>
+      <pose>10.5 2.0 -1.3716 0 0 1.57</pose>
+    </include>
+    <include>
+      <uri>SlalomRightLabel</uri>
+      <name>Slalom_3_Right</name>
+      <pose>10.5 2.0 -1.3716 0 0 1.57</pose>
     </include>
 
     <!--BIN TASK-->

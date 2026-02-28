@@ -43,6 +43,32 @@
         <topic>pontus/camera_${camera_id}/image_raw</topic>
       </sensor>
     </gazebo>
+
+    <gazebo reference="camera_${camera_id}">
+      <!-- Bounding box camera that provides simulated yolo output -->
+      <sensor name="bounding_box_${camera_id}" type="boundingbox_camera">
+        <topic>pontus/bounding_box_camera_${camera_id}/results</topic>
+        <camera name="bounding_box_camera_${camera_id}">
+          <topic>bounding_box_camera_${camera_id}</topic>
+          <box_type>2d</box_type>
+          <horizontal_fov>1.0472</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+          </image>
+          <clip>
+            <near>0.1</near>
+            <far>100</far>
+          </clip>
+          <optical_frame_id>camera_${camera_id}_optical_frame</optical_frame_id>
+          <!-- I don't think its actually using the topic name in camera_info_topic -->
+          <camera_info_topic>pontus/bounding_box_${camera_id}/camera_info</camera_info_topic>
+        </camera>
+         <always_on>1</always_on>
+         <update_rate>12</update_rate>
+         <visualize>true</visualize>
+       </sensor>
+    </gazebo>
   </xacro:macro>
 
   <!-- DVL  -->

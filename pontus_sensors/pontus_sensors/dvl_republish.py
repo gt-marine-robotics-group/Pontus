@@ -2,6 +2,8 @@
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import Imu
+from dvl_msgs.msg import DLVDR
 import tf_transformations
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from typing import Optional, List
@@ -30,9 +32,20 @@ class DvlRepub(Node):
             self.dvl_callback,
             qos_profile=qos_profile
         )
-        self.pub = self.create_publisher(
+        self.create_subscription(
+            Odometry,
+            '/dvl/position',
+            self.imu_callback,
+            qos_profile=qos_profile
+        )
+        self.dvl_pub = self.create_publisher(
             Odometry,
             '/pontus/dvl',
+            10
+        )
+        self.imu_pub = self.create_publisher(
+            Imu,
+            '/pontus/imu_dvl',
             10
         )
 
@@ -80,8 +93,39 @@ class DvlRepub(Node):
         # msg.pose.pose.position.x += transform_x * np.cos(yaw_new)
         # msg.pose.pose.position.y += transform_x * np.sin(yaw_new)
 
-        self.pub.publish(msg)
+        self.dvl_pub.publish(msg)
 
+    def imu_callback(self, msg: DVLDR) -> None:
+        """
+        Pull the actual orientation of the dvl directly from it's IMU
+        so we can use gravity to determine the absolute orientation of the vehicle
+
+        Args:
+        ----
+        msg (Odometry): the Odometry from the dvl
+
+        Return:
+        ------
+        None
+
+        """
+        imu_msg = Imu()
+
+        imu_msg.header.frame_id = 'odom'
+        imu_msg.child_frame_id = 'dvl_a50_link'
+
+        # Transform orientation
+        roll_new = np.deg2rad(msg.roll)
+        pitch_new = np.deg2rad(-msg.pitch)
+        yaw_new = np.deg2rad(-msg.yaw)
+        q_new = tf_transformations.quaternion_from_euler(roll_new, pitch_new, yaw_new)
+
+        imu_msg.pose.pose.orientation.x = q_new[0]
+        imu_msg.pose.pose.orientation.y = q_new[1]
+        imu_msg.pose.pose.orientation.z = q_new[2]
+        imu_msg.pose.pose.orientation.w = q_new[3]
+
+        self.imu_pub.publish(msg)
 
 def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)

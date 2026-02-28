@@ -23,6 +23,25 @@
                 </geometry>
                 <cast_shadows>false</cast_shadows>
             </visual>
+
+            <visual name="torpedo_image_label">
+                <pose>0.08 0.29 -0.07 0 0 0</pose>
+                <geometry>
+                    <box>
+                        <size>0.001 0.62 0.62</size>
+                    </box>
+                </geometry>
+                <cast_shadows>false</cast_shadows>
+
+                <material>
+                    <ambient>0, 0, 0, 0</ambient>
+                    <diffuse>0, 0, 0, 0</diffuse>
+                    <specular>0, 0, 0, 0</specular>
+                </material>
+                <plugin filename="gz-sim-label-system" name="gz::sim::systems::Label">
+                    <label>9</label>
+                </plugin>
+            </visual>
         </link>
         <static>true</static>
     </model>

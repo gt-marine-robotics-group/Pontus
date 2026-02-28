@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<sdf version="1.10">
+    <model name="SlalomRightLabel">
+        <cast_shadows>false</cast_shadows>
+        <link name="link">
+            <visual name="right_slalom_label">
+                <pose>-1.52 0 0.46 0 0 0</pose>
+                <geometry>
+                    <cylinder>
+                        <length>0.93</length>
+                        <radius>0.0254</radius>
+                    </cylinder>
+                </geometry>
+                <cast_shadows>false</cast_shadows>
+
+                <material>
+                    <ambient>0, 0, 0, 0</ambient>
+                    <diffuse>0, 0, 0, 0</diffuse>
+                    <specular>0, 0, 0, 0</specular>
+                </material>
+                <plugin filename="gz-sim-label-system" name="gz::sim::systems::Label">
+                    <label>5</label>
+                </plugin>
+            </visual>
+        </link>
+        <static>true</static>
+    </model>
+</sdf>

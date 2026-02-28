@@ -15,11 +15,9 @@ setup(
         (os.path.join('share', package_name, 'launch'),
          glob(os.path.join('launch', '*[pxy][yma]*'))),
 
-        (os.path.join('share', package_name, 'config/auv'),
-            glob(os.path.join('config', 'auv', '*.yaml'))),
+        (os.path.join('share', package_name, 'config'),
+            glob(os.path.join('config', '*.yaml'))),
 
-        (os.path.join('share', package_name, 'config/sim'),
-            glob(os.path.join('config', 'sim', '*.yaml'))),
         (os.path.join('share', package_name, 'test'),
             glob(os.path.join('test', '.flake8'))),
 
