@@ -3,7 +3,7 @@ import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu
-from dvl_msgs.msg import DLVDR
+from dvl_msgs.msg import DVLDR
 import tf_transformations
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from typing import Optional, List
