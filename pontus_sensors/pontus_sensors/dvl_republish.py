@@ -3,7 +3,7 @@ import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu
-from dvl_msgs.msg import DLVDR
+from dvl_msgs.msg import DVLDR
 import tf_transformations
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from typing import Optional, List
@@ -80,7 +80,8 @@ class DvlRepub(Node):
         roll_new = r
         pitch_new = -p
         yaw_new = -y
-        q_new = tf_transformations.quaternion_from_euler(roll_new, pitch_new, yaw_new)
+        q_new = tf_transformations.quaternion_from_euler(
+            roll_new, pitch_new, yaw_new)
 
         msg.pose.pose.orientation.x = q_new[0]
         msg.pose.pose.orientation.y = q_new[1]
@@ -118,7 +119,8 @@ class DvlRepub(Node):
         roll_new = np.deg2rad(msg.roll)
         pitch_new = np.deg2rad(-msg.pitch)
         yaw_new = np.deg2rad(-msg.yaw)
-        q_new = tf_transformations.quaternion_from_euler(roll_new, pitch_new, yaw_new)
+        q_new = tf_transformations.quaternion_from_euler(
+            roll_new, pitch_new, yaw_new)
 
         imu_msg.pose.pose.orientation.x = q_new[0]
         imu_msg.pose.pose.orientation.y = q_new[1]
@@ -126,6 +128,7 @@ class DvlRepub(Node):
         imu_msg.pose.pose.orientation.w = q_new[3]
 
         self.imu_pub.publish(msg)
+
 
 def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
