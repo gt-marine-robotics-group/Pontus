@@ -8,11 +8,12 @@ from launch_ros.actions import Node
 from pontus_msgs.msg import CommandMode
 import os
 
+
 def generate_launch_description():
 
     world_arg = DeclareLaunchArgument(
         'world',
-        default_value='prequal.world'
+        default_value='comp.world'
     )
     world = LaunchConfiguration('world')
 
@@ -24,10 +25,9 @@ def generate_launch_description():
 
     default_command_mode_arg = DeclareLaunchArgument(
         'default_command_mode',
-        default_value= str(CommandMode.POSITION_FACE_TRAVEL)
+        default_value=str(CommandMode.POSITION_FACE_TRAVEL)
     )
     default_command_mode = LaunchConfiguration('default_command_mode')
-
 
     localization_share = get_package_share_directory('pontus_localization')
 
@@ -39,7 +39,10 @@ def generate_launch_description():
                 'description.launch.py'
             ])
         ),
-        launch_arguments={'static': static}.items()
+        launch_arguments={
+            'static': static,
+            'sim': 'true'
+        }.items()
     )
 
     gzsim = launch.actions.IncludeLaunchDescription(

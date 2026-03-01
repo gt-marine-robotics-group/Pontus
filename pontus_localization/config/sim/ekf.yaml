@@ -119,7 +119,7 @@ ekf_filter_node:
         # for all future measurements. While you can achieve the same effect with the differential paremeter, the key
         # difference is that the relative parameter doesn't cause the measurement to be converted to a velocity before
         # integrating it. If you simply want your measurements to start at 0 for a given sensor, set this to true.
-        odom0_relative: true
+        odom0_relative: false
 
         # [ADVANCED] Whether to use the starting pose of child_frame_id as the origin of odometry.
         # Note: this is different from setting odom0_relative to true, as when child_frame is different from 

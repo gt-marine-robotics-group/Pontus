@@ -50,7 +50,7 @@ public:
     max_depth_m_ = this->declare_parameter<double>("max_depth_m", 3.5);  // keep points at most this deep
 
     cluster_tolerance_ = this->declare_parameter<double>("cluster_tolerance", 0.15);
-    cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 10);
+    cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 3);
     cluster_max_points_ = this->declare_parameter<int>("cluster_max_points", 200);
 
     line_dist_threshold_ = this->declare_parameter<double>("line_dist_threshold", 0.10);   // m

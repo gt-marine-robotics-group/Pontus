@@ -1,0 +1,12 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <world name="test">
+
+    <!-- Your Torpedo Tagging model at the origin -->
+    <include>
+      <uri>TorpedoTag</uri>
+      <pose>0 0 0 1.57 0 0</pose>
+    </include>
+
+  </world>
+</sdf>
