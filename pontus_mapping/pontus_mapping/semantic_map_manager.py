@@ -16,6 +16,7 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 from rclpy.time import Time
+from rclpy.duration import Duration
 
 import tf2_ros
 import tf2_geometry_msgs
@@ -41,6 +42,7 @@ class SemanticMapDC:
     # ------ Meta Objects ------
     meta_gate: Optional[SemanticMetaGate] = None
     meta_slalom: Optional[SemanticMetaSlalom] = None
+
     def __post_init__(self):
         self.objects = {
             SemanticObject.GATE_IMAGE_SHARK: self.semantic_map.gate_image_shark,
@@ -72,8 +74,16 @@ class SemanticMapDC:
 
         p1 = obj1.pose.pose.position
         p2 = obj2.pose.pose.position
-        dist = math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y)
-                         ** 2 + (p1.z - p2.z) ** 2)
+
+        dist = np.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2 + (p1.z - p2.z)**2)
+        # dist = np.linalg.norm(p1 - p2)
+
+        # Temporary fix for ocatgon table detections
+        if obj1.object_type == SemanticObject.OCTAGON:
+            obj1.duplicant_tolerance_m = 1.0
+
+        if obj2.object_type == SemanticObject.OCTAGON:
+            obj2.duplicant_tolerance_m = 1.0
 
         duplicant_tolerance_m = min(
             obj1.duplicant_tolerance_m, obj2.duplicant_tolerance_m)
@@ -109,6 +119,10 @@ class SemanticMapDC:
 
         obj_list.append(obj)
 
+    def remove(self, obj: SemanticObject) -> None:
+        label_list = self.objects[obj.object_type]
+        label_list.remove(obj)
+
     # ------ Add Meta Objects ------
     def add_meta_gate(self, left_gate: SemanticObject, right_gate: SemanticObject) -> None:
         gate = SemanticMetaGate()
@@ -133,12 +147,29 @@ class SemanticMapDC:
         slalom.meta_slalom_rows = slalom_rows
 
         self.meta_slalom = slalom
-        self.semantic_map.meta_slalom = self.meta_slalom 
-        
+        self.semantic_map.meta_slalom = self.meta_slalom
 
     def create_message(self) -> SemanticMap:
         """Return the SemanticMap ROS message"""
         return self.semantic_map
+
+    def get_meta_objects(self) -> List[SemanticObject]:
+        """
+        TODO: Absolutley better way to do this I'm just in a rush and can't think straight
+        """
+        output = []
+
+        if self.meta_gate:
+            output.append(self.meta_gate.left_gate)
+            output.append(self.meta_gate.right_gate)
+
+        if self.meta_slalom:
+            for row in self.meta_slalom.meta_slalom_rows:
+                output.append(row.slalom_red)
+                for white in row.slaloms_white:
+                    output.append(white)
+
+        return output
 
     def __iter__(self) -> Iterator[SemanticObject]:
         """Iterate over all semantic objects in the map"""
@@ -160,20 +191,26 @@ class SemanticMapManager(Node):
             parameters=[
                 ('gate_width', 3.048),          # RoboSub handbook
                 ('gate_width_tolerance', 0.3),  # tolerance for pairing
-                ("slalom_white_to_white_width", 3.0), 
-                ("slalom_white_to_red_width", 1.5), 
-                ("slalom_width_tolerance", 0.3), # slalom pairing tolerance
-                ("slalom_row_tolerance", 0.3) # red slalom row deviation tolerance
+                ("slalom_white_to_white_width", 3.0),
+                ("slalom_white_to_red_width", 1.5),
+                ("slalom_width_tolerance", 0.3),  # slalom pairing tolerance
+                # red slalom row deviation tolerance
+                ("slalom_row_tolerance", 0.3)
             ]
         )
 
         self.gate_width_m = float(self.get_parameter('gate_width').value)
-        self.gate_width_tolerance_m = float(self.get_parameter('gate_width_tolerance').value)
-        
-        self.slalom_white_to_white_width = float(self.get_parameter('slalom_white_to_white_width').value)
-        self.slalom_white_to_red_width = float(self.get_parameter('slalom_white_to_red_width').value)
-        self.slalom_width_tolerance = float(self.get_parameter("slalom_width_tolerance").value)
-        self.slalom_row_tolerance = float(self.get_parameter("slalom_row_tolerance").value)
+        self.gate_width_tolerance_m = float(
+            self.get_parameter('gate_width_tolerance').value)
+
+        self.slalom_white_to_white_width = float(
+            self.get_parameter('slalom_white_to_white_width').value)
+        self.slalom_white_to_red_width = float(
+            self.get_parameter('slalom_white_to_red_width').value)
+        self.slalom_width_tolerance = float(
+            self.get_parameter("slalom_width_tolerance").value)
+        self.slalom_row_tolerance = float(
+            self.get_parameter("slalom_row_tolerance").value)
 
         self.row_candidates = []
 
@@ -207,12 +244,26 @@ class SemanticMapManager(Node):
         self.map_visual_timer = self.create_timer(
             map_visual_period, self.publish_semantic_map_visual)
 
-        # TODO: put semantic_map publisher on a timer
-
         self.semantic_map = SemanticMapDC()
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+
+        self.meta_removal_threshold = 0.5
+
+        # TODO: put semantic_map publisher on a timer
+        self.create_timer(1.0, self.publish_semantic_map)
+
+        meat_clear_pose = PoseWithCovariance()
+        meat_clear_pose.pose = Pose()
+        meat_clear_pose.pose.position.x = 8.5
+        meat_clear_pose.pose.position.y = 1.0
+        meat_clear_pose.pose.position.z = -1.3716
+
+        meta_clear_test_obj = SemanticObject()
+        meta_clear_test_obj.object_type = SemanticObject.BIN
+        meta_clear_test_obj.pose = meat_clear_pose
+        self.semantic_map.add(meta_clear_test_obj)
 
     def add_semantic_object_callback(self,
                                      request: AddSemanticObject.Request,
@@ -265,11 +316,14 @@ class SemanticMapManager(Node):
         self._update_meta_gate()
         self._update_meta_slalom()
 
+        for meta_obj in self.semantic_map.get_meta_objects():
+            self._clear_around_meta_object(meta_obj)
+
         self.publish_semantic_map()
 
         response.added = True
         return response
-    
+
     def add_meta_gate_callback(self,
                                request: AddMetaGate.Request,
                                response: AddMetaGate.Response) -> AddMetaGate.Response:
@@ -312,6 +366,9 @@ class SemanticMapManager(Node):
             self._set_marker_shape(obj, marker)
 
             marker.action = Marker.ADD
+
+            # Duration it stays around
+            marker.lifetime = Duration(seconds=1.5).to_msg()
 
             marker_array.markers.append(marker)
 
@@ -392,6 +449,9 @@ class SemanticMapManager(Node):
             left_gate = candidate_pair[1]
             right_gate = candidate_pair[0]
 
+        # for gate_side in candidate_pair:
+        #     self._clear_around_meta_object(gate_side)
+
         # Actually store it in the DC + message
         self.semantic_map.add_meta_gate(left_gate, right_gate)
         self.get_logger().info(
@@ -405,12 +465,12 @@ class SemanticMapManager(Node):
         """
         Look at detected slalom poles, and use expected widths and tolerances to determine slalom rows
         """
-        
+
         # TODO: implement behaviour for gate not detected or don't rely on distance to gate for ordering at all
-        if self.semantic_map.semantic_map.meta_gate.header.frame_id == "":
-            # self.get_logger().info("no gate detected")
-            return
-        
+        # if self.semantic_map.semantic_map.meta_gate.header.frame_id == "":
+        #     # self.get_logger().info("no gate detected")
+        #     return
+
         # if we've detected all slalom rows, don't update
         if len(self.semantic_map.semantic_map.meta_slalom.meta_slalom_rows) == 3:
             return
@@ -422,13 +482,15 @@ class SemanticMapManager(Node):
 
         if (not red_list):
             return
-        
+
         if (len(white_list) < 2):
             return
-        
-        # TODO: Use detected sonar clusters that have correct spacing to detect slalom markers and row
 
-        left_gate = self._pose_to_vec2(self.semantic_map.semantic_map.meta_gate.left_gate.pose.pose)
+        # TODO: Use detected sonar clusters that have correct spacing to detect slalom markers and row
+        meta_obj_generated = []
+
+        left_gate = self._pose_to_vec2(
+            self.semantic_map.semantic_map.meta_gate.left_gate.pose.pose)
         flag = False
         for i in range(len(white_list)):
             for j in range(i+1, len(white_list)):
@@ -438,21 +500,24 @@ class SemanticMapManager(Node):
                 w1_to_w2_vec = white1 - white2
                 white_width = np.linalg.norm(w1_to_w2_vec)
 
-                white_diff = abs(white_width - self.slalom_white_to_white_width)
+                white_diff = abs(
+                    white_width - self.slalom_white_to_white_width)
                 # skip current white pair if distances do not make sense
                 if (not white_diff <= self.slalom_width_tolerance):
                     continue
-                
+
                 # self.get_logger().info(f"Valid white pair: {white_diff} width diff")
 
                 for k in range(len(red_list)):
                     red = self._pose_to_vec2(red_list[k].pose.pose)
-                    
+
                     w1_to_red = np.linalg.norm(white1 - red)
                     w2_to_red = np.linalg.norm(white2 - red)
 
-                    w1_to_red_diff = abs(w1_to_red - self.slalom_white_to_red_width)
-                    w2_to_red_diff = abs(w2_to_red - self.slalom_white_to_red_width)
+                    w1_to_red_diff = abs(
+                        w1_to_red - self.slalom_white_to_red_width)
+                    w2_to_red_diff = abs(
+                        w2_to_red - self.slalom_white_to_red_width)
 
                     # skip current red middle candidate if distances do not make sense
                     if (not (w1_to_red_diff <= self.slalom_width_tolerance and w2_to_red_diff <= self.slalom_width_tolerance)):
@@ -461,11 +526,11 @@ class SemanticMapManager(Node):
                     # self.get_logger().info(f"Valid red widths: \n\t{w1_to_red_diff} w1 to red diff\n\t{w2_to_red_diff} w2 to red diff")
 
                     perp_vec = np.array([-w1_to_w2_vec[1], w1_to_w2_vec[0]])
-                    
+
                     perp_unit_vec = perp_vec / white_width
 
                     off_dist = np.dot(perp_unit_vec, red - white1)
-                    
+
                     # if the slalom is close enough to the vector between white poles, we believe its in the row.
                     if (abs(off_dist) <= self.slalom_row_tolerance):
 
@@ -475,19 +540,25 @@ class SemanticMapManager(Node):
 
                         red_to_gate_dist = np.linalg.norm(red - left_gate)
 
-                        slalom_row = (red_to_gate_dist, white_poles, red_list[k])
+                        slalom_row = (red_to_gate_dist,
+                                      white_poles, red_list[k])
+
+                        for meta_white_slalom in white_poles:
+                            meta_obj_generated.append(meta_white_slalom)
+
+                        meta_obj_generated.append(red_list[k])
 
                         slalom_rows.append(slalom_row)
 
                         flag = True
                         break
-                    
+
                 if flag:
                     continue
             if flag:
                 flag = False
                 continue
-        
+
         if (not slalom_rows):
             return
 
@@ -495,21 +566,21 @@ class SemanticMapManager(Node):
             self.get_logger().error("PANIC: Detecting more than 3 slalom rows")
             return
 
+        # for meta_obj in meta_obj_generated:
+        #     self._clear_around_meta_object(meta_obj)
+
         # order slaloms by distance to the gate
         slalom_rows.sort()
 
-
-       
-            
         log_message = "Meta slalom updated:"
         for i in range(len(slalom_rows)):
-            
+
             log_message += "\n"
             log_message += f"\t[{i}]: \n"
-            white_one_pos = f"({slalom_rows[i][1][0].pose.pose.position.x:.2f},{slalom_rows[i][1][0].pose.pose.position.y:.2f})"
+            white_rone_pos = f"({slalom_rows[i][1][0].pose.pose.position.x:.2f},{slalom_rows[i][1][0].pose.pose.position.y:.2f})"
             white_two_pos = f"({slalom_rows[i][1][1].pose.pose.position.x:.2f},{slalom_rows[i][1][1].pose.pose.position.y:.2f})"
             red_pos = f"({slalom_rows[i][2].pose.pose.position.x:.2f},{slalom_rows[i][2].pose.pose.position.y:.2f})"
-            log_message += f"\t\twhite poles at: {white_one_pos}, {white_two_pos}"
+            # log_message += f"\t\twhite poles at: {white_one_pos}, {white_two_pos}"
             log_message += "\n"
             log_message += f"\t\tred pole at: {red_pos}"
 
@@ -518,10 +589,10 @@ class SemanticMapManager(Node):
 
             row.slaloms_white = slalom_rows[i][1]
             row.slalom_red = slalom_rows[i][2]
-            
+
             row.header.stamp = row.slalom_red.header.stamp
             row.header.frame_id = row.slalom_red.header.frame_id
-                
+
             slalom_rows[i] = row
 
         # log it when we have more rows
@@ -529,6 +600,22 @@ class SemanticMapManager(Node):
             self.get_logger().info(log_message)
         # add to semantic map
         self.semantic_map.add_meta_slalom(slalom_rows)
+
+    def _clear_around_meta_object(self, meta_obj: SemanticObject):
+
+        meta_obj_arr = self._pose_to_vec2(meta_obj.pose.pose)
+
+        for obj in self.semantic_map:
+
+            if obj == meta_obj:
+                continue
+
+            obj_pose_arr = self._pose_to_vec2(obj.pose.pose)
+
+            dist_to_meta_obj = np.linalg.norm(meta_obj_arr - obj_pose_arr)
+
+            if dist_to_meta_obj < self.meta_removal_threshold:
+                self.semantic_map.remove(obj)
 
     def _set_marker_shape(self, obj: SemanticObject, marker: Marker) -> None:
         GATE_DIAMETER_VISUAL = 0.15
@@ -624,9 +711,9 @@ class SemanticMapManager(Node):
             case SemanticObject.OCTAGON:
                 # (use a cube for now; meshes can be flaky in Foxglove)
                 marker.type = Marker.CUBE
-                marker.scale.x = 2.70
-                marker.scale.y = 2.70
-                marker.scale.z = 0.0254
+                marker.scale.x = 0.70
+                marker.scale.y = 0.70
+                marker.scale.z = 0.70
                 marker.color.r = 0.9
                 marker.color.g = 0.7
                 marker.color.b = 0.1
@@ -673,7 +760,7 @@ class SemanticMapManager(Node):
 
         try:
             transform = self.tf_buffer.lookup_transform(
-                target_frame='body_frame',
+                target_frame='body_link',
                 source_frame=pose_stamped.header.frame_id,
                 time=Time(
                     seconds=pose_stamped.header.stamp.sec,
@@ -690,7 +777,7 @@ class SemanticMapManager(Node):
 
         except Exception as e:
             self.get_logger().warn(
-                f"Failed to transform semantic object to body_frame "
+                f"Failed to transform semantic object to body_link"
                 f"(current frame: {obj.header.frame_id})"
             )
             self.get_logger().warn(f"exception: {e}")

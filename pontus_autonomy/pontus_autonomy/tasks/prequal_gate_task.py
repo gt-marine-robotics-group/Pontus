@@ -38,7 +38,7 @@ class PrequalGateTask(BaseTask):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('height_from_bottom', 0.5),
+                ('height_from_bottom', 1.0),
                 ('gate_side', 0),  # Gate side right
                 # How far should the apparoach and pass through points be to the gate
                 ('waypoint_dist_from_gate', 0.6),
@@ -123,6 +123,8 @@ class PrequalGateTask(BaseTask):
         if msg.meta_gate.header.frame_id == "":
             return
 
+        self.get_logger().info("Meta Gata detected")
+
         self.detected_gate_pair = GatePair(
             left_gate=msg.meta_gate.left_gate,
             right_gate=msg.meta_gate.right_gate
@@ -183,10 +185,16 @@ class PrequalGateTask(BaseTask):
         wp1_dist = np.linalg.norm(waypoint_1 - robot_xy)
         wp2_dist = np.linalg.norm(waypoint_2 - robot_xy)
 
+        output = None
         if wp1_dist < wp2_dist:
-            return [waypoint_1, waypoint_2]
+            output = [waypoint_1, waypoint_2]
         else:
-            return [waypoint_2, waypoint_1]
+            output = [waypoint_2, waypoint_1]
+
+        self.get_logger().info(
+            f"Waypoint 1: {output[0]}, Waypoint 2: {output[1]}")
+
+        return output
 
     def follow_path(self) -> None:
         """
@@ -205,6 +213,8 @@ class PrequalGateTask(BaseTask):
                 return
 
             target_pos_xy = self.path.pop(0)
+
+            self.get_logger().info(f"Going to: {target_pos_xy}")
             self._send_waypoint_command(target_pos_xy)
 
     def _send_waypoint_command(self, target_pos_xy: np.ndarray) -> None:

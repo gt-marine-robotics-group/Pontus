@@ -31,6 +31,8 @@ def generate_launch_description():
 
     localization_share = get_package_share_directory('pontus_localization')
 
+    mapping_share = get_package_share_directory('pontus_mapping')
+
     description = launch.actions.IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
@@ -98,9 +100,24 @@ def generate_launch_description():
         }.items()
     )
 
+    mapping = launch.actions.IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(mapping_share, 'launch',
+                         'mapping.launch.py')
+        ),
+    )
+
     dvl_republisher = Node(
         package='pontus_sensors',
         executable='dvl_republish_sim.py',
+    )
+
+    sonoptix_node = Node(
+        package='pontus_sensors',
+        executable='sonoptix_driver_node',
+        parameters=[
+            {"max_depth_m": 2.1}
+        ]
     )
 
     return LaunchDescription([
@@ -112,6 +129,8 @@ def generate_launch_description():
         spawn_vehicle,
         odom_bridge,
         controls,
+        localization,
+        mapping,
         dvl_republisher,
-        localization
+        sonoptix_node
     ])

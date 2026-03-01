@@ -41,7 +41,7 @@ class SlalomTask(BaseTask):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('height_from_bottom', 0.5),
+                ('height_from_bottom', 1.0),
                 ('slalom_side', 0),  # Go on the right of the red pole
                 # How far should the apparoach and pass through points be to the slalom poles
                 ('waypoint_dist_from_pole', 0.4),
@@ -120,6 +120,8 @@ class SlalomTask(BaseTask):
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+
+        self.get_logger().info("Starting Slalom Task")
 
 
     # Callbacks
@@ -346,7 +348,7 @@ class SlalomTask(BaseTask):
     
     def _transform_sem_obj_to_body(self, obj: SemanticObject) -> Pose:
         """
-        Transform a SemanticObject's pose to the robot's body_frame.
+        Transform a SemanticObject's pose to the robot's base_link.
 
         This mimics the logic in PrequalGateTask so meta_gate.left/right
         are defined in the same way (left/right in the body frame).
@@ -357,7 +359,7 @@ class SlalomTask(BaseTask):
 
         try:
             transform = self.tf_buffer.lookup_transform(
-                target_frame='body_link',
+                target_frame='base_link',
                 source_frame=pose_stamped.header.frame_id,
                 time=Time(
                     seconds=pose_stamped.header.stamp.sec,
@@ -374,7 +376,7 @@ class SlalomTask(BaseTask):
 
         except Exception as e:
             self.get_logger().warn(
-                f"Failed to transform semantic object to body_frame "
+                f"Failed to transform semantic object to base_link"
                 f"(current frame: {obj.header.frame_id})"
             )
             self.get_logger().warn(f"exception: {e}")

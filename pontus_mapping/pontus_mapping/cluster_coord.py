@@ -32,13 +32,16 @@ class ImageCoordinator(Node):
 
         self.latest_pointcloud: np.array = None
         # (m), width of line pointing toward object detected by yolo
-        self.line_projection_width = .2
+        self.line_projection_width = .1
         # object score must be at least this to be added to semantic map
         self.confidence_min = 0.5
-        self.vector_projection_dist = 20  # (m), how far the line is projected
+        self.vector_projection_dist = 10  # (m), how far the line is projected
         self.cam_model = PinholeCameraModel()
         self.camera_frame_name = 'camera_front'
         self.cam_initialized = False
+
+        self.min_bbox_width = 0
+        self.max_cluster_dist_m = 8.0
 
         self.name_map = {
             'gate_side': SemanticObject.GATE_LEFT,
@@ -56,7 +59,7 @@ class ImageCoordinator(Node):
             'gate_fish': SemanticObject.GATE_IMAGE_FISH,
             'left_gate': SemanticObject.GATE_LEFT,
             'right_gate': SemanticObject.GATE_LEFT,
-            'vertical_marker' : SemanticObject.VERTICAL_MARKER,
+            'vertical_marker': SemanticObject.VERTICAL_MARKER,
 
             # Names from simulator bounding box cameras have to be integers so we also map the
             # label numbers
@@ -65,7 +68,8 @@ class ImageCoordinator(Node):
             str(SemanticObject.GATE_IMAGE_SHARK): SemanticObject.GATE_IMAGE_SHARK,
             str(SemanticObject.GATE_IMAGE_FISH): SemanticObject.GATE_IMAGE_FISH,
             str(SemanticObject.GATE_LEFT): SemanticObject.GATE_LEFT,
-            str(SemanticObject.GATE_RIGHT): SemanticObject.GATE_LEFT, # we currently don't distinguish between gate sides
+            # we currently don't distinguish between gate sides
+            str(SemanticObject.GATE_RIGHT): SemanticObject.GATE_LEFT,
             str(SemanticObject.VERTICAL_MARKER): SemanticObject.VERTICAL_MARKER,
             str(SemanticObject.BIN): SemanticObject.BIN,
             str(SemanticObject.OCTAGON): SemanticObject.OCTAGON,
@@ -135,15 +139,11 @@ class ImageCoordinator(Node):
         self.debug_line_pub.publish(array_msg)
 
         for object in msg.detections:
-            temp, point_found = self.associate_object_with_point(
-                object, self.latest_pointcloud)
-            if point_found and temp[2] > self.confidence_min:
-                # self.get_logger().info("making request to add object")
-                success = self.send_request(temp[0], temp[1])
-                # if success:
-                #     self.get_logger().info("object added to semantic map")
-                # else:
-                #     self.get_logger().warn("failure to add object to semantic map")
+            if object.bbox.size_x >= self.min_bbox_width:
+                temp, point_found = self.associate_object_with_point(
+                    object, self.latest_pointcloud)
+                if point_found and temp[2] > self.confidence_min:
+                    success = self.send_request(temp[0], temp[1])
 
     def pointcloud_callback(self, msg: PointCloud2) -> None:
         """
@@ -203,7 +203,7 @@ class ImageCoordinator(Node):
                 highest_class = self.name_map[result.hypothesis.class_id]
         center_position = object_msg.bbox.center.position
 
-        self.get_logger().warn("Detected {}, {}".format(result.hypothesis.class_id, highest_class))
+        # self.get_logger().warn("Detected {}, {}".format(result.hypothesis.class_id, highest_class))
 
         # generate pose in object frame ID to define line, starting point at 0
         point = np.array([[center_position.x, center_position.y]])
@@ -249,7 +249,7 @@ class ImageCoordinator(Node):
         selected_point.x = float(relevant_points[0, 0])
         selected_point.y = float(relevant_points[0, 1])
         selected_point.z = float(relevant_points[0, 2])
-        
+
         # Get the camera ray direction in map frame (same x-axis you used to build the line)
         vector_to_object = self.get_x_axis_vector_from_pose(transformed_pose)
 
@@ -280,7 +280,7 @@ class ImageCoordinator(Node):
                 t = 0.0
 
             z_est = cam_pos[2] + t * dir_vec[2]
-            selected_point.z = float(z_est) 
+            selected_point.z = float(z_est)
 
         # create object stamped pose
         object_pose = PoseStamped()
@@ -385,8 +385,19 @@ class ImageCoordinator(Node):
         point2_array[:, 2] = 0
 
         vector_to_object = self.get_x_axis_vector_from_pose(pose)
+
         start_point = np.array(
             [pose.pose.position.x, pose.pose.position.y, 0.0], dtype=point_array.dtype)
+
+        # Range filtering
+        ranges = np.linalg.norm(point2_array - start_point, axis=1)
+        in_range = ranges <= self.max_cluster_dist_m
+
+        point_array = point_array[in_range]
+        point2_array = point2_array[in_range]
+
+        if point_array.size == 0:
+            return point_array.reshape(0, point_array.shape[1])
 
         end_point = np.array([vector_to_object.vector.x*self.vector_projection_dist + pose.pose.position.x,
                               vector_to_object.vector.y*self.vector_projection_dist + pose.pose.position.y,
@@ -401,7 +412,7 @@ class ImageCoordinator(Node):
         keys = np.argsort(distance)
         sorted_point_array = point_array[keys]
         sorted_distance_array = np.sort(distance)
-        
+
         return sorted_point_array[sorted_distance_array <= self.line_projection_width, :]
 
     @staticmethod

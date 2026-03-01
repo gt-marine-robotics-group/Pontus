@@ -1429,7 +1429,7 @@
     <include>
       <uri>Slalom</uri>
       <name>Slalom_1</name>
-      <pose>6.5 3.3 -1.3716 0 0 1.57</pose>
+      <pose>6.5 0.0 -1.3716 0 0 1.57</pose>
     </include>
     <include>
       <uri>SlalomLeftLabel</uri>
@@ -1450,7 +1450,7 @@
     <include>
       <uri>Slalom</uri>
       <name>Slalom_2</name>
-      <pose>8.5 4.3 -1.3716 0 0 1.57</pose>
+      <pose>8.5 1.0 -1.3716 0 0 1.57</pose>
     </include>
     <include>
       <uri>SlalomLeftLabel</uri>
@@ -1471,7 +1471,7 @@
     <include>
       <uri>Slalom</uri>
       <name>Slalom_3</name>
-      <pose>10.5 5.3 -1.3716 0 0 1.57</pose>
+      <pose>10.5 2.0 -1.3716 0 0 1.57</pose>
     </include>
     <include>
       <uri>SlalomLeftLabel</uri>

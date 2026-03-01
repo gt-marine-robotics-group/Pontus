@@ -54,7 +54,7 @@ public:
     cluster_max_points_ = this->declare_parameter<int>("cluster_max_points", 200);
 
     line_dist_threshold_ = this->declare_parameter<double>("line_dist_threshold", 0.10);   // m
-    line_min_inliers_    = this->declare_parameter<int>("line_min_inliers", 150);         // "big" lines
+    line_min_inliers_    = this->declare_parameter<int>("line_min_inliers", 60);         // "big" lines
     line_min_length_m_   = this->declare_parameter<double>("line_min_length", 1.0);       // length in meters
 
     rclcpp::QoS qos(rclcpp::KeepLast(1));
