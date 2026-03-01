@@ -64,7 +64,7 @@ class path_planner(Node):
         self.height_min = -2.0 # if robot below height, path to target height
         self.height_max = 1.0
         self.target_height = (self.height_max + self.height_min) / 2 # currently avg b/w min and max height
-        self.score_threshold = 0.1 # occupancy grid applies score to cells with cluster points inside, if score is higher than threshold, we consider it occupied
+        self.score_threshold = 25 # occupancy grid applies score to cells with cluster points inside, if score is higher than threshold, we consider it occupied
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -86,7 +86,7 @@ class path_planner(Node):
             # Comment this line if current time is desired
             self.current_stamp = msg.header.stamp
 
-            self.latest_occupancy_grid = np.array(msg.data).reshape((msg.info.width, msg.info.height))
+            self.latest_occupancy_grid = np.array(msg.data).reshape((msg.info.width, msg.info.height)).transpose() # needs to be transposed for some reason
 
             self.map_info = msg.info
 

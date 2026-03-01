@@ -50,7 +50,7 @@ class OccupancyGridManager(Node):
         self.point_weight = 6
         self.decay_rate = 3
 
-        self.clearance = 0.25 # meters
+        self.clearance = 0.66 # meters
 
         self.occupancy_grid: OccupancyGrid = OccupancyGrid()
         self.occupancy_grid.header.frame_id = 'map'
