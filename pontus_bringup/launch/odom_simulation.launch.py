@@ -4,12 +4,17 @@ from launch import LaunchDescription
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.actions import DeclareLaunchArgument, ExecuteProcess
-from launch_ros.actions import Node
+from launch_ros.actions import Node, SetParameter
 from pontus_msgs.msg import CommandMode
 import os
 
 
 def generate_launch_description():
+
+    set_use_sim_time_globally = SetParameter(
+        name='use_sim_time',
+        value='true'
+    )
 
     world_arg = DeclareLaunchArgument(
         'world',
@@ -121,6 +126,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        set_use_sim_time_globally, # This needs to be above all other nodes/launch files
         world_arg,
         static_arg,
         default_command_mode_arg,
