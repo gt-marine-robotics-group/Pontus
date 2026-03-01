@@ -12,6 +12,7 @@ find_package(ament_cmake_python REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/CommandMode.msg"
@@ -23,10 +24,11 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/GateSideInformation.srv"
   "srv/AddSemanticObject.srv"
   "srv/AddMetaGate.srv"
+  "srv/GetPathToObject.srv"
   "srv/SetEnum.srv"
   "action/GoToPose.action"
   "action/SearchRegion.action"
-  DEPENDENCIES std_msgs geometry_msgs
+  DEPENDENCIES std_msgs geometry_msgs nav_msgs
 )
 
 ament_get_python_install_dir(PYTHON_INSTALL_DIR)

@@ -9,6 +9,7 @@ from tf2_ros import TransformListener
 from tf2_ros.buffer import Buffer
 from tf2_sensor_msgs.tf2_sensor_msgs import do_transform_cloud
 import numpy as np
+import math
 
 from sensor_msgs.msg import PointField
 from sensor_msgs_py import point_cloud2 as pc2
@@ -48,6 +49,8 @@ class OccupancyGridManager(Node):
         self.latest_pointcloud: np.array = None
         self.point_weight = 6
         self.decay_rate = 3
+
+        self.clearance = 0.66 # meters
 
         self.occupancy_grid: OccupancyGrid = OccupancyGrid()
         self.occupancy_grid.header.frame_id = 'map'
@@ -143,6 +146,8 @@ class OccupancyGridManager(Node):
         bin[bin > 0] *= self.point_weight
         #Subtract decay_rate as decay rate is added to all cells in score
         bin[bin > 0] += self.decay_rate
+
+        bin = self.add_score_to_cells_within_range(bin)
         
         score += self.occupancy_ndarray + bin
 
@@ -150,6 +155,30 @@ class OccupancyGridManager(Node):
         score[score<0] = 0
         score[score>100] = 100
         self.occupancy_ndarray = score
+
+    def add_score_to_cells_within_range(self, score: np.ndarray): 
+        # creates box of clearance around each point with a score in score array, could be optimized with circle of indices about a point
+        score_copy = np.copy(score)
+        score_copy = score_copy.reshape((self.map_width, self.map_height))
+        temp_score = np.zeros_like(score_copy)
+        for i in range(score_copy.shape[0]):
+            for j in range(score_copy.shape[1]):
+                min_x = math.floor(i - self.clearance/self.resolution)
+                min_y = math.floor(j - self.clearance/self.resolution)
+                max_x = math.ceil(i + self.clearance/self.resolution)
+                max_y = math.ceil(j + self.clearance/self.resolution)
+                if min_x < 0: 
+                    min_x = 0
+                if min_y < 0: 
+                    min_y = 0
+                if max_x > score_copy.shape[0]: 
+                    max_x = score_copy.shape[0]
+                if max_y > score_copy.shape[1]: 
+                    max_y = score_copy.shape[1]
+
+                temp_score[min_x:max_x, min_y:max_y] += score_copy[i,j]
+        temp_score = temp_score.reshape(score.shape)
+        return temp_score
 
     @staticmethod
     def _canonicalize_cloud(cloud: PointCloud2) -> PointCloud2:
