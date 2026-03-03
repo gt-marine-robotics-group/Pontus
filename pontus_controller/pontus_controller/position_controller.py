@@ -41,17 +41,17 @@ class PositionController(Node):
 
         param_list = (
             ('default_command_mode', CommandMode.ESTOP),
-            ('x_vmax', 0.4), # m/s
-            ('y_vmax', 0.2), # m/s
-            ('yaw_vmax', 0.35), # radians/s
+            ('x_vmax', 1.0), # m/s
+            ('y_vmax', 0.8), # m/s
+            ('yaw_vmax', 2.0), # radians/s
             ('lookahead_distance', 1.0), # m
-            ('x_kp', 1.0),
+            ('x_kp', 1.5),
             ('x_ki', 0.0),
             ('x_kd', 0.0),
-            ('y_kp', 0.275),
+            ('y_kp', 0.5),
             ('y_ki', 0.0),
             ('y_kd', 0.0),
-            ('z_kp', 0.5),
+            ('z_kp', 1.5),
             ('z_ki', 0.0),
             ('z_kd', 0.0),
             ('r_kp', 0.1),
@@ -60,7 +60,7 @@ class PositionController(Node):
             ('p_kp', 0.5),
             ('p_ki', 0.0),
             ('p_kd', 0.0),
-            ('yaw_kp', 0.5),
+            ('yaw_kp', 1.5),
             ('yaw_ki', 0.0),
             ('yaw_kd', 0.0),
         )
@@ -309,11 +309,13 @@ class PositionController(Node):
             self.current_twist.angular.z,
         ])
 
+        depth_good = goal_linear_err[2] < self.depth_threshold
         orientation_good = self.skip_orientation or np.all(goal_angular_err < self.angular_thresholds)
         velocity_good = np.all(linear_vel < self.velocity_thresholds[0]) \
                            and np.all(angular_vel < self.velocity_thresholds[1])
 
         if dist_to_goal < self.linear_thresholds \
+            and depth_good \
             and orientation_good \
             and velocity_good:
             return True
@@ -350,7 +352,7 @@ class PositionController(Node):
                 state_target_linear = self.cmd_pos_linear
                 state_target_angular = state_target_angular if self.skip_orientation else self.cmd_pos_angular
             case PositionControllerState.ZCorrection:
-                state_target_linear = self.cmd_pos_linear[2]
+                state_target_linear[2] = self.cmd_pos_linear[2]
             case PositionControllerState.FaceTargetPoint:
                 state_target_linear[2] = self.cmd_pos_linear[2]
                 state_target_angular[2] = self.calculate_angle_to_target(self.cmd_pos_linear, pose_array[0:3])
