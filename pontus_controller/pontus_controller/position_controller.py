@@ -309,11 +309,13 @@ class PositionController(Node):
             self.current_twist.angular.z,
         ])
 
+        depth_good = goal_linear_err[2] < self.depth_threshold
         orientation_good = self.skip_orientation or np.all(goal_angular_err < self.angular_thresholds)
         velocity_good = np.all(linear_vel < self.velocity_thresholds[0]) \
                            and np.all(angular_vel < self.velocity_thresholds[1])
 
         if dist_to_goal < self.linear_thresholds \
+            and depth_good \
             and orientation_good \
             and velocity_good:
             return True
