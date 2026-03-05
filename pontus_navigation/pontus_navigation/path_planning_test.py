@@ -8,16 +8,10 @@ from pontus_msgs.srv import GetPathToObject
 class path_planner_tester_client(Node):
     def __init__(self) -> None:
         super().__init__('path_planner_client')
-        self.cli = self.create_client(GetPathToObject, 'path_planning_service')
+        self.cli = self.create_client(GetPathToObject, '/pontus/path_planning_service')
         while not self.cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
         
-
-        self.path_publisher = self.create_publisher(
-            Path,
-            '/pontus/path',
-            10
-        )
         
         self.req = GetPathToObject.Request()
 
@@ -25,7 +19,6 @@ class path_planner_tester_client(Node):
         self.req.goal = pose
         self.future = self.cli.call_async(self.req)
         rclpy.spin_until_future_complete(self, self.future)
-        self.path_publisher.publish(self.future.result().path_to_object)
         return self.future.result()
 
 
@@ -34,8 +27,8 @@ def main(args=None):
 
     minimal_client = path_planner_tester_client()
     test_pose = PoseStamped()
-    test_pose.pose.position.x = 5.0
-    test_pose.pose.position.y = -3.0
+    test_pose.pose.position.x = 35.0
+    test_pose.pose.position.y = 01.0
     test_pose.pose.position.z = 0.0
     response = minimal_client.send_request(test_pose)
     minimal_client.get_logger().info(

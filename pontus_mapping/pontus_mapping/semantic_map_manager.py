@@ -570,7 +570,7 @@ class SemanticMapManager(Node):
         #     self._clear_around_meta_object(meta_obj)
 
         # order slaloms by distance to the gate
-        slalom_rows.sort()
+        slalom_rows = sorted(slalom_rows, key=lambda obj:obj[0])
 
         log_message = "Meta slalom updated:"
         for i in range(len(slalom_rows)):
@@ -600,6 +600,8 @@ class SemanticMapManager(Node):
             self.get_logger().info(log_message)
         # add to semantic map
         self.semantic_map.add_meta_slalom(slalom_rows)
+
+        
 
     def _clear_around_meta_object(self, meta_obj: SemanticObject):
 

@@ -24,6 +24,7 @@ class SlalomSide(Enum):
     RIGHT = 0
     LEFT = 1
 
+
 @dataclass
 class SlalomRow:
     pole_left: SemanticObject
@@ -97,7 +98,7 @@ class SlalomTask(BaseTask):
             self.follow_path,
             self.service_callback_group
         )
-        
+
         self.path = []
 
         self.curr_waypoint = None
@@ -115,7 +116,7 @@ class SlalomTask(BaseTask):
         self.detected_slalom_rows = []
 
         self.rows_passed = 0
-    
+
         self.num_waypoints_passed = 0
 
         self.tf_buffer = tf2_ros.Buffer()
@@ -123,8 +124,8 @@ class SlalomTask(BaseTask):
 
         self.get_logger().info("Starting Slalom Task")
 
-
     # Callbacks
+
     def odom_callback(self, msg: Odometry) -> None:
         """
         Handle odom callback.
@@ -143,19 +144,23 @@ class SlalomTask(BaseTask):
         """
         self.latest_odom = msg
 
-    # Autonomy
+
     def semantic_map_callback(self, msg: SemanticMap) -> None:
-        if len(self.detected_slalom_rows) == 3:
+        # If we're already executing a plan, don't rebuild/regenerate.
+        # (But allow regeneration once the path is empty again.)
+        if len(self.detected_slalom_rows) == 3 and self.path:
             return
-        
+
+        if self.rows_passed >= 3:
+            return
+
         if self.require_all_rows and len(msg.meta_slalom.meta_slalom_rows) < 3:
-            self.get_logger().warn(f"requiring all slalom rows to be detected to proceed. Only {len(msg.meta_slalom.meta_slalom_rows)} detected.")
+            self.get_logger().warn(
+                f"requiring all slalom rows to be detected to proceed. Only {len(msg.meta_slalom.meta_slalom_rows)} detected."
+            )
             return
-        
-        # Assign left pole based on relative position to the sub
-        # assumption is then that when this task is called we will be relatively in the right position
-        
-        meta_slalom_rows: List[SemanticMetaSlalomRow] = msg.meta_slalom.meta_slalom_rows
+
+        meta_slalom_rows: List[SemanticMetaSlalomRow] = list(msg.meta_slalom.meta_slalom_rows)
 
         self.detected_slalom_rows = []
 
@@ -172,28 +177,25 @@ class SlalomTask(BaseTask):
             else:
                 pole_left = meta_row.slaloms_white[1]
                 pole_right = meta_row.slaloms_white[0]
-                
 
-            slalom_row = SlalomRow(
-                pole_left=pole_left,
-                pole_middle=meta_row.slalom_red,
-                pole_right=pole_right
+            self.detected_slalom_rows.append(
+                SlalomRow(
+                    pole_left=pole_left,
+                    pole_middle=meta_row.slalom_red,
+                    pole_right=pole_right
+                )
             )
 
-            self.detected_slalom_rows.append(slalom_row)
-
-        # we only generate new waypoints 
-        if self.latest_odom is not None and not self.path:
+        # Generate new waypoints only when we don't currently have a path to execute
+        if self.latest_odom is not None and not self.path and not self.execute_path:
             path = self.generate_waypoints(self.detected_slalom_rows[self.rows_passed:])
 
             if path:
                 self.path = path
                 self.execute_path = True
+                self.execute_turn = False
             else:
                 self.execute_turn = True
-
-
-
 
     def publish_slalom_debug(self) -> None:
         debug_msg = String()
@@ -212,18 +214,12 @@ class SlalomTask(BaseTask):
 
         self.slalom_debug_pub.publish(debug_msg)
 
+
     def follow_path(self) -> None:
-        """
-        After we generate the waypoints we switch to execute mode and follow
-        the path we have created.
-
-        Once we reach the end of this path we exit the task.
-        """
-
         self.publish_slalom_debug()
 
+        # Handle turning behavior
         if self.execute_turn and not self.turned_once:
-            
             if not self.turning:
                 self.turn(self.slalom_side)
                 self.turning = True
@@ -232,27 +228,42 @@ class SlalomTask(BaseTask):
                 self.turning = False
                 self.execute_turn = False
             return
-        elif not self.execute_path:
-            return
-        
-        # self.curr_waypoint check is for the first way_point since at_pose() would be true from previous task command
-        if self.curr_waypoint is None or self.go_to_pose_client.at_pose():
-            self.path.pop(0)
 
-            if not self.path and self.rows_passed == 3:
-                self.complete(True)
-                return
-            elif not self.path:
-                self.execute_path = False
-                return
-        
-            target_pos_xy = self.path[0]
-            self._send_waypoint_command(target_pos_xy)
-            
+        if not self.execute_path:
+            return
+
+        if not self.path:
+            # No more waypoints in current plan
+            self.execute_path = False
+            return
+
+        # First waypoint: command it (do NOT pop yet)
+        if self.curr_waypoint is None:
+            self._send_waypoint_command(self.path[0])
+            return
+
+        # If we reached the current waypoint, advance to next
+        if self.go_to_pose_client.at_pose():
+            self.path.pop(0)
             self.num_waypoints_passed += 1
+            self.get_logger().info(f"num_waypoints passed: {self.num_waypoints_passed}")
+
             if (self.num_waypoints_passed % 2 == 0):
                 self.rows_passed += 1
-                self.turned_once = False
+                self.get_logger().info(f"incremented num_rows: {self.rows_passed}")
+                self.turned_once = False  # reset per-row behavior
+
+            if not self.path:
+                if self.rows_passed >= 3:
+                    self.complete(True)
+                else:
+                    self.execute_path = False
+                    self.curr_waypoint = None
+                return
+
+            # Command next waypoint
+            self._send_waypoint_command(self.path[0])
+    
 
     def generate_waypoints(self, slalom_rows: List[SlalomRow]) -> list[np.ndarray]:
 
@@ -272,12 +283,12 @@ class SlalomTask(BaseTask):
                 p2 = self._pose_to_nparray(slalom_row.pole_right.pose.pose)
 
             row_vec = p2 - p1
-            
+
             perp_vec = np.array([-row_vec[1], row_vec[0]])
             perp_unit_vec = perp_vec / np.linalg.norm(perp_vec)
 
             passthrough_point = (p1 + p2) / 2
-            
+
             waypoint_dist = self.waypoint_dist_from_pole
 
             waypoint_delta = waypoint_dist * perp_unit_vec
@@ -293,7 +304,7 @@ class SlalomTask(BaseTask):
                 path.extend([waypoint_2, waypoint_1])
 
         return path
-    
+
     def turn(self, slalom_side: SlalomSide):
 
         cmd_pose = Pose()
@@ -307,7 +318,6 @@ class SlalomTask(BaseTask):
         quat = tf_transformations.quaternion_from_euler(
             0.0, 0.0, yaw_abs)
 
-        
         cmd_pose.position.x = self.latest_odom.pose.pose.position.x
         cmd_pose.position.y = self.latest_odom.pose.pose.position.y
         cmd_pose.position.z = self.latest_odom.pose.pose.position.z
@@ -317,7 +327,8 @@ class SlalomTask(BaseTask):
         cmd_pose.orientation.z = quat[2]
         cmd_pose.orientation.w = quat[3]
 
-        self.go_to_pose_client.go_to_pose(PoseObj(cmd_pose=cmd_pose, skip_orientation=False))
+        self.go_to_pose_client.go_to_pose(
+            PoseObj(cmd_pose=cmd_pose, skip_orientation=False))
 
     def _send_waypoint_command(self, target_pos_xy: np.ndarray) -> None:
         cmd_pose = Pose()
@@ -345,7 +356,7 @@ class SlalomTask(BaseTask):
             msg.position.y],
             dtype=float
         )
-    
+
     def _transform_sem_obj_to_body(self, obj: SemanticObject) -> Pose:
         """
         Transform a SemanticObject's pose to the robot's base_link.

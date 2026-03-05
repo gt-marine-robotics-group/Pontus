@@ -35,6 +35,9 @@ setup(
             'run_info_waypoint_visualizer = pontus_autonomy.helpers.run_info_waypoint_path_publisher:main',
             'path_marker_run = pontus_autonomy.path_marker_run:main',
             'slalom_run = pontus_autonomy.slalom_run:main',
+            'path_planning_test = pontus_autonomy.path_planning_test_run:main',
+            'octagon_surface_test = pontus_autonomy.octagon_surface_test_run:main',
+            'full_nav_run = pontus_autonomy.full_nav_run:main',
         ],
     },
 )

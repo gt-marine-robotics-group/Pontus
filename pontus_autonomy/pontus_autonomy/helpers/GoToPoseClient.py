@@ -4,13 +4,15 @@
 # current_state
 # at_pose
 
+import rclpy
 from rclpy.action import ActionClient
 from rclpy.task import Future
-from geometry_msgs.msg import Pose
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Pose, PoseStamped, Twist
+from nav_msgs.msg import Path
 
 from pontus_msgs.msg import CommandMode
 from pontus_msgs.action import GoToPose
+from pontus_msgs.srv import GetPathToObject
 from pontus_controller.position_controller import PositionControllerState
 from pontus_autonomy.base_run import BaseTask
 
@@ -21,6 +23,7 @@ class PoseObj:
                  cmd_twist: Twist = None,
                  skip_orientation: bool = False,
                  use_relative_position: bool = False,
+                 use_path_planning: bool = True,
                  command_mode: int = CommandMode.POSITION_FACE_TRAVEL):
 
         self.cmd_pose = cmd_pose
@@ -29,6 +32,7 @@ class PoseObj:
         self.command_mode = command_mode
         self.skip_orientation = skip_orientation
         self.use_relative_position = use_relative_position
+        self.use_path_planning = use_path_planning
 
 
 class GoToPoseClient:
@@ -44,6 +48,7 @@ class GoToPoseClient:
         self.current_state = PositionControllerState.MaintainPosition
         self.completed = False
         self.is_in_progress = False
+        self.node = node
 
     # Ros architecture
     def go_to_pose(self, pose_obj: PoseObj) -> None:
@@ -63,7 +68,7 @@ class GoToPoseClient:
         self.is_in_progress = True
         goal_msg: GoToPose.Goal = GoToPose.Goal()
         goal_msg.skip_orientation = pose_obj.skip_orientation
-        goal_msg.use_relative_position = pose_obj.use_relative_position
+        goal_msg.use_relative_position  = pose_obj.use_relative_position
         goal_msg.command_mode.command_mode = pose_obj.command_mode
 
         if pose_obj.cmd_pose is not None:
@@ -108,7 +113,7 @@ class GoToPoseClient:
         goal_handle = future.result()
         self.get_result_future = goal_handle.get_result_async()
         self.get_result_future.add_done_callback(self.get_result_callback)
-
+ 
     def get_result_callback(self, future: Future) -> None:
         """
         Handle the result callback future from the action server.
@@ -174,3 +179,11 @@ class GoToPoseClient:
 
         """
         return self.is_in_progress
+    
+    # def _send_path_planning_request(self, goal_pose: PoseStamped) -> Path:
+    #     request = GetPathToObject.Request()
+    #     request.goal = goal_pose
+    #     future = self.path_planner_client.call_async(request)
+    #     rclpy.spin_until_future_complete(self.node, future)
+    #     return future.result()
+        
