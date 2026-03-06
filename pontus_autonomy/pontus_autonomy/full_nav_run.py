@@ -34,15 +34,15 @@ class FullNavRun(BaseRun):
         result = self.run_task(SlalomTask)
         self.get_logger().info(f"Slalom Navigation Task: {result}")
 
-        # Return Home Task
-        self.get_logger().info("Starting Return Home")
-        result = self.run_task(ReturnHomeTask)
-        self.get_logger().info(f"Return Home Task: {result}")
-
         # Octagon Surface Task
         self.get_logger().info("Starting Octagon Surface")
         result = self.run_task(OctagonSurfaceTask)
         self.get_logger().info(f"Octagon Surface Task: {result}")
+
+        # Return Home Task
+        self.get_logger().info("Starting Return Home")
+        result = self.run_task(ReturnHomeTask)
+        self.get_logger().info(f"Return Home Task: {result}")
 
 
 

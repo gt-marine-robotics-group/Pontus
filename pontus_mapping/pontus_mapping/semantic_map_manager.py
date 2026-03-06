@@ -254,17 +254,6 @@ class SemanticMapManager(Node):
         # TODO: put semantic_map publisher on a timer
         self.create_timer(1.0, self.publish_semantic_map)
 
-        meat_clear_pose = PoseWithCovariance()
-        meat_clear_pose.pose = Pose()
-        meat_clear_pose.pose.position.x = 8.5
-        meat_clear_pose.pose.position.y = 1.0
-        meat_clear_pose.pose.position.z = -1.3716
-
-        meta_clear_test_obj = SemanticObject()
-        meta_clear_test_obj.object_type = SemanticObject.BIN
-        meta_clear_test_obj.pose = meat_clear_pose
-        self.semantic_map.add(meta_clear_test_obj)
-
     def add_semantic_object_callback(self,
                                      request: AddSemanticObject.Request,
                                      response: AddSemanticObject.Response) -> AddSemanticObject.Response:
@@ -368,7 +357,7 @@ class SemanticMapManager(Node):
             marker.action = Marker.ADD
 
             # Duration it stays around
-            marker.lifetime = Duration(seconds=1.5).to_msg()
+            marker.lifetime = Duration(seconds=5.5).to_msg()
 
             marker_array.markers.append(marker)
 
@@ -570,7 +559,7 @@ class SemanticMapManager(Node):
         #     self._clear_around_meta_object(meta_obj)
 
         # order slaloms by distance to the gate
-        slalom_rows = sorted(slalom_rows, key=lambda obj:obj[0])
+        slalom_rows = sorted(slalom_rows, key=lambda obj: obj[0])
 
         log_message = "Meta slalom updated:"
         for i in range(len(slalom_rows)):
@@ -600,8 +589,6 @@ class SemanticMapManager(Node):
             self.get_logger().info(log_message)
         # add to semantic map
         self.semantic_map.add_meta_slalom(slalom_rows)
-
-        
 
     def _clear_around_meta_object(self, meta_obj: SemanticObject):
 

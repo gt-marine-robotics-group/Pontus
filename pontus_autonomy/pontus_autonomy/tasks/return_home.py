@@ -105,25 +105,6 @@ class ReturnHomeTask(BaseTask):
         self.path_future = self.path_planning_client.call_async(request)
         self.path_future.add_done_callback(self._on_path_response)
 
-    # def replan_path_callback(self):
-    #     if not self.execute_path or not self.goal_pose:
-    #         return
-
-    #     if self.path_future is not None and not self.path_future.done():
-    #         self.get_logger().debug("Path request still in flight; skipping replan tick")
-    #         return
-
-    #     self.get_logger().info("Replanning path...")
-    #     self.get_logger().info("Sending request to path planning service")
-
-    #     request = GetPathToObject.Request()
-    #     request.goal = self.goal_pose
-
-    #     # self.execute_path = False
-
-    #     self.path_future = self.path_planning_client.call_async(request)
-    #     self.path_future.add_done_callback(self._on_path_response)
-
     def _on_path_response(self, future):
         try:
             resp = future.result()
@@ -182,25 +163,7 @@ class ReturnHomeTask(BaseTask):
 
         self.get_logger().info(
             f"Goal set from meta_gate in frame '{frame_id}': ({goal_xy[0]:.2f}, {goal_xy[1]:.2f})")
-        self.replan_path_callback()  # send the request immediately
-
-    # def semantic_map_callback(self, msg: SemanticMap) -> None:
-    #     # If we're already executing a plan, don't rebuild/regenerate.
-    #     # (But allow regeneration once the path is empty again.)
-    #     if msg.meta_gate.header.frame_id == '':
-    #         return
-
-    #     meta_gate_sides = [
-    #         self._pose_to_nparray(msg.meta_gate.left_gate.pose),
-    #         self._pose_to_nparray(msg.meta_gate.right_gate.pose)
-    #     ]
-
-    #     # Generate new waypoints only when we don't currently have a path to execute
-    #     if self.latest_odom is not None and not self.path and not self.execute_path:
-    #         self.goal_pose = (meta_gate_sides[0] + meta_gate_sides[1]) / 2
-    #         self.goal_pose[0] -= 1.0
-
-    #         self.execute_path = True
+        self.replan_path_callback()
 
     def follow_path(self) -> None:
         """
@@ -225,14 +188,17 @@ class ReturnHomeTask(BaseTask):
             target_pos_xy = np.array([target_pose.pose.position.x,
                                       target_pose.pose.position.y])
 
-            next_pose = self.path.poses[self.path_index + 1]
-            next_pos_xy = np.array([next_pose.pose.position.x,
-                                    next_pose.pose.position.y])
+            if self.path_index + 1 < len(self.path.poses):
+                next_pose = self.path.poses[self.path_index + 1]
+                next_pos_xy = np.array([next_pose.pose.position.x,
+                                        next_pose.pose.position.y])
 
-            facing_vec = next_pos_xy - target_pos_xy
-            facing_vec /= np.linalg.norm(facing_vec)
+                facing_vec = next_pos_xy - target_pos_xy
+                facing_vec /= np.linalg.norm(facing_vec)
 
-            facing_angle = np.arctan2(facing_vec[0], facing_vec[1])
+                facing_angle = np.arctan2(facing_vec[1], facing_vec[0])
+            else:
+                facing_angle = 0.0
 
             self.path_index += 1
 

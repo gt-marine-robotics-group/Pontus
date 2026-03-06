@@ -1498,19 +1498,19 @@
     <!--OCTAGON TASK-->
     <include>
       <uri>Octagon</uri>
-      <pose> 15.0 -1.3 1 0 0 0.0</pose>
+      <pose> 16.0 -3.3 1 0 0 0.0</pose>
     </include>
 
     <include>
       <uri>Table</uri>
-      <pose> 16.1 0.25 -1 0 0 0.0</pose>
+      <pose> 17.1 -2.25 -1 0 0 0.0</pose>
     </include>
 
     <!--TORPEDO TAGGING TASK-->
-    <include>
+    <!-- <include>
       <uri>TorpedoTag</uri>
       <pose> 20.0 -1.7 -1.9 1.57 0 0</pose>
-    </include>
+    </include> -->
 
   </world>
 </sdf>

@@ -32,7 +32,7 @@
           </image>
           <clip>
             <near>0.1</near>
-            <far>7</far>
+            <far>100</far>
           </clip>
           <optical_frame_id>camera_${camera_id}_optical_frame</optical_frame_id>
           <camera_info_topic>pontus/camera_${camera_id}/camera_info</camera_info_topic>
@@ -58,7 +58,7 @@
           </image>
           <clip>
             <near>0.1</near>
-            <far>40</far>
+            <far>8</far>
           </clip>
           <optical_frame_id>camera_${camera_id}_optical_frame</optical_frame_id>
           <!-- I don't think its actually using the topic name in camera_info_topic -->

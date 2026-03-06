@@ -47,8 +47,8 @@ class OccupancyGridManager(Node):
         self.map_width = self.get_parameter('map_width_cell').value
         self.map_height = self.get_parameter('map_height_cell').value
         self.latest_pointcloud: np.array = None
-        self.point_weight = 6
-        self.decay_rate = 3
+        self.point_weight = 8
+        self.decay_rate = 1
 
         self.clearance = 0.33 # meters
 
