@@ -44,17 +44,17 @@ public:
     target_frame_ = this->declare_parameter<std::string>("target_frame", "map");
     sonar_res_m_ = this->declare_parameter<double>("sonar_res", 0.0148);
     sonar_angle_rad_ = this->declare_parameter<double>("sonar_angle", M_PI / 3.0);
-    intensity_min_ = this->declare_parameter<int>("intensity_min", 1);
+    intensity_min_ = this->declare_parameter<int>("intensity_min", 10);
     normalize_intensity_ = this->declare_parameter<bool>("normalize_intensity", true);
     min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.2);   // keep points at least this deep
     max_depth_m_ = this->declare_parameter<double>("max_depth_m", 3.5);  // keep points at most this deep
 
-    cluster_tolerance_ = this->declare_parameter<double>("cluster_tolerance", 0.15);
-    cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 3);
-    cluster_max_points_ = this->declare_parameter<int>("cluster_max_points", 200);
+    cluster_tolerance_ = this->declare_parameter<double>("cluster_tolerance", 0.45);
+    cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 12);
+    cluster_max_points_ = this->declare_parameter<int>("cluster_max_points", 10000);
 
-    line_dist_threshold_ = this->declare_parameter<double>("line_dist_threshold", 0.10);   // m
-    line_min_inliers_    = this->declare_parameter<int>("line_min_inliers", 60);         // "big" lines
+    line_dist_threshold_ = this->declare_parameter<double>("line_dist_threshold", 0.20);   // m
+    line_min_inliers_    = this->declare_parameter<int>("line_min_inliers", 1000);         // "big" lines
     line_min_length_m_   = this->declare_parameter<double>("line_min_length", 1.0);       // length in meters
 
     rclcpp::QoS qos(rclcpp::KeepLast(1));
