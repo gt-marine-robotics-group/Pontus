@@ -25,6 +25,8 @@ from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker, MarkerArray
 from vision_msgs.msg import Detection2D, Detection2DArray
 
+from scipy.spatial.transform import Rotation
+
 
 class ImageCoordinator(Node):
     def __init__(self) -> None:
@@ -190,16 +192,36 @@ class ImageCoordinator(Node):
         center_position = object_msg.bbox.center.position
 
         # generate pose in object frame ID to define line, starting point at 0
-        point = np.array([[center_position.x, center_position.y]])
+        point = np.array([center_position.x, center_position.y])
         point = np.expand_dims(point, 1)
-        rectified_point = self.cam_model.rectify_point(point)
-        ray_unit_vector = self.cam_model.project_pixel_to_3d_ray(
+        # rectified_point = self.cam_model.rectify_point(point)
+        rectified_point = self.cam_model.rectifyPoint(point)
+        # ray_unit_vector = self.cam_model.project_pixel_to_3d_ray(
+        ray_unit_vector = self.cam_model.projectPixelTo3dRay(
             rectified_point)
         pose_to_object = self.align_pose_x_with_vector(
             camera_pose, ray_unit_vector)
 
         # transform pose to match point cloud frame from camera frame
         transformed_pose = self.transform_camera(pose_to_object)
+
+        original_rotation = Rotation.from_quat(np.array([
+            transformed_pose.pose.orientation.x,
+            transformed_pose.pose.orientation.y,
+            transformed_pose.pose.orientation.z,
+            transformed_pose.pose.orientation.w
+        ]))
+
+        additional_rotation = Rotation.from_euler('xyz', [0, 17, 0], degrees = True)
+
+        combined_rotation = original_rotation * additional_rotation
+
+        result_quat = combined_rotation.as_quat()
+        transformed_pose.pose.orientation.x = float(result_quat[0])
+        transformed_pose.pose.orientation.y = float(result_quat[1])
+        transformed_pose.pose.orientation.z = float(result_quat[2])
+        transformed_pose.pose.orientation.w = float(result_quat[3])
+
 
         # Debug publish lines
         array_msg = MarkerArray()
@@ -306,7 +328,7 @@ class ImageCoordinator(Node):
         # 2. Create a transform using only the orientation of the pose
         # We use a dummy transform with zero translation for this
         transform = geometry_msgs.msg.Transform(
-            translation=Point(x=0.0, y=0.0, z=0.0),
+            translation=Vector3(x=0.0, y=0.0, z=0.0),
             rotation=pose_msg.pose.orientation
         )
 

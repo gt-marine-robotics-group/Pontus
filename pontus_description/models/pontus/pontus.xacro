@@ -93,22 +93,22 @@
 
   <!-- Back Left Vertical Thruster -->
   <xacro:T200_macro thruster_id="0">
-    <origin xyz="-0.075 -${radius + 0.07} 0" rpy="0 0 0" />
+    <origin xyz="-0.075 ${radius + 0.07} 0" rpy="0 0 0" />
   </xacro:T200_macro>
 
   <!-- Back Right Vertical Thruster -->
   <xacro:T200_macro thruster_id="1">
-    <origin xyz="-0.075 ${radius + 0.07} 0" rpy="0 0 ${180*pi/180}" />
+    <origin xyz="-0.075 -${radius + 0.07} 0" rpy="0 0 ${180*pi/180}" />
   </xacro:T200_macro>
 
   <!-- Front Left Vertical Thruster -->
   <xacro:T200_macro thruster_id="2">
-    <origin xyz="0.075 -${radius + 0.07} 0" rpy="0 0 0" />
+    <origin xyz="0.075 ${radius + 0.07} 0" rpy="0 0 0" />
   </xacro:T200_macro>
 
   <!-- Front Right Vertical Thruster -->
   <xacro:T200_macro thruster_id="3">
-    <origin xyz="0.075 ${radius + 0.07} 0" rpy="0 0 ${180*pi/180}" />
+    <origin xyz="0.075 -${radius + 0.07} 0" rpy="0 0 ${180*pi/180}" />
   </xacro:T200_macro>
 
 

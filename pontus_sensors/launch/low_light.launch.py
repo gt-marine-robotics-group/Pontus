@@ -4,6 +4,8 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
+from launch_ros.actions import ComposableNodeContainer
+from launch_ros.descriptions import ComposableNode
 
 def generate_launch_description():
     pontus_sensors_share = get_package_share_directory('pontus_sensors')
@@ -19,13 +21,33 @@ def generate_launch_description():
             output='screen',
             parameters=[left_config_file],
             remappings=[
-                ('/image_raw', '/pontus/camera_2/image_raw'),
-                ('/image_raw/compressed', '/pontus/camera_2/image_raw/compressed'),
-                ('/image_raw/compressedDepth', '/pontus/camera_2/image_raw/compressedDepth'),
-                ('/image_raw/theora', '/pontus/camera_2/image_raw/theora'),
-                ('/camera_info', '/pontus/camera_2/camera_info')
+                ('/image_raw', '/pontus/camera_front/image_raw'),
+                ('/image_raw/compressed', '/pontus/camera_front/image_raw/compressed'),
+                ('/image_raw/compressedDepth', '/pontus/camera_front/image_raw/compressedDepth'),
+                ('/image_raw/theora', '/pontus/camera_front/image_raw/theora'),
+                ('/camera_info', '/pontus/camera_front/camera_info')
                 ]
         ),
+        ComposableNodeContainer(
+            name='image_proc_container',
+            namespace = '',
+            package='rclcpp_components',
+            executable='component_container',
+            composable_node_descriptions=[
+                ComposableNode(
+                    package='image_proc',
+                    # executable='image_proc',
+                    plugin='image_proc::RectifyNode',
+                    name="left_camera_proc",
+                    remappings=[
+                        ('/image', '/pontus/camera_front/image_raw'),
+                        ('camera_info', '/pontus/camera_front/camera_info'),
+                        ('/image_rect', '/pontus/camera_front/image_rect'),
+                        ('/image_rect/compressed', '/pontus/camera_front/image_rect/compressed'),
+                        ]
+                ),
+            ]
+        )
         # Node(
         #     package='usb_cam',
         #     executable='usb_cam_node_exe',
@@ -40,32 +62,32 @@ def generate_launch_description():
         #         ('/camera_info', '/pontus/camera_3/camera_info')
         #         ]
         #),
-         Node(
-             package='usb_cam',
-             executable='usb_cam_node_exe',
-             name="side_camera",
-             output='screen',
-             parameters=[angled_config_file],
-             remappings=[
-                 ('/image_raw', '/pontus/camera_4/image_raw'),
-                 ('/image_raw/compressed', '/pontus/camera_4/image_raw/compressed'),
-                 ('/image_raw/compressedDepth', '/pontus/camera_4/image_raw/compressedDepth'),
-                 ('/image_raw/theora', '/pontus/camera_4/image_raw/theora'),
-                 ('/camera_info', '/pontus/camera_4/camera_info')
-                 ]
-         ),
-         Node(
-             package='usb_cam',
-             executable='usb_cam_node_exe',
-             name="down_camera",
-             output='screen',
-             parameters=[down_config_file],
-             remappings=[
-                 ('/image_raw', '/pontus/camera_1/image_raw'),
-                 ('/image_raw/compressed', '/pontus/camera_1/image_raw/compressed'),
-                 ('/image_raw/compressedDepth', '/pontus/camera_1/image_raw/compressedDepth'),
-                 ('/image_raw/theora', '/pontus/camera_1/image_raw/theora'),
-                 ('/camera_info', '/pontus/camera_1/camera_info')
-                 ]
-         )
+        #  Node(
+        #      package='usb_cam',
+        #      executable='usb_cam_node_exe',
+        #      name="side_camera",
+        #      output='screen',
+        #      parameters=[angled_config_file],
+        #      remappings=[
+        #          ('/image_raw', '/pontus/camera_4/image_raw'),
+        #          ('/image_raw/compressed', '/pontus/camera_4/image_raw/compressed'),
+        #          ('/image_raw/compressedDepth', '/pontus/camera_4/image_raw/compressedDepth'),
+        #          ('/image_raw/theora', '/pontus/camera_4/image_raw/theora'),
+        #          ('/camera_info', '/pontus/camera_4/camera_info')
+        #          ]
+        #  ),
+        #  Node(
+        #      package='usb_cam',
+        #      executable='usb_cam_node_exe',
+        #      name="down_camera",
+        #      output='screen',
+        #      parameters=[down_config_file],
+        #      remappings=[
+        #          ('/image_raw', '/pontus/camera_1/image_raw'),
+        #          ('/image_raw/compressed', '/pontus/camera_1/image_raw/compressed'),
+        #          ('/image_raw/compressedDepth', '/pontus/camera_1/image_raw/compressedDepth'),
+        #          ('/image_raw/theora', '/pontus/camera_1/image_raw/theora'),
+        #          ('/camera_info', '/pontus/camera_1/camera_info')
+        #          ]
+        #  )
     ])

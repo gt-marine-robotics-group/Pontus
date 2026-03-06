@@ -1,9 +1,10 @@
 /**:
     ros__parameters:
-      video_device: "/dev/video8"
+      video_device: "/dev/video0"
       frame_id: "camera_1"
       pixel_format: "mjpeg2rgb"  # see usb_cam/supported_formats for list of supported formats
       # av_device_format: "M-JPEG"
+      av_device_format: "YUV422P"
       camera_name: "camera_low_light_down"
       image_height: 480
       image_width: 640

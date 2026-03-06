@@ -12,7 +12,7 @@ import numpy as np
 
 class SonoptixDriver(Node):
     def __init__(self):
-        super().__init__('sonoptix_driver')
+        super().__init__('sonoptix_driver_python')
 
         # Ros params
         self.declare_parameter('ip_address', "192.168.1.211")
@@ -93,7 +93,10 @@ class SonoptixDriver(Node):
                 ros_image = self.cv_bridge.cv2_to_imgmsg(preprocessed_image, encoding="mono8")
                 ros_image.header.frame_id = "sonar_0"
                 ros_image.header.stamp = self.get_clock().now().to_msg()
+                #self.get_logger().info(ros_image)
+
                 self.pub.publish(ros_image)
+                self.get_logger().info("After publish")
             else:
                 self.get_logger().warn("Failed to read frame")
 
