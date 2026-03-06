@@ -21,6 +21,7 @@ class PoseObj:
     def __init__(self,
                  cmd_pose: Pose = None,
                  cmd_twist: Twist = None,
+                 cmd_path: Path = None,
                  skip_orientation: bool = False,
                  use_relative_position: bool = False,
                  use_path_planning: bool = True,
@@ -28,6 +29,7 @@ class PoseObj:
 
         self.cmd_pose = cmd_pose
         self.cmd_twist = cmd_twist
+        self.cmd_path = cmd_path
 
         self.command_mode = command_mode
         self.skip_orientation = skip_orientation
@@ -75,6 +77,8 @@ class GoToPoseClient:
             goal_msg.desired_pose = pose_obj.cmd_pose
         if pose_obj.cmd_twist is not None:
             goal_msg.desired_twist = pose_obj.cmd_twist
+        if pose_obj.cmd_path is not None:
+            goal_msg.desired_path = pose_obj.cmd_path
 
         self.send_goal_future = self.action_client.send_goal_async(
             goal_msg,

@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- TODO: Get a mesh file
+  <xacro:property name="dropper_mesh" value="file://$(find pontus_description)/models/pontus/meshes/???"/>
+  -->
+
+  <xacro:macro name="dropper_macro" params="dropper_id *origin">
+
+    <link name="dropper_${dropper_id}">
+      <visual>
+        <xacro:insert_block name="origin"/>
+        <geometry>
+          <cylinder length="0.01" radius="0.01"/>
+        </geometry>
+        <material name="Yellow">
+          <color rgba="1.0 1.0 0.0 1.0"/>
+        </material>
+      </visual>
+    </link>
+
+    <gazebo>
+      <plugin filename="gz-sim-detachable-joint-system"
+                name="gz::sim::systems::DetachableJoint">
+        <parent_link>base_link</parent_link>
+        <child_model>pontus</child_model>
+        <child_link>"dropper_${dropper_id}"</child_link>
+        <detach_topic>/pontus/dropper_0</detach_topic>
+        <suppress_child_warning>true</suppress_child_warning>
+      </plugin>
+    </gazebo>
+  </xacro:macro>
+
+</robot>

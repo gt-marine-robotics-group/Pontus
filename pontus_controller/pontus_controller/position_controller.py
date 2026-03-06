@@ -10,7 +10,7 @@ import tf_transformations
 from scipy.spatial.transform import Rotation
 
 from std_msgs.msg import Header
-from nav_msgs.msg import Odometry
+from nav_msgs.msg import Odometry, Path
 from geometry_msgs.msg import Twist, Pose, PoseStamped
 from pontus_msgs.msg import CommandMode
 from pontus_msgs.message_enums import CommandModeEnum
@@ -41,9 +41,9 @@ class PositionController(Node):
 
         param_list = (
             ('default_command_mode', CommandMode.ESTOP),
-            ('x_vmax', 1.0), # m/s
+            ('x_vmax', 0.8), # m/s
             ('y_vmax', 0.8), # m/s
-            ('yaw_vmax', 2.0), # radians/s
+            ('yaw_vmax', 4.0), # radians/s
             ('lookahead_distance', 1.0), # m
             ('x_kp', 1.5),
             ('x_ki', 0.0),
@@ -60,7 +60,7 @@ class PositionController(Node):
             ('p_kp', 0.5),
             ('p_ki', 0.0),
             ('p_kd', 0.0),
-            ('yaw_kp', 1.5),
+            ('yaw_kp', 3.0),
             ('yaw_ki', 0.0),
             ('yaw_kd', 0.0),
         )
@@ -112,6 +112,12 @@ class PositionController(Node):
             10
         )
 
+        self.debug_path_pub = self.create_publisher(
+            Path,
+            '/debug/path_command',
+            10
+        )
+
         self.prev_time = self.get_clock().now()
 
         self.add_on_set_parameters_callback(self.param_callback)
@@ -137,6 +143,9 @@ class PositionController(Node):
         self.cmd_pos_angular = np.zeros(3)
         self.cmd_vel = np.zeros(6)
 
+        self.cmd_path = None
+        self.numpy_path = np.array([])
+
         self.start_pose = np.zeros(6)
 
         self.current_pose = Pose()
@@ -147,9 +156,9 @@ class PositionController(Node):
         # but easily reset to default
 
         # Acceptable error for each dof
-        self.linear_thresholds = 0.5 # m
+        self.linear_thresholds = 0.2 # m
         self.depth_threshold = 0.2 # m
-        self.angular_thresholds = np.array([0.1, 0.1, 0.1]) # r, p, y
+        self.angular_thresholds = np.array([0.1, 0.1, 0.5]) # r, p, y
         self.velocity_thresholds = np.array([0.1, 0.3]) # linear, angular
 
         self.skip_orientation = False
@@ -191,6 +200,7 @@ class PositionController(Node):
         self.command_mode_callback(request.command_mode)
         self.cmd_pos_callback(request.desired_pose, request.use_relative_position)
         self.cmd_vel_callback(request.desired_twist)
+        self.cmd_path_callback(request.desired_path)
         self.skip_orientation = request.skip_orientation
 
         feedback_msg = GoToPose.Feedback()
@@ -261,6 +271,9 @@ class PositionController(Node):
         self.cmd_pos_linear = cmd_pos_new
         self.cmd_pos_angular = cmd_ang_new
 
+        self.cmd_path = None
+        self.numpy_path = np.array([])
+
         debug_msg = PoseStamped()
         if header is not None:
             debug_msg.header = header
@@ -269,6 +282,24 @@ class PositionController(Node):
             debug_msg.header.frame_id = "map"
         debug_msg.pose = msg
         self.debug_pose_pub.publish(debug_msg)
+
+    def cmd_path_callback(self, msg: Path):
+        if len(msg.poses) == 0:
+            return
+        self.cmd_path = msg
+        self.cmd_path.header.stamp = self.get_clock().now().to_msg()
+        self.cmd_path.header.frame_id = "map"
+        self.numpy_path = np.empty((0,3))
+        for pose in msg.poses:
+            self.numpy_path = np.vstack(
+                (self.numpy_path,
+                np.array([[
+                    pose.pose.position.x,
+                    pose.pose.position.y,
+                    pose.pose.position.z
+                ]]))
+            )
+        self.debug_path_pub(self.cmd_path)
 
     def rviz_pose_callback(self, msg: PoseStamped):
         # TODO: technically the command may not be in map frame,
@@ -292,6 +323,11 @@ class PositionController(Node):
         ------
         bool: Whether or not the commanded position has been reached
         """
+
+        # Instantly return if we are still in the middle of a path
+        if self.cmd_path is not None:
+            return False
+
         pose_array = self.get_current_pose_array()
 
         goal_linear_err = self.calculate_linear_error(self.cmd_pos_linear, pose_array[0:3])
@@ -342,6 +378,9 @@ class PositionController(Node):
 
         self.state = self.calculate_state(pose_array)
         self.state_debugger()
+
+        if self.cmd_path is not None:
+            self.calculate_path_target_point(pose_array)
 
         state_target_linear = pose_array[0:3].copy()
         state_target_angular = pose_array[3:6].copy()
@@ -433,12 +472,49 @@ class PositionController(Node):
         face_target_angular_err = self.calculate_angular_error(angle_to_target_point, pose_array[3:6])
 
         if abs(face_target_angular_err[2]) > self.angular_thresholds[2] \
-            or abs(angular_vel[2]) > 0.1:
+            or abs(angular_vel[2]) > 0.5:
 
             return PositionControllerState.FaceTargetPoint
 
         # Need to be facing target point and have yaw velocity settled before reaching this state
         return PositionControllerState.GoToPoint
+
+    def calculate_path_target_point(self, pose_array: np.ndarray) -> None:
+        self.cmd_path.header.stamp = self.get_clock().now().to_msg()
+        self.cmd_path.header.frame_id = "map"
+        self.debug_path_pub.publish(self.cmd_path)
+
+        # Only consider x and y for finding closest point
+        closest_index = np.nanargmin(np.linalg.norm(pose_array[0:2] - self.numpy_path[:, 0:2], axis=1))
+        self.start_pose[0:3] = self.numpy_path[closest_index, :]
+
+        target_index = closest_index
+        for i in range(closest_index, len(self.numpy_path)):
+            dist = np.linalg.norm(pose_array[0:2] - self.numpy_path[i, 0:2])
+            if dist > self.lookahead_distance:
+                target_index = i
+                break
+
+        self.cmd_pos_linear = self.numpy_path[target_index, :]
+
+        debug_msg = self.cmd_path.poses[target_index]
+        debug_msg.header.stamp = self.get_clock().now().to_msg()
+        debug_msg.header.frame_id = "map"
+        self.debug_pose_pub.publish(debug_msg)
+
+        # Break out of path following if we are at the end of the path
+        if target_index >= len(self.numpy_path) - 1:
+            (r, p, yaw) = tf_transformations.euler_from_quaternion([
+                self.cmd_path.poses[-1].pose.orientation.x,
+                self.cmd_path.poses[-1].pose.orientation.y,
+                self.cmd_path.poses[-1].pose.orientation.z,
+                self.cmd_path.poses[-1].pose.orientation.w
+            ])
+            self.cmd_pos_angular = np.array([r, p, yaw])
+
+            self.cmd_path = None
+            self.numpy_path = np.array([])
+            return
 
     def generate_command_msg(self, commands: np.ndarray, pose_array: np.ndarray) -> Twist:
         """

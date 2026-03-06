@@ -44,9 +44,6 @@ class ReturnHomeTask(BaseTask):
         self.waypoints_are_created: bool = False
         self.path: Path | None = None
         self.path_future = None
-        self.path_index = 0
-
-        self.curr_waypoint: Pose = None
 
         self.execute_path: bool = False
 
@@ -78,18 +75,21 @@ class ReturnHomeTask(BaseTask):
         while not self.path_planning_client.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
 
-        # ------ Timers ------
-        self.follow_path_timer = self.create_timer(
-            self.follow_path_period,
-            self.follow_path,
-            self.service_callback_group
-        )
+        # # ------ Timers ------
+        # self.follow_path_timer = self.create_timer(
+        #     self.follow_path_period,
+        #     self.follow_path,
+        #     self.service_callback_group
+        # )
 
         self.goal_pose = None
 
         self.replan_timer = self.create_timer(6.5, self.replan_path_callback)
 
     def replan_path_callback(self):
+        if self.go_to_pose_client.completed:
+            self.complete(True)
+
         if (not self.execute_path) or (self.goal_pose is None):
             return
 
@@ -116,13 +116,15 @@ class ReturnHomeTask(BaseTask):
             self.get_logger().error("Path planning service returned None")
             return
 
-        self.path = resp.path_to_object
-        self.path_index = 0
-        self.waypoints_are_created = True
-        self.execute_path = True
+        if self.path != resp.path_to_object:
+            self.path = resp.path_to_object
+            self.waypoints_are_created = True
+            self.execute_path = True
 
-        self.get_logger().info(
-            f"Received path with {len(self.path.poses)} poses")
+            self._send_follow_path_command(self.path)
+
+            self.get_logger().info(
+                f"Received path with {len(self.path.poses)} poses")
 
     def odom_callback(self, msg: Odometry) -> None:
         """
@@ -165,65 +167,12 @@ class ReturnHomeTask(BaseTask):
             f"Goal set from meta_gate in frame '{frame_id}': ({goal_xy[0]:.2f}, {goal_xy[1]:.2f})")
         self.replan_path_callback()
 
-    def follow_path(self) -> None:
-        """
-        After we generate the waypoints we switch to execute mode and follow
-        the path we have created.
-
-        Once we reach the end of this path we exit the task.
-        """
-
-        if not self.execute_path:
-            return
-
-        if self.path is None or len(self.path.poses) == 0:
-            return
-
-        if self.curr_waypoint is None or self.go_to_pose_client.at_pose():
-            if self.path_index >= len(self.path.poses):
-                self.complete(True)
-                return
-
-            target_pose = self.path.poses[self.path_index]
-            target_pos_xy = np.array([target_pose.pose.position.x,
-                                      target_pose.pose.position.y])
-
-            if self.path_index + 1 < len(self.path.poses):
-                next_pose = self.path.poses[self.path_index + 1]
-                next_pos_xy = np.array([next_pose.pose.position.x,
-                                        next_pose.pose.position.y])
-
-                facing_vec = next_pos_xy - target_pos_xy
-                facing_vec /= np.linalg.norm(facing_vec)
-
-                facing_angle = np.arctan2(facing_vec[1], facing_vec[0])
-            else:
-                facing_angle = 0.0
-
-            self.path_index += 1
-
-            self.get_logger().info(f"Going to: {target_pos_xy}")
-            self._send_waypoint_command(target_pos_xy, facing_angle)
-
-    def _send_waypoint_command(self, target_pos_xy: np.ndarray, facing_angle) -> None:
+    def _send_follow_path_command(self, path: Path) -> None:
         """
         Convert a np.ndarray 2D vector to a command pose and send to pos_controller
         """
-        cmd_pose = Pose()
 
-        cmd_pose.position.x = target_pos_xy[0]
-        cmd_pose.position.y = target_pos_xy[1]
-        cmd_pose.position.z = -self.pool_depth + self.height_from_bottom_m
-
-        quat = tf_transformations.quaternion_from_euler(0, 0, facing_angle)
-        cmd_pose.orientation.x = quat[0]
-        cmd_pose.orientation.y = quat[1]
-        cmd_pose.orientation.z = quat[2]
-        cmd_pose.orientation.w = quat[3]
-
-        self.curr_waypoint = cmd_pose
-
-        self.go_to_pose_client.go_to_pose(PoseObj(cmd_pose=cmd_pose,
+        self.go_to_pose_client.go_to_pose(PoseObj(cmd_path=path,
                                                   skip_orientation=False))
 
     def _pose_to_nparray(self, msg: Pose) -> np.ndarray:
