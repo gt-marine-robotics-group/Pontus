@@ -153,7 +153,7 @@ private:
     const uint8_t threshold = static_cast<uint8_t>(std::clamp(intensity_min_, 0, 255));
 
     // Fill points
-    for (int r = 0; r < rows; ++r) {
+    for (int r = 20; r < rows; ++r) {
       const double d_m = sonar_res_m_ * static_cast<double>(r);
       const uint8_t* row_line = gray.ptr<uint8_t>(r);
       for (int c = 0; c < cols; ++c) {

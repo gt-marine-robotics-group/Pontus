@@ -32,16 +32,16 @@ class ImageCoordinator(Node):
 
         self.latest_pointcloud: np.array = None
         # (m), width of line pointing toward object detected by yolo
-        self.line_projection_width = .1
+        self.line_projection_width = .05
         # object score must be at least this to be added to semantic map
-        self.confidence_min = 0.5
+        self.confidence_min = 0.6
         self.vector_projection_dist = 10  # (m), how far the line is projected
         self.cam_model = PinholeCameraModel()
         self.camera_frame_name = 'camera_front'
         self.cam_initialized = False
 
         self.min_bbox_width = 0
-        self.max_cluster_dist_m = 8.0
+        self.max_cluster_dist_m = 5.0
 
         self.name_map = {
             'gate_side': SemanticObject.GATE_LEFT,
