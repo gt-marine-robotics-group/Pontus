@@ -19,6 +19,7 @@ from pontus_msgs.srv import GateSideInformation
 from pontus_msgs.msg import YOLOResultArray
 from pontus_mapping.semantic_map_manager import SemanticObject
 from pontus_controller.position_controller import MovementMethod
+from std_msgs.msg import Int32
 
 
 """
@@ -36,6 +37,9 @@ class GateTask(BaseTask):
         GoThroughLeft = 3
         Done = 4
 
+    class GateSide(Enum):
+        LEFT = 0
+        RIGHT = 1
     class SearchState(Enum):
         Turn_CCW = 0
         Turn_CC = 1
@@ -87,7 +91,10 @@ class GateTask(BaseTask):
             self.camera_info_callback_left,
             10,
         )
-
+        
+        #publish which fish side went through
+        self.gate_side_pub = self.create_publisher(Int32, '/pontus/gate_side', 10)
+        self.last_published_side = self.GateSide.LEFT.value #default to left
         # Abstracted go to pose client
         self.go_to_pose_client = GoToPoseClient(self)
 
@@ -116,6 +123,13 @@ class GateTask(BaseTask):
         self.image_width = None
         self.previous_searching_state = self.SearchState.Turn_CCW
         self.current_yaw = 0.0
+
+    def publish_gate_side(self, left: bool) -> None:
+        msg = Int32()
+        msg.data = self.GateSide.LEFT.value if left else self.GateSide.RIGHT.value
+        self.last_published_side = msg.data
+        self.gate_side_pub.publish(msg)
+        self.get_logger().info(f'Published gate side: {"LEFT" if left else "RIGHT"} ({msg.data})')
 
     def state_debugger(self) -> None:
         """
@@ -247,6 +261,26 @@ class GateTask(BaseTask):
         desired_id = SemanticObject.LeftGate.value if left else SemanticObject.RightGate.value
         for detection in self.yolo_detections.results:
             if detection.class_id == desired_id:
+                return True
+        return False
+
+    def fish_in_view(self, fish_id: int) -> bool:
+        """
+        Return whether a specific fish/shark landmark is currently detected by YOLO.
+
+        Args:
+        ----
+        fish_id (int): the SemanticObject value to check for
+
+        Return:
+        ------
+        bool: whether the landmark is currently detected
+
+        """
+        if self.yolo_detections is None:
+            return False
+        for detection in self.yolo_detections.results:
+            if detection.class_id == fish_id:
                 return True
         return False
 
@@ -396,13 +430,13 @@ class GateTask(BaseTask):
             self.sent = False
             return
         # Case 2
-        elif not left_gate and self.side_in_view(True):
+        elif not left_gate and (self.side_in_view(True) or self.fish_in_view(SemanticObject.GATE_IMAGE_FISH.value)):
             self.get_logger().info("Case #2")
             self.previous_searching_state = self.searching_state
             self.searching_state = self.SearchState.Detect_Left
             self.sent = False
         # Case 3
-        elif not right_gate and self.side_in_view(False):
+        elif not right_gate and (self.side_in_view(False) or self.fish_in_view(SemanticObject.GATE_IMAGE_SHARK.value)):
             self.get_logger().info("Case #3")
             self.previous_searching_state = self.searching_state
             self.searching_state = self.SearchState.Detect_Right
@@ -637,9 +671,39 @@ class GateTask(BaseTask):
                     movement_method=MovementMethod.StrafeThenForward)
 
         if self.go_to_pose_client.at_pose():
+            landmark_side = self.get_landmark_gate_side()
+            if landmark_side is not None:
+                self.publish_gate_side(landmark_side == self.GateSide.LEFT.value)
+            else:
+                self.publish_gate_side(True)
             self.state = self.State.Done
         return None
+    def get_landmark_gate_side(self) -> Optional[int]:
+            """
+            Determine gate side from fish/shark landmark YOLO detections.
 
+            Fish (GATE_IMAGE_FISH) = LEFT  (0)
+            Shark (GATE_IMAGE_SHARK) = RIGHT (1)
+
+            Args:
+            ----
+            None
+
+            Return:
+            ------
+            Optional[int]: 0 for left, 1 for right, None if no landmark found
+
+            """
+            if self.yolo_detections is None:
+                return None
+
+            for detection in self.yolo_detections.results:
+                if detection.class_id == SemanticObject.GATE_IMAGE_FISH.value:
+                    return self.GateSide.LEFT.value   # 0
+                if detection.class_id == SemanticObject.GATE_IMAGE_SHARK.value:
+                    return self.GateSide.RIGHT.value  # 1
+            return None
+            
     def done(self) -> None:
         """
         Finish state machine.
