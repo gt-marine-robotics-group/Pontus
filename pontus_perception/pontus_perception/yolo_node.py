@@ -230,7 +230,7 @@ class YOLONode(Node):
             f'YOLO kept {kept}/{len(confs)} boxes (threshold={self.threshold:.2f})')
 
     def topic_check_callback(self):
-        if self.image_sub_compressed is None and self.image_sub.get_publisher_count() == 0:
+        if self.image_sub_compressed is None: #and self.image_sub.get_publisher_count() == 0:
             self.image_sub_compressed = self.create_subscription(
                 CompressedImage, 'input/compressed', self.image_callback_compressed, self.img_qos
             )

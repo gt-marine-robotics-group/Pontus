@@ -456,11 +456,15 @@ class ImageCoordinator(Node):
 
         center_position = object_msg.bbox.center.position
 
-        point = np.array([[center_position.x, center_position.y]], dtype=np.float64)
-        point = np.expand_dims(point, 1)
+        # self.get_logger().warn("Detected {}, {}".format(result.hypothesis.class_id, highest_class))
 
-        rectified_point = self.cam_model.rectify_point(point)
-        ray_unit_vector = self.cam_model.project_pixel_to_3d_ray(rectified_point)
+        # generate pose in object frame ID to define line, starting point at 0
+        point = np.array([center_position.x, center_position.y])
+        rectified_point = self.cam_model.rectifyPoint(point)
+        ray_unit_vector = self.cam_model.projectPixelTo3dRay(
+            rectified_point)
+        pose_to_object = self.align_pose_x_with_vector(
+            camera_pose, ray_unit_vector)
 
         pose_to_object = self.align_pose_x_with_vector(camera_pose, ray_unit_vector)
         transformed_pose = self.transform_camera(pose_to_object)
@@ -772,7 +776,7 @@ class ImageCoordinator(Node):
         # 2. Create a transform using only the orientation of the pose
         # We use a dummy transform with zero translation for this
         transform = geometry_msgs.msg.Transform(
-            translation=Point(x=0.0, y=0.0, z=0.0),
+            translation=Vector3(x=0.0, y=0.0, z=0.0),
             rotation=pose_msg.pose.orientation
         )
 

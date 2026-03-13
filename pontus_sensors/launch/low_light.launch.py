@@ -19,11 +19,11 @@ def generate_launch_description():
             output='screen',
             parameters=[left_config_file],
             remappings=[
-                ('/image_raw', '/pontus/camera_2/image_raw'),
-                ('/image_raw/compressed', '/pontus/camera_2/image_raw/compressed'),
-                ('/image_raw/compressedDepth', '/pontus/camera_2/image_raw/compressedDepth'),
-                ('/image_raw/theora', '/pontus/camera_2/image_raw/theora'),
-                ('/camera_info', '/pontus/camera_2/camera_info')
+                ('/image_raw', '/pontus/camera_front/image_raw'),
+                ('/image_raw/compressed', '/pontus/camera_front/image_raw/compressed'),
+                ('/image_raw/compressedDepth', '/pontus/camera_front/image_raw/compressedDepth'),
+                ('/image_raw/theora', '/pontus/camera_front/image_raw/theora'),
+                ('/camera_info', '/pontus/camera_front/camera_info')
                 ]
         ),
         # Node(

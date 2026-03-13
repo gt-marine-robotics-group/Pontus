@@ -6,7 +6,7 @@
 #include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 
-#include <cv_bridge/cv_bridge.hpp>
+#include <cv_bridge/cv_bridge.h>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
