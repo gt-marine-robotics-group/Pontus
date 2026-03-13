@@ -6,3 +6,4 @@
       av_device_format: "YUV422P"
       camera_name: "camera_low_light_right"
       camera_info_url: "package://pontus_sensors/config/front_right_camera_calibration.yaml"
+      

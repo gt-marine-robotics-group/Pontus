@@ -38,7 +38,7 @@ class PrequalGateTask(BaseTask):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('height_from_bottom', 0.5),
+                ('height_from_bottom'), 1.0,
                 ('gate_side', 0),  # Gate side right
                 # How far should the apparoach and pass through points be to the gate
                 ('waypoint_dist_from_gate', 0.6),

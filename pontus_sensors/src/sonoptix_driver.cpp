@@ -7,10 +7,10 @@
 #include <geometry_msgs/msg/transform_stamped.hpp>
 
 // --- Humble ---
-// #include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.h>
 
 // --- Jazzy ---
-#include <cv_bridge/cv_bridge.hpp>
+// #include <cv_bridge/cv_bridge.hpp>
 
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
@@ -51,8 +51,12 @@ public:
     sonar_angle_rad_ = this->declare_parameter<double>("sonar_angle", M_PI / 3.0);
     intensity_min_ = this->declare_parameter<int>("intensity_min", 10);
     normalize_intensity_ = this->declare_parameter<bool>("normalize_intensity", true);
-    min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.2);   // keep points at least this deep
-    max_depth_m_ = this->declare_parameter<double>("max_depth_m", 3.5);  // keep points at most this deep
+    // min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.2);   // keep points at least this deep
+    // max_depth_m_ = this->declare_parameter<double>("max_depth_m", 3.5);  // keep points at most this deep
+
+    // ---- Spring Break params -----
+    min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.06);   // keep points at least this deep
+    max_depth_m_ = this->declare_parameter<double>("max_depth_m", 1.75);  // keep points at most this deep
 
     cluster_tolerance_ = this->declare_parameter<double>("cluster_tolerance", 0.3);
     cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 10);
@@ -158,7 +162,7 @@ private:
     const uint8_t threshold = static_cast<uint8_t>(std::clamp(intensity_min_, 0, 255));
 
     // Fill points
-    for (int r = 20; r < rows; ++r) {
+    for (int r = 30; r < rows; ++r) {
       const double d_m = sonar_res_m_ * static_cast<double>(r);
       const uint8_t* row_line = gray.ptr<uint8_t>(r);
       for (int c = 0; c < cols; ++c) {
