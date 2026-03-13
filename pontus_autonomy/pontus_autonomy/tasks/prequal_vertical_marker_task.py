@@ -32,11 +32,11 @@ class PrequalVerticalMarkerTask(BaseTask):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('height_from_bottom', 0.5),
-                ('pool_depth', 2.0),
-                ('waypoint_dist_from_marker', 1.1),
+                ('height_from_bottom', 0.7),
+                ('pool_depth', 2.5),
+                ('waypoint_dist_from_marker', 1.6),
                 ('waypoint_dist_from_gate', 1.0),
-                ('marker_centerline_tolerance', 0.8),
+                ('marker_centerline_tolerance', 1.5),
                 ('follow_path_period', 0.25)
             ]
         )
@@ -167,7 +167,9 @@ class PrequalVerticalMarkerTask(BaseTask):
             perp = marker_gate_vec - parallel
             dist = float(np.linalg.norm(perp))
 
-            if dist <= self.marker_centerline_tolerance_m:
+            dist_from_gate = np.linalg.norm(marker_gate_vec)
+
+            if dist <= self.marker_centerline_tolerance_m and dist_from_gate >= 2.5:
                 if best_dist is None or dist < best_dist:
                     best_dist = dist
                     best_candidate_marker = marker_vec

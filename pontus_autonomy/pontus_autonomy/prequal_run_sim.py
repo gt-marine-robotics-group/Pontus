@@ -10,7 +10,7 @@ from pontus_autonomy.tasks.localization.submerge import Submerge
 from pontus_autonomy.tasks.prequal_gate_task import PrequalGateTask
 from pontus_autonomy.tasks.prequal_vertical_marker_task import PrequalVerticalMarkerTask
 
-from pontus_autonomy.tasks.table_search_task import TableSearchTask
+# from pontus_autonomy.tasks.table_search_task import TableSearchTask
 
 from pontus_autonomy.tasks.prequal_search_gate_task import PrequalSearchTask
 

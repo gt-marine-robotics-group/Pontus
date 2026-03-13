@@ -32,12 +32,12 @@ class DvlRepub(Node):
             self.dvl_callback,
             qos_profile=qos_profile
         )
-        self.create_subscription(
-            Odometry,
-            '/dvl/position',
-            self.imu_callback,
-            qos_profile=qos_profile
-        )
+        # self.create_subscription(
+        #     DVLDR,
+        #     '/dvl/position',
+        #     self.imu_callback,
+        #     qos_profile=qos_profile
+        # )
         self.dvl_pub = self.create_publisher(
             Odometry,
             '/pontus/dvl',

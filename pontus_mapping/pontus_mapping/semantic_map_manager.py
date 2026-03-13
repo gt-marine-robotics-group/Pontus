@@ -190,7 +190,7 @@ class SemanticMapManager(Node):
             namespace='',
             parameters=[
                 ('gate_width', 3.048),          # RoboSub handbook
-                ('gate_width_tolerance', 0.3),  # tolerance for pairing
+                ('gate_width_tolerance', 1.1),  # tolerance for pairing
                 ("slalom_white_to_white_width", 3.0),
                 ("slalom_white_to_red_width", 1.5),
                 ("slalom_width_tolerance", 0.3),  # slalom pairing tolerance
