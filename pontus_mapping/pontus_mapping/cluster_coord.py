@@ -2,6 +2,7 @@
 import geometry_msgs
 from pontus_msgs.msg import SemanticObject
 from pontus_msgs.srv import AddSemanticObject
+from dataclasses import dataclass, field
 import rclpy
 from rclpy.node import Node
 from rclpy.time import Time
@@ -26,13 +27,47 @@ from visualization_msgs.msg import Marker, MarkerArray
 from vision_msgs.msg import Detection2D, Detection2DArray
 
 
+# ------ Track Dataclass -------
+@dataclass
+class CandidateTrack:
+    track_id: int
+    position_map: np.ndarray
+    num_pc_detections: int = 1
+    label_association_counts: dict[int, int] = field(default_factory=dict)
+    total_label_associations: int = 0
+    best_label: int | None = None
+    best_label_count: int = 0
+    first_seen_time_s: float = 0.0
+    last_seen_time_s: float = 0.0
+    last_publish_time_s: float = -1e9
+
+    last_visual_range_m: float | None = None
+    last_cluster_range_m: float | None = None
+    last_line_error_m: float | None = None
+    last_range_error_m: float | None = None
+    last_assoc_score: float | None = None
+
+    def update_position(self, point_xyz: np.ndarray) -> None:
+        self.num_pc_detections += 1
+        self.position_map += (point_xyz - self.position_map) / self.num_pc_detections
+
+    def add_label_vote(self, class_id: int) -> None:
+        new_count = self.label_association_counts.get(class_id, 0) + 1
+        self.label_association_counts[class_id] = new_count
+        self.total_label_associations += 1
+
+        if new_count > self.best_label_count:
+            self.best_label = class_id
+            self.best_label_count = new_count
+
+
 class ImageCoordinator(Node):
     def __init__(self) -> None:
         super().__init__('image_to_cluster_coordinator')
 
-        self.latest_pointcloud: np.array = None
+        self.latest_pointcloud: np.ndarray = None
         # (m), width of line pointing toward object detected by yolo
-        self.line_projection_width = .05
+        self.line_projection_width = 0.025
         # object score must be at least this to be added to semantic map
         self.confidence_min = 0.6
         self.vector_projection_dist = 10  # (m), how far the line is projected
@@ -41,7 +76,17 @@ class ImageCoordinator(Node):
         self.cam_initialized = False
 
         self.min_bbox_width = 0
-        self.max_cluster_dist_m = 5.0
+        self.max_cluster_dist_m = 8.0
+
+        # ------ Candidate tracking params ------
+        self.cluster_track_match_dist_m = 0.30
+        self.candidate_stale_time_s = 1.5
+        self.pc_detection_threshold = 8
+        self.label_assoc_threshold = 5
+        self.promoted_track_publish_period_s = 0.75
+
+        self.candidate_tracks: dict[int, CandidateTrack] = {}
+        self.next_track_id = 0
 
         self.name_map = {
             'gate_side': SemanticObject.GATE_LEFT,
@@ -75,6 +120,105 @@ class ImageCoordinator(Node):
             str(SemanticObject.OCTAGON): SemanticObject.OCTAGON,
             str(SemanticObject.TARGET): SemanticObject.TARGET,
             str(SemanticObject.PATH_MARKER): SemanticObject.PATH_MARKER
+        }
+
+                # ------ Phase 2 association tuning ------
+        self.class_assoc_cfg = {
+            SemanticObject.GATE_LEFT: {
+                "min_bbox_px": 10.0,
+                "line_threshold_m": 0.25,
+                # width-only prior is much noisier than using a large object dimension,
+                # so keep this gate fairly loose
+                "range_threshold_m": 1.75,
+                "range_weight": 0.75,
+                "line_weight": 1.00,
+                # Using gate-side width prior, not total gate width
+                # Interpreting handbook's "3 in. Box Corrugated plastic" as the visible gate-side width
+                "size_prior_m": {"width": 0.0762},
+            },
+            SemanticObject.SLALOM_RED: {
+                "min_bbox_px": 8.0,
+                "line_threshold_m": 0.18,
+                "range_threshold_m": 0.85,
+                "range_weight": 1.00,
+                "line_weight": 1.10,
+                # Use both height and pipe diameter
+                "size_prior_m": {"height": 0.90, "width": 0.0254},
+            },
+            SemanticObject.SLALOM_WHITE: {
+                "min_bbox_px": 8.0,
+                "line_threshold_m": 0.18,
+                "range_threshold_m": 0.85,
+                "range_weight": 1.00,
+                "line_weight": 1.10,
+                "size_prior_m": {"height": 0.90, "width": 0.0254},
+            },
+            SemanticObject.GATE_IMAGE_SHARK: {
+                "min_bbox_px": 12.0,
+                "line_threshold_m": 0.22,
+                "range_threshold_m": 1.00,
+                "range_weight": 1.20,
+                "line_weight": 0.90,
+                "size_prior_m": {"height": 0.305, "width": 0.305},
+            },
+            SemanticObject.GATE_IMAGE_FISH: {
+                "min_bbox_px": 12.0,
+                "line_threshold_m": 0.22,
+                "range_threshold_m": 1.00,
+                "range_weight": 1.20,
+                "line_weight": 0.90,
+                "size_prior_m": {"height": 0.305, "width": 0.305},
+            },
+            SemanticObject.PATH_MARKER: {
+                "min_bbox_px": 10.0,
+                "line_threshold_m": 0.35,
+                "range_threshold_m": 1.25,
+                "range_weight": 1.10,
+                "line_weight": 0.90,
+                "size_prior_m": {"height": 0.15, "width": 1.20},
+            },
+            SemanticObject.VERTICAL_MARKER: {
+                "min_bbox_px": 8.0,
+                "line_threshold_m": 0.25,
+                "range_threshold_m": 1.00,
+                "range_weight": 1.00,
+                "line_weight": 1.00,
+                # User-provided marker dimensions: 6.5 ft tall, 2 in diameter
+                "size_prior_m": {"height": 1.9812, "width": 0.0762},
+            },
+            SemanticObject.BIN: {
+                "min_bbox_px": 12.0,
+                "line_threshold_m": 0.40,
+                "range_threshold_m": 1.50,
+                "range_weight": 1.10,
+                "line_weight": 0.90,
+                "size_prior_m": {"height": 0.305, "width": 0.610},
+            },
+            SemanticObject.OCTAGON: {
+                "min_bbox_px": 20.0,
+                "line_threshold_m": 0.60,
+                "range_threshold_m": 2.00,
+                "range_weight": 0.80,
+                "line_weight": 0.70,
+                "size_prior_m": {"height": 2.70, "width": 2.70},
+            },
+            SemanticObject.TARGET: {
+                "min_bbox_px": 12.0,
+                "line_threshold_m": 0.30,
+                "range_threshold_m": 1.20,
+                "range_weight": 1.00,
+                "line_weight": 1.00,
+                "size_prior_m": {"height": 0.60, "width": 0.60},
+            },
+        }
+
+        self.default_assoc_cfg = {
+            "min_bbox_px": 8.0,
+            "line_threshold_m": 0.25,
+            "range_threshold_m": None,
+            "range_weight": 0.0,
+            "line_weight": 1.0,
+            "size_prior_m": {},
         }
 
         self.tf_buffer = Buffer()
@@ -138,12 +282,34 @@ class ImageCoordinator(Node):
         array_msg.markers.append(marker_msg)
         self.debug_line_pub.publish(array_msg)
 
-        for object in msg.detections:
-            if object.bbox.size_x >= self.min_bbox_width:
-                temp, point_found = self.associate_object_with_point(
-                    object, self.latest_pointcloud)
-                if point_found and temp[2] > self.confidence_min:
-                    success = self.send_request(temp[0], temp[1])
+        for detection in msg.detections:
+            if detection.bbox.size_x < self.min_bbox_width:
+                continue
+
+            class_id, confidence = self.get_highest_confidence_class(detection)
+            if class_id is None or confidence < self.confidence_min:
+                continue
+
+            assoc_cfg = self.get_assoc_cfg(class_id)
+            if max(detection.bbox.size_x, detection.bbox.size_y) < assoc_cfg["min_bbox_px"]:
+                continue
+
+            matched_track, object_pose = self.associate_object_with_track(
+                detection, class_id)
+            if matched_track is None:
+                continue
+
+            matched_track.add_label_vote(class_id)
+
+            if self.track_ready_for_promotion(matched_track):
+                if matched_track.best_label is None or matched_track.best_label != class_id:
+                    continue
+
+                now_s = self._now_s()
+                if (now_s - matched_track.last_publish_time_s) >= self.promoted_track_publish_period_s:
+                    matched_track.last_publish_time_s = now_s
+                    self.send_request(
+                        [matched_track.best_label], [object_pose])
 
     def pointcloud_callback(self, msg: PointCloud2) -> None:
         """
@@ -160,12 +326,14 @@ class ImageCoordinator(Node):
             transformed_msg = msg
 
         points = point_cloud2.read_points_numpy(
-            transformed_msg, field_names=('x', 'y', 'z'),
+            transformed_msg,
+            field_names=('x', 'y', 'z'),
             skip_nans=True
         )
         # points[:, 1] = -points[:, 1]  # TODO ask why do this?
 
         self.latest_pointcloud = points
+        self.update_candidate_tracks(points)
 
     def info_callback(self, msg):
         """
@@ -176,46 +344,294 @@ class ImageCoordinator(Node):
             self.cam_initialized = True
             self.get_logger().info('Camera model initialized with new info.')
 
-    def associate_object_with_point(self, object_msg: Detection2D, point_array: np.ndarray) -> tuple:
-        """
-        finds the tracetory to an object from the camera and associates the first point in pointcloud on the line defined
-        by that trajectory with that object
 
-        Args:
-            object_msg (Detection2D): dectected object message
-            point_array (np.ndarray): pointcloud to search for matching points in as an array, in map frame
-
-        Returns:
-            placeholder: _description_
-        """
-
-        camera_pose = PoseStamped()
-        camera_pose.header = object_msg.header
-        camera_pose.header.frame_id = "camera_front_optical_frame"
-
-        # naively find highest confidence object
-        center_position = object_msg.bbox.center.position
+    def get_highest_confidence_class(self, object_msg: Detection2D) -> tuple[int | None, float]:
         max_confidence = -1.0
-        highest_class = -1.0
+        highest_class: int | None = None
+
         for result in object_msg.results:
             if result.hypothesis.score > max_confidence:
                 max_confidence = result.hypothesis.score
                 highest_class = self.name_map[result.hypothesis.class_id]
+
+        return highest_class, max_confidence
+
+    def update_candidate_tracks(self, point_array: np.ndarray) -> None:
+        self.prune_stale_tracks()
+
+        if point_array.size == 0:
+            return
+
+        now_s = self._now_s()
+        updated_track_ids: set[int] = set()
+
+        for point in point_array:
+            point_xyz = np.asarray(point)
+
+            matched_track = None
+            matched_dist = float('inf')
+
+            for track in self.candidate_tracks.values():
+
+                if track.track_id in updated_track_ids:
+                    continue
+
+                dist_xy = np.linalg.norm(
+                    track.position_map[:2] - point_xyz[:2])
+
+                if dist_xy <= self.cluster_track_match_dist_m and dist_xy < matched_dist:
+                    matched_track = track
+                    matched_dist = dist_xy
+
+            if matched_track is None:
+                self.candidate_tracks[self.next_track_id] = CandidateTrack(
+                    track_id=self.next_track_id,
+                    position_map=point_xyz.copy(),
+                    first_seen_time_s=now_s,
+                    last_seen_time_s=now_s,
+                )
+
+                updated_track_ids.add(self.next_track_id)
+                self.next_track_id += 1
+                continue
+
+            matched_track.update_position(point_xyz)
+            matched_track.last_seen_time_s = now_s
+            updated_track_ids.add(matched_track.track_id)
+
+    def prune_stale_tracks(self) -> None:
+        now_s = self._now_s()
+        stale_track_ids = [
+            track_id
+            for track_id, track in self.candidate_tracks.items()
+            if (now_s - track.last_seen_time_s) > self.candidate_stale_time_s
+        ]
+
+        for track_id in stale_track_ids:
+            del self.candidate_tracks[track_id]
+
+    def track_ready_for_promotion(self, track: CandidateTrack) -> bool:
+        pc_detection_test = track.num_pc_detections >= self.pc_detection_threshold
+        label_detection_test = track.best_label_count >= self.label_assoc_threshold
+
+        return pc_detection_test and label_detection_test
+
+    def get_assoc_cfg(self, class_id: int) -> dict:
+        return self.class_assoc_cfg.get(class_id, self.default_assoc_cfg)
+
+    def estimate_range_from_bbox(self, object_msg: Detection2D, class_id: int) -> float | None:
+        """
+        Estimate monocular range from bbox size using known object dimensions.
+        Returns None if no reliable prior exists for the class.
+        """
+        cfg = self.get_assoc_cfg(class_id)
+        size_prior = cfg["size_prior_m"]
+
+        estimates = []
+
+        bbox_w_px = float(object_msg.bbox.size_x)
+        bbox_h_px = float(object_msg.bbox.size_y)
+
+        try:
+            fx = float(self.cam_model.fx())
+            fy = float(self.cam_model.fy())
+        except Exception:
+            return None
+
+        if "width" in size_prior and bbox_w_px > 0:
+            estimates.append((size_prior["width"] * fx) / bbox_w_px)
+
+        if "height" in size_prior and bbox_h_px > 0:
+            estimates.append((size_prior["height"] * fy) / bbox_h_px)
+
+        if not estimates:
+            return None
+
+        return float(np.median(estimates))
+
+    def build_camera_ray_pose(self, object_msg: Detection2D) -> PoseStamped:
+        camera_pose = PoseStamped()
+        camera_pose.header = object_msg.header
+        camera_pose.header.frame_id = "camera_front_optical_frame"
+
         center_position = object_msg.bbox.center.position
 
-        # self.get_logger().warn("Detected {}, {}".format(result.hypothesis.class_id, highest_class))
-
-        # generate pose in object frame ID to define line, starting point at 0
-        point = np.array([[center_position.x, center_position.y]])
+        point = np.array([[center_position.x, center_position.y]], dtype=np.float64)
         point = np.expand_dims(point, 1)
-        rectified_point = self.cam_model.rectify_point(point)
-        ray_unit_vector = self.cam_model.project_pixel_to_3d_ray(
-            rectified_point)
-        pose_to_object = self.align_pose_x_with_vector(
-            camera_pose, ray_unit_vector)
 
-        # transform pose to match point cloud frame from camera frame
+        rectified_point = self.cam_model.rectify_point(point)
+        ray_unit_vector = self.cam_model.project_pixel_to_3d_ray(rectified_point)
+
+        pose_to_object = self.align_pose_x_with_vector(camera_pose, ray_unit_vector)
         transformed_pose = self.transform_camera(pose_to_object)
+
+        return transformed_pose
+
+    def make_object_pose_from_track(
+        self,
+        transformed_pose: PoseStamped,
+        track: CandidateTrack
+    ) -> PoseStamped:
+        selected_point = Point()
+        selected_point.x = float(track.position_map[0])
+        selected_point.y = float(track.position_map[1])
+        selected_point.z = float(track.position_map[2])
+
+        vector_to_object = self.get_x_axis_vector_from_pose(transformed_pose)
+
+        cam_pos = np.array([
+            transformed_pose.pose.position.x,
+            transformed_pose.pose.position.y,
+            transformed_pose.pose.position.z
+        ], dtype=float)
+
+        dir_vec = np.array([
+            vector_to_object.vector.x,
+            vector_to_object.vector.y,
+            vector_to_object.vector.z
+        ], dtype=float)
+
+        dir_xy = dir_vec[:2]
+        target_xy = np.array([selected_point.x, selected_point.y], dtype=float)
+
+        denom = float(dir_xy.dot(dir_xy))
+        if denom > 1e-8:
+            t = dir_xy.dot(target_xy - cam_pos[:2]) / denom
+            if t < 0.0:
+                t = 0.0
+
+            z_est = cam_pos[2] + t * dir_vec[2]
+            selected_point.z = float(z_est)
+
+        object_pose = PoseStamped()
+        object_pose.header = transformed_pose.header
+        object_pose.pose.position = selected_point
+
+        return object_pose
+
+    def score_track_for_detection(
+        self,
+        transformed_pose: PoseStamped,
+        track: CandidateTrack,
+        class_id: int,
+        visual_range_m: float | None
+    ) -> tuple[float, float, float, float] | None:
+        """
+        Returns (score, line_dist_m, cluster_range_m, range_err_m) if valid, else None.
+        """
+        cfg = self.get_assoc_cfg(class_id)
+
+        vector_to_object = self.get_x_axis_vector_from_pose(transformed_pose)
+
+        start_xy = np.array([
+            transformed_pose.pose.position.x,
+            transformed_pose.pose.position.y
+        ], dtype=float)
+
+        dir_xy = np.array([
+            vector_to_object.vector.x,
+            vector_to_object.vector.y
+        ], dtype=float)
+
+        dir_xy_norm = np.linalg.norm(dir_xy)
+        if dir_xy_norm < 1e-8:
+            return None
+
+        dir_xy = dir_xy / dir_xy_norm
+
+        delta_xy = track.position_map[:2] - start_xy
+        along_track_dist = float(delta_xy.dot(dir_xy))
+
+        if along_track_dist < 0.0 or along_track_dist > self.max_cluster_dist_m:
+            return None
+
+        line_dist = abs(delta_xy[0] * dir_xy[1] - delta_xy[1] * dir_xy[0])
+        if line_dist > cfg["line_threshold_m"]:
+            return None
+
+        cam_pos = np.array([
+            transformed_pose.pose.position.x,
+            transformed_pose.pose.position.y,
+            transformed_pose.pose.position.z
+        ], dtype=float)
+
+        cluster_range_m = float(np.linalg.norm(track.position_map - cam_pos))
+
+        range_err_m = 0.0
+        if visual_range_m is not None and cfg["range_threshold_m"] is not None:
+            range_err_m = abs(cluster_range_m - visual_range_m)
+            if range_err_m > cfg["range_threshold_m"]:
+                return None
+
+        line_term = cfg["line_weight"] * (
+            line_dist / max(cfg["line_threshold_m"], 1e-6)
+        )
+
+        range_term = 0.0
+        if visual_range_m is not None and cfg["range_threshold_m"] is not None:
+            range_term = cfg["range_weight"] * (
+                range_err_m / max(cfg["range_threshold_m"], 1e-6)
+            )
+
+        persistence_bonus = 0.05 * min(track.num_pc_detections,
+                                       self.pc_detection_threshold)
+        range_bias = 0.02 * cluster_range_m
+
+        score = line_term + range_term + range_bias - persistence_bonus
+        return score, line_dist, cluster_range_m, range_err_m
+
+    def find_best_track_for_detection(
+        self,
+        transformed_pose: PoseStamped,
+        class_id: int,
+        visual_range_m: float | None
+    ) -> CandidateTrack | None:
+        if not self.candidate_tracks:
+            return None
+
+        best_track = None
+        best_score = float('inf')
+
+        for track in self.candidate_tracks.values():
+            scored = self.score_track_for_detection(
+                transformed_pose=transformed_pose,
+                track=track,
+                class_id=class_id,
+                visual_range_m=visual_range_m,
+            )
+            if scored is None:
+                continue
+
+            score, line_dist, cluster_range_m, range_err_m = scored
+
+            if score < best_score:
+                best_track = track
+                best_score = score
+
+                track.last_visual_range_m = visual_range_m
+                track.last_cluster_range_m = cluster_range_m
+                track.last_line_error_m = line_dist
+                track.last_range_error_m = range_err_m if visual_range_m is not None else None
+                track.last_assoc_score = score
+
+        return best_track
+
+        
+    def associate_object_with_track(
+        self,
+        object_msg: Detection2D,
+        class_id: int | None = None
+    ) -> tuple[CandidateTrack | None, PoseStamped | None]:
+
+        if not self.candidate_tracks:
+            return None, None
+
+        if class_id is None:
+            class_id, _ = self.get_highest_confidence_class(object_msg)
+            if class_id is None:
+                return None, None
+
+        transformed_pose = self.build_camera_ray_pose(object_msg)
 
         # Debug publish lines
         array_msg = MarkerArray()
@@ -231,63 +647,65 @@ class ImageCoordinator(Node):
         marker_msg.scale.x = 15.0
         marker_msg.scale.y = 0.05
         marker_msg.scale.z = 0.05
-        marker_msg.color = self.get_debug_line_color(highest_class)
+        marker_msg.color = self.get_debug_line_color(class_id)
         array_msg.markers.append(marker_msg)
         self.debug_line_pub.publish(array_msg)
 
-        # find first point lying on line from pose
-        relevant_points = self.points_on_line(point_array, transformed_pose)
+        visual_range_m = self.estimate_range_from_bbox(object_msg, class_id)
 
-        if (relevant_points.shape[0] == 0):
-            # no points on line
-            # self.get_logger().info("no objects on line")
-            return ([], [], 0.0), False
-            # relevant_points = point_array # for testing
+        matched_track = self.find_best_track_for_detection(
+            transformed_pose=transformed_pose,
+            class_id=class_id,
+            visual_range_m=visual_range_m,
+        )
+        if matched_track is None:
+            return None, None
 
-        # relevant_points is sorted by distance from the point to the line
-        selected_point = Point()
-        selected_point.x = float(relevant_points[0, 0])
-        selected_point.y = float(relevant_points[0, 1])
-        selected_point.z = float(relevant_points[0, 2])
+        object_pose = self.make_object_pose_from_track(
+            transformed_pose, matched_track)
 
-        # Get the camera ray direction in map frame (same x-axis you used to build the line)
-        vector_to_object = self.get_x_axis_vector_from_pose(transformed_pose)
+        return matched_track, object_pose
+        
+    def find_best_track_on_line(self, pose: PoseStamped) -> CandidateTrack | None:
 
-        # Camera position in map frame
-        cam_pos = np.array([
-            transformed_pose.pose.position.x,
-            transformed_pose.pose.position.y,
-            transformed_pose.pose.position.z
-        ], dtype=float)
+        if not self.candidate_tracks:
+            return None
 
-        # Ray direction in map frame
-        dir_vec = np.array([
-            vector_to_object.vector.x,
-            vector_to_object.vector.y,
-            vector_to_object.vector.z
-        ], dtype=float)
+        vector_to_object = self.get_x_axis_vector_from_pose(pose)
+        start_xy = np.array(
+            [pose.pose.position.x, pose.pose.position.y], dtype=float)
+        dir_xy = np.array([vector_to_object.vector.x,
+                          vector_to_object.vector.y], dtype=float)
+        dir_xy /= np.linalg.norm(dir_xy)
 
-        dir_xy = dir_vec[:2]
-        cam_xy = cam_pos[:2]
-        target_xy = np.array([selected_point.x, selected_point.y], dtype=float)
+        best_track = None
+        bset_line_dist = float('inf')
+        best_range = float('inf')
 
-        denom = float(dir_xy.dot(dir_xy))
-        if denom > 1e-8:
-            # Best t such that ray’s (x, y) is closest to sonar (x, y)
-            t = dir_xy.dot(target_xy - cam_xy) / denom
+        for track in self.candidate_tracks.values():
+            delta_xy = track.position_map[:2] - start_xy
 
-            if t < 0.0:
-                t = 0.0
+            along_track_dist = float(delta_xy.dot(dir_xy))
 
-            z_est = cam_pos[2] + t * dir_vec[2]
-            selected_point.z = float(z_est)
+            if along_track_dist < 0.0 or along_track_dist > self.max_cluster_dist_m:
+                continue
 
-        # create object stamped pose
-        object_pose = PoseStamped()
-        object_pose.header = transformed_pose.header
-        object_pose.pose.position = selected_point
+            line_dist = abs(delta_xy[0] * dir_xy[1] - delta_xy[1] * dir_xy[0])
 
-        return ([highest_class], [object_pose], max_confidence), True
+            if line_dist > self.line_projection_width:
+                continue
+
+            range_dist = np.linalg.norm(delta_xy)
+
+            if line_dist < bset_line_dist or (
+                np.isclose(
+                    line_dist, bset_line_dist) and range_dist < best_range
+            ):
+                best_track = track
+                bset_line_dist = line_dist
+                best_range = range_dist
+
+        return best_track
 
     def align_pose_x_with_vector(self, pose_msg: PoseStamped, target_vector: list) -> PoseStamped:
         """
@@ -512,6 +930,9 @@ class ImageCoordinator(Node):
                 return ColorRGBA(a=1.0)
             case default:
                 return ColorRGBA(g=1.0, a=1.0)
+
+    def _now_s(self) -> float:
+        return self.get_clock().now().nanoseconds * 1e-9
 
 
 def main(args=None):
