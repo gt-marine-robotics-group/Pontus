@@ -1,0 +1,53 @@
+# -----------------------
+# Pontus Qix Stack
+# -----------------------
+
+[stack]
+name = "pontus"
+version = "26.03.2"
+
+[container]
+base = "ros:jazzy"
+package-manager = "apt"
+
+[container.optional-mounts]
+bot = [
+    { source = "$HOME/.config/ros", target = "/home/ucrt/.config/ros:ro" },
+    { source = "$HOME/bags", target = "/home/ucrt/bags" },
+    { source = "/dev", target = "/dev" }
+]
+
+[system.apt]
+dependencies = [
+    "nano",
+    "iputils-ping",
+    "openjdk-11-jdk",
+    "tmux",
+    "tmuxp",
+    "ros-jazzy-mavros-extras",
+    "ros-jazzy-robot-localization",
+    "ros-jazzy-tf-transformations"
+]
+
+[system.pip]
+break-system-packages = true
+dependencies = [
+    "numpy<2",
+    "colcon-gradle",
+    "cobs",
+    "ultralytics",
+    "pandas"
+]
+
+# -----------------------
+# Tools (required by Qix)
+# -----------------------
+
+[tool]
+
+[tool.colcon]
+
+[tool.colcon.dependencies]
+lyoko = { version = "v0.3.1" }
+[tool.colcon.optional-dependencies.sim]
+[tool.colcon.hooks.pre-build]
