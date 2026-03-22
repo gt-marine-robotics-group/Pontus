@@ -78,13 +78,6 @@ class SemanticMapDC:
         dist = np.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2)
         # dist = np.linalg.norm(p1 - p2)
 
-        # Temporary fix for ocatgon table detections
-        if obj1.object_type == SemanticObject.OCTAGON:
-            obj1.duplicant_tolerance_m = 1.0
-
-        if obj2.object_type == SemanticObject.OCTAGON:
-            obj2.duplicant_tolerance_m = 1.0
-
         duplicant_tolerance_m = min(
             obj1.duplicant_tolerance_m, obj2.duplicant_tolerance_m)
         return dist <= duplicant_tolerance_m

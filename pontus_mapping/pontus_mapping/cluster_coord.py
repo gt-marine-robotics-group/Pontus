@@ -68,19 +68,19 @@ class ImageCoordinator(Node):
         # (m), width of line pointing toward object detected by yolo
         self.line_projection_width = .1
         # object score must be at least this to be added to semantic map
-        self.confidence_min = 0.5
+        self.confidence_min = 0.6
         self.vector_projection_dist = 10  # (m), how far the line is projected
         self.cam_model = PinholeCameraModel()
         self.camera_frame_name = 'camera_front'
         self.cam_initialized = False
 
         self.min_bbox_width = 0
-        self.max_cluster_dist_m = 8.0
+        self.max_cluster_dist_m = 5.0
 
         # ------ Candidate tracking params ------
-        self.cluster_track_match_dist_m = 0.30
-        self.candidate_stale_time_s = 1.5
-        self.pc_detection_threshold = 8
+        self.cluster_track_match_dist_m = 1.00
+        self.candidate_stale_time_s = 10.5
+        self.pc_detection_threshold = 4
         self.label_assoc_threshold = 5
         self.promoted_track_publish_period_s = 0.75
 
@@ -126,7 +126,7 @@ class ImageCoordinator(Node):
         self.class_assoc_cfg = {
             SemanticObject.GATE_LEFT: {
                 "min_bbox_px": 10.0,
-                "line_threshold_m": 0.25,
+                "line_threshold_m": 0.55,
                 "range_threshold_m": 1.75,
                 "range_weight": 0.75,
                 "line_weight": 1.00,
@@ -134,16 +134,16 @@ class ImageCoordinator(Node):
             },
             SemanticObject.SLALOM_RED: {
                 "min_bbox_px": 8.0,
-                "line_threshold_m": 0.18,
-                "range_threshold_m": 0.85,
+                "line_threshold_m": 0.55,
+                "range_threshold_m": 1.75,
                 "range_weight": 1.00,
                 "line_weight": 1.10,
                 "size_prior_m": {"height": 0.90, "width": 0.0254},
             },
             SemanticObject.SLALOM_WHITE: {
                 "min_bbox_px": 8.0,
-                "line_threshold_m": 0.18,
-                "range_threshold_m": 0.85,
+                "line_threshold_m": 0.55,
+                "range_threshold_m": 1.75,
                 "range_weight": 1.00,
                 "line_weight": 1.10,
                 "size_prior_m": {"height": 0.90, "width": 0.0254},
@@ -174,11 +174,11 @@ class ImageCoordinator(Node):
             },
             SemanticObject.VERTICAL_MARKER: {
                 "min_bbox_px": 8.0,
-                "line_threshold_m": 0.25,
+                "line_threshold_m": 0.55,
                 "range_threshold_m": 1.00,
                 "range_weight": 1.00,
                 "line_weight": 1.00,
-                "size_prior_m": {"height": 1.9812, "width": 0.0508},
+                "size_prior_m": {"height": 1.9812, "width": 0.0708},
             },
             SemanticObject.BIN: {
                 "min_bbox_px": 12.0,
@@ -208,7 +208,7 @@ class ImageCoordinator(Node):
 
         self.default_assoc_cfg = {
             "min_bbox_px": 8.0,
-            "line_threshold_m": self.line_projection_width,
+            "line_threshold_m": 1.0,
             "range_threshold_m": None,
             "range_weight": 0.0,
             "line_weight": 1.0,
@@ -254,10 +254,8 @@ class ImageCoordinator(Node):
         self.debug_id = 0
 
     def yolo_callback(self, msg: Detection2DArray) -> None:
-        """Assigns results from yolo to points in latest_pointcloud and publishes all points as list
-
-        Args:
-            msg (Detection2DArray): _description_
+        """
+        Assigns results from yolo to points in latest_pointcloud and publishes all points as list
         """
         if not self.cam_initialized:
             self.get_logger().warn("camera info not initialized")
@@ -451,11 +449,6 @@ class ImageCoordinator(Node):
         return float(np.median(estimates))
 
     def build_camera_ray_pose(self, object_msg: Detection2D) -> PoseStamped:
-        """
-        Humble-safe version:
-        - keep fromCameraInfo / rectifyPoint / projectPixelTo3dRay API
-        - keep the camera frame override you needed on the robot
-        """
         camera_pose = PoseStamped()
         camera_pose.header = object_msg.header
         camera_pose.header.frame_id = "camera_front_optical_frame"
