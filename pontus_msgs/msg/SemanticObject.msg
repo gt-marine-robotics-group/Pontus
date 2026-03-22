@@ -23,4 +23,4 @@ float32 confidence          # 0.0 to 1.0
 
 builtin_interfaces/Time last_updated   # Timestamp (ROS time)
 
-float32 duplicant_tolerance_m 0.8     # Per-object duplicate tolerance (m)
+float32 duplicant_tolerance_m 1.6     # Per-object duplicate tolerance (m)
