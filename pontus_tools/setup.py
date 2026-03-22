@@ -25,7 +25,8 @@ setup(
     entry_points={
         'console_scripts': [
             'bag_to_mp4 = pontus_tools.bag2mp4:main',
-            'sonar_polar_to_rect = pontus_tools.sonar_polar_to_rect:main'
+            'sonar_polar_to_rect = pontus_tools.sonar_polar_to_rect:main',
+            'lag_plotter = pontus_tools.lag_plotter:main',
         ],
     },
 )
