@@ -32,8 +32,8 @@ class PrequalVerticalMarkerTask(BaseTask):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('height_from_bottom', 0.7),
-                ('pool_depth', 2.5),
+                ('height_from_bottom', 1.3),
+                ('pool_depth', 1.8),
                 ('waypoint_dist_from_marker', 1.6),
                 ('waypoint_dist_from_gate', 1.0),
                 ('marker_centerline_tolerance', 1.5),

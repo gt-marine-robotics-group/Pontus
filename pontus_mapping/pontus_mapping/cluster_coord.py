@@ -68,7 +68,7 @@ class ImageCoordinator(Node):
         # (m), width of line pointing toward object detected by yolo
         self.line_projection_width = .1
         # object score must be at least this to be added to semantic map
-        self.confidence_min = 0.6
+        self.confidence_min = 0.4
         self.vector_projection_dist = 10  # (m), how far the line is projected
         self.cam_model = PinholeCameraModel()
         self.camera_frame_name = 'camera_front'
