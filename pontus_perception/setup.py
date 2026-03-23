@@ -20,6 +20,9 @@ setup(
 
         (os.path.join('share', package_name, 'yolo/auv'),
             glob(os.path.join('yolo', 'auv', '*.pt'))),
+        
+        (os.path.join('share', package_name, 'yolo/auv'),
+            glob(os.path.join('yolo', 'auv', '*.engine'))),
 
         (os.path.join('share', package_name, 'yolo/sim'),
             glob(os.path.join('yolo', 'sim', '*.pt'))),

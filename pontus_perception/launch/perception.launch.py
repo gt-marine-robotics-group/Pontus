@@ -19,7 +19,8 @@ def generate_launch_description() -> LaunchDescription:
             auv_config_str = arg.split(':=')[1]
 
     # ------ Load the YOLO model ------
-    yolo_model = 'model.pt'
+    #yolo_model = 'model.pt'
+    yolo_model = 'model.engine'
     model_path = os.path.join(pkg_share, 'yolo', auv_config_str, yolo_model)
 
 

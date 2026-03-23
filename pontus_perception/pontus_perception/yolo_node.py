@@ -29,6 +29,7 @@ from ament_index_python.packages import get_package_share_directory
 import torch
 import numpy as np
 import cv2
+import os
 
 # ------ Helpers ------
 
@@ -74,15 +75,35 @@ class YOLONode(Node):
             model_path = model_path_param
         else:
             pkg_share = get_package_share_directory('pontus_perception')
-            model_path = f'{pkg_share}/yolo/{auv}/model.pt'
+            engine_path = f'{pkg_share}/yolo/{auv}/model.engine'
+            pt_path = f'{pkg_share}/yolo/{auv}/model.pt'
+            
+            # Check if .engine exists, otherwise use .pt
+            model_path = engine_path if os.path.exists(engine_path) else pt_path
 
         self.threshold = threshold
 
         # ------ Torch / YOLO ------
+        self.class_names ={0:'object'}
         self.device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.model = YOLO(model_path).to(self.device)
-        self.get_logger().info(
-            f'YOLO loaded on device="{self.device}" from "{model_path}"')
+        if model_path.endswith('.engine'):
+            self.model = YOLO(model_path, task='detect')
+            self.get_logger().info(f'RUNNING TENSORRT: Loaded engine from "{model_path}"')
+            
+            # --- MINIMAL EDIT A: Steal metadata from the .pt file ---
+            try:
+                pt_path = model_path.replace('.engine', '.pt')
+                temp_model = YOLO(pt_path, task='detect')
+                self.class_names = temp_model.names
+                del temp_model
+            except Exception as e:
+                self.get_logger().warn(f'Could not load class names from .pt: {e}')
+                self.model.names = {0: 'object'} # Fallback
+        else:
+            self.model = YOLO(model_path).to(self.device)
+            self.class_names = self.model.names
+            self.get_logger().info(f'RUNNING PYTORCH: Loaded .pt model from "{model_path}"')
+          
 
         # ------ CVBridge ------
         self.cv_bridge: CvBridge = CvBridge()
@@ -157,10 +178,25 @@ class YOLONode(Node):
         self._run_yolo_and_publish(image_bgr, msg.header)
 
     def _run_yolo_and_publish(self, image_bgr: np.ndarray, src_header: Header) -> None:
+        # 1. Null Guard (Stops the 'NoneType' crash on startup)
+        if image_bgr is None or image_bgr.size == 0:
+            return
+            
+        # 2. Contiguous Memory Guard (Stops the Segfault -11 in TensorRT)
+        image_bgr = np.ascontiguousarray(image_bgr)
+        
         try:
-            inference_results = self.model(image_bgr)[0]
+            # 3. Safely catch the Ultralytics list output
+            results_list = self.model(image_bgr, conf=self.threshold, verbose=False)
+            if not results_list:
+                return
+            inference_results = results_list[0]
         except Exception as e:
             self.get_logger().warn(f'YOLO inference failed: {e}')
+            return
+            
+        # 4. Check for empty results before accessing .boxes
+        if inference_results is None or not hasattr(inference_results, 'boxes') or inference_results.boxes is None:
             return
 
         detections_array = Detection2DArray()
@@ -178,8 +214,11 @@ class YOLONode(Node):
             except Exception as e:
                 self.get_logger().warn(f'Failed to extract boxes: {e}')
 
-        name_map: Dict[int, str] = getattr(
-            inference_results, 'names', None) or getattr(self.model, 'names', {}) or {}
+        # Use our safely stored class names
+        name_map = getattr(inference_results, 'names', None)
+        if not name_map:
+            name_map = self.class_names
+
         kept = 0
         for (x1, y1, x2, y2), conf, cls_id in zip(xyxy, confs, clss):
             if float(conf) < self.threshold:
