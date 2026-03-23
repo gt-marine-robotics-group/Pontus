@@ -38,6 +38,7 @@
 #include <cmath>
 #include <memory>
 #include <string>
+#include <limits>
 
 class SonoptixDriverNode : public rclcpp::Node {
 
@@ -49,18 +50,29 @@ public:
     target_frame_ = this->declare_parameter<std::string>("target_frame", "map");
     sonar_res_m_ = this->declare_parameter<double>("sonar_res", 0.0148);
     sonar_angle_rad_ = this->declare_parameter<double>("sonar_angle", M_PI / 3.0);
-    intensity_min_ = this->declare_parameter<int>("intensity_min", 10);
+    intensity_min_ = this->declare_parameter<int>("intensity_min", 20);
     normalize_intensity_ = this->declare_parameter<bool>("normalize_intensity", true);
-    min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.2);   // keep points at least this deep
-    max_depth_m_ = this->declare_parameter<double>("max_depth_m", 3.5);  // keep points at most this deep
+    min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.35);   // keep points at least this deep
+    max_depth_m_ = this->declare_parameter<double>("max_depth_m", 1.8);  // keep points at most this deep
 
-    cluster_tolerance_ = this->declare_parameter<double>("cluster_tolerance", 0.3);
-    cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 10);
-    cluster_max_points_ = this->declare_parameter<int>("cluster_max_points", 1000);
+
+    // cluster_tolerance_ = this->declare_parameter<double>("cluster_tolerance", 0.3);
+    // cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 10);
+    // cluster_max_points_ = this->declare_parameter<int>("cluster_max_points", 1000);
+
+    // line_dist_threshold_ = this->declare_parameter<double>("line_dist_threshold", 0.10);   // m
+    // line_min_inliers_    = this->declare_parameter<int>("line_min_inliers", 1000);         // "big" lines
+    // line_min_length_m_   = this->declare_parameter<double>("line_min_length", 1.0);       // length in meters
+
+
+
+    cluster_tolerance_ = this->declare_parameter<double>("cluster_tolerance", 0.15);
+    cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 20);
+    cluster_max_points_ = this->declare_parameter<int>("cluster_max_points", 400);
 
     line_dist_threshold_ = this->declare_parameter<double>("line_dist_threshold", 0.10);   // m
-    line_min_inliers_    = this->declare_parameter<int>("line_min_inliers", 1000);         // "big" lines
-    line_min_length_m_   = this->declare_parameter<double>("line_min_length", 1.0);       // length in meters
+    line_min_inliers_    = this->declare_parameter<int>("line_min_inliers", 180);         // "big" lines
+    line_min_length_m_   = this->declare_parameter<double>("line_min_length", 1.1);       // length in meters
 
     rclcpp::QoS qos(rclcpp::KeepLast(1));
     qos.best_effort();
@@ -102,7 +114,12 @@ private:
     }
 
     CloudIPtr cloud = imageToPcl(gray);
-    if(!cloud || cloud->empty()) {
+    if (!cloud || cloud->empty()) {
+      std_msgs::msg::Header hdr = msg->header;
+      if (!frame_id_.empty()) {
+        hdr.frame_id = target_frame_;
+      }
+      publishEmptyCluster(hdr);
       return;
     }
 
@@ -111,7 +128,12 @@ private:
 
   void onSimPointcloud(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
     CloudIPtr cloud = simPointcloudToPcl(*msg);
-    if(!cloud || cloud->empty()) {
+    if (!cloud || cloud->empty()) {
+      std_msgs::msg::Header hdr = msg->header;
+      if (!frame_id_.empty()) {
+        hdr.frame_id = target_frame_;
+      }
+      publishEmptyCluster(hdr);
       return;
     }
 
@@ -205,9 +227,14 @@ private:
 
   // ------ Back End Filtering and Processing ------
   void processAndPublishCloud(const CloudIPtr& cloud_in,
-                                 const std_msgs::msg::Header& in_header)
+                            const std_msgs::msg::Header& in_header)
   {
     if (!cloud_in || cloud_in->empty()) {
+      std_msgs::msg::Header hdr = in_header;
+      if (!frame_id_.empty()) {
+        hdr.frame_id = target_frame_;
+      }
+      publishEmptyCluster(hdr);
       return;
     }
 
@@ -223,58 +250,52 @@ private:
     sensor_msgs::msg::PointCloud2 cloud_msg;
 
     if (!tf_ok) {
-      // publish in source frame as a fallback
       pcl::toROSMsg(*cloud_in, cloud_msg);
       cloud_msg.header = src_header;
       cloud_pub_->publish(cloud_msg);
+
+      std_msgs::msg::Header cluster_header = in_header;
+      cluster_header.frame_id = target_frame_;
+      publishEmptyCluster(cloud_msg.header);
       return;
     }
 
     // Filter in map frame
     CloudI cloud_filtered = filter_points_pcl(*cloud_transformed, min_depth_m_, max_depth_m_);
-
     cloud_filtered = filter_lines_pcl(cloud_filtered);
 
-    // Convert to ROS PointCloud2
+    // Publish filtered cloud even if empty
     pcl::toROSMsg(cloud_filtered, cloud_msg);
     cloud_msg.header = src_header;
     cloud_msg.header.frame_id = target_frame_;
     cloud_pub_->publish(cloud_msg);
 
-    if (cloud_filtered.empty() || cloud_filtered.size() != cloud_filtered.width * cloud_filtered.height) {
-      return;
+    std::vector<Eigen::Vector4f> centroids;
+    if (!cloud_filtered.empty()) {
+      CloudIPtr cloud_filtered_ptr(new CloudI(cloud_filtered));
+      std::vector<pcl::PointIndices> clusters = euclideanClustering(cloud_filtered_ptr);
+      centroids = computeClusterCentroids(cloud_filtered_ptr, clusters);
     }
 
-    // Clustering
-    CloudIPtr cloud_filtered_ptr(new CloudI(cloud_filtered));
+    CloudI clustered_cloud;
+    clustered_cloud.height = 1;
+    clustered_cloud.is_dense = true;
+    clustered_cloud.points.reserve(centroids.size());
 
-    // Euclidean clustering
-    std::vector<pcl::PointIndices> clusters = euclideanClustering(cloud_filtered_ptr);
-    std::vector<Eigen::Vector4f> centroids = computeClusterCentroids(cloud_filtered_ptr, clusters);
-
-    // Allocate PCL cloud
-    CloudIPtr clustered_cloud(new CloudI);
-    clustered_cloud->height = 1;
-    clustered_cloud->is_dense = false;
-
-    // Populate the occupied indices for each cluster
     for (const auto& centroid : centroids) {
       pcl::PointXYZI point;
       point.x = centroid[0];
       point.y = centroid[1];
       point.z = centroid[2];
-
       point.intensity = 100.0f;
-      clustered_cloud->points.push_back(point);
+      clustered_cloud.points.push_back(point);
     }
-    clustered_cloud->width = clustered_cloud->points.size();
+    clustered_cloud.width = clustered_cloud.points.size();
 
-    if (clustered_cloud->points.size() > 1) {
-      sensor_msgs::msg::PointCloud2 clustered_msg;
-      pcl::toROSMsg(*clustered_cloud, clustered_msg);
-      clustered_msg.header = cloud_msg.header;
-      clustered_pub_->publish(clustered_msg);
-    }
+    sensor_msgs::msg::PointCloud2 clustered_msg;
+    pcl::toROSMsg(clustered_cloud, clustered_msg);
+    clustered_msg.header = cloud_msg.header;
+    clustered_pub_->publish(clustered_msg);
   }
 
   bool transform_pcl_to_map_frame(
@@ -471,6 +492,19 @@ private:
       }
 
       return centroids;
+  }
+
+  void publishEmptyCluster(const std_msgs::msg::Header& header)
+  {
+    CloudI empty_cloud;
+    empty_cloud.height = 1;
+    empty_cloud.width = 0;
+    empty_cloud.is_dense = true;
+
+    sensor_msgs::msg::PointCloud2 clustered_msg;
+    pcl::toROSMsg(empty_cloud, clustered_msg);
+    clustered_msg.header = header;
+    clustered_pub_->publish(clustered_msg);
   }
 
 private:
