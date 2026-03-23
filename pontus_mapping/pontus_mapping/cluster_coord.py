@@ -1,7 +1,9 @@
 # from pontus_msgs.srv import AddSemanticObject
+from dataclasses import dataclass
 import geometry_msgs
-from pontus_msgs.msg import SemanticObject
+from pontus_msgs.msg import SemanticObject, SemanticMap
 from pontus_msgs.srv import AddSemanticObject
+from std_msgs.msg import String
 import rclpy
 from rclpy.node import Node
 from rclpy.time import Time
@@ -25,10 +27,31 @@ from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker, MarkerArray
 from vision_msgs.msg import Detection2D, Detection2DArray
 
+from pontus_mapping.semantic_map_manager import SemanticMapDC
+
+@dataclass
+class SlalomRowCandidate:
+    slalom_red: SemanticObject
+    slalom_white: SemanticObject
 
 class ImageCoordinator(Node):
     def __init__(self) -> None:
         super().__init__('image_to_cluster_coordinator')
+
+        # TODO: This is copied and pasted from sm manager, grab the parameters from there or use common parameters in a config file here
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ("slalom_white_to_white_width", 3.0), 
+                ("slalom_white_to_red_width", 1.5), 
+                ("slalom_width_tolerance", 0.3), # slalom pairing tolerance
+                ("slalom_row_tolerance", 0.3) # red slalom row deviation tolerance
+            ]
+        )
+        self.slalom_white_to_white_width_m = float(self.get_parameter('slalom_white_to_white_width').value)
+        self.slalom_white_to_red_width_m = float(self.get_parameter('slalom_white_to_red_width').value)
+        self.slalom_width_tolerance_m = float(self.get_parameter("slalom_width_tolerance").value)
+        self.slalom_row_tolerance_m = float(self.get_parameter("slalom_row_tolerance").value)
 
         self.latest_pointcloud: np.array = None
         # (m), width of line pointing toward object detected by yolo
@@ -42,6 +65,9 @@ class ImageCoordinator(Node):
 
         self.min_bbox_width = 0
         self.max_cluster_dist_m = 8.0
+
+        # self.red_list = None
+        self.white_list = []
 
         self.name_map = {
             'gate_side': SemanticObject.GATE_LEFT,
@@ -80,6 +106,8 @@ class ImageCoordinator(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
+        # self.slalom_row_candidates = []
+
         self.cli = self.create_client(
             AddSemanticObject, '/pontus/add_semantic_object')
         while not self.cli.wait_for_service(timeout_sec=1.0):
@@ -107,11 +135,26 @@ class ImageCoordinator(Node):
             10
         )
 
+        self.sm_sub = self.create_subscription(
+            SemanticMap,
+            '/pontus/semantic_map',
+            self.semantic_map_callback,
+            10
+        )
+
         self.debug_line_pub = self.create_publisher(
             MarkerArray,
             '/pontus/{}/debug_lines'.format(self.camera_frame_name),
             10
         )
+
+        self.slalom_debug_pub = self.create_publisher(
+            String,
+            '/pontus/slalom_completion_debug',
+            10
+        )
+
+
         self.debug_id = 0
 
     def yolo_callback(self, msg: Detection2DArray) -> None:
@@ -145,6 +188,70 @@ class ImageCoordinator(Node):
                 if point_found and temp[2] > self.confidence_min:
                     success = self.send_request(temp[0], temp[1])
 
+    def semantic_map_callback(self, msg: SemanticMap) -> None:
+        """
+        Builds a list of candidate red and white poles that could be completed with detected cluster point cloud
+
+        
+        """
+
+        # slalom_row_candidates = []
+        # red_list = msg.slalom_red
+        white_list = msg.slalom_white
+
+        existing_rows = msg.meta_slalom.meta_slalom_rows 
+
+        # self.red_list = []
+        self.white_list = []
+        
+        # for red in red_list:
+        #     dup_flag = False 
+        #     for cur_row in existing_rows:
+        #         if (SemanticMapDC.check_semantic_object_duplicant(cur_row.slalom_red, red)):
+        #             dup_flag = True
+        #             break
+        #     if dup_flag:
+        #         continue
+                
+        #     self.red_list.append(red)
+        
+        # we don't consider poles that are already part of a row when completing to prevent duplicates
+        for white in white_list:
+            dup_flag = False 
+            for cur_row in existing_rows:
+                if (SemanticMapDC.check_semantic_object_duplicant(cur_row.slaloms_white[0], white)
+                        or SemanticMapDC.check_semantic_object_duplicant(cur_row.slaloms_white[1], white)):
+                    dup_flag = True
+                    break
+            if dup_flag:
+                continue
+                
+            self.white_list.append(white)
+            
+
+
+
+        # for red in red_list:
+        #     dup_flag = False 
+        #     for cur_row in existing_rows:
+        #         if (SemanticMapDC.check_semantic_object_duplicant(cur_row.slalom_red, red)):
+        #             dup_flag = True
+        #             break
+            
+        #     if dup_flag:
+        #         continue
+
+        #     red_vec = self._pose_to_vec2(red.pose.pose)
+        #     for white in white_list:
+        #         white_vec = self._pose_to_vec2(white.pose.pose)
+
+        #         red_to_white = np.linalg.norm(red_vec - white_vec)
+
+        #         if (abs(red_to_white - self.slalom_white_to_red_width_m) <= self.slalom_width_tolerance_m):
+        #             slalom_row_candidate = SlalomRowCandidate(slalom_red=red, slalom_white=white)
+        #             slalom_row_candidates.append(slalom_row_candidate)
+
+        # self.slalom_row_candidates = slalom_row_candidates
     def pointcloud_callback(self, msg: PointCloud2) -> None:
         """
         Saves recieved pointcloud to latest_pointcloud, taken from occupency_grid_manager.py
@@ -166,6 +273,18 @@ class ImageCoordinator(Node):
         # points[:, 1] = -points[:, 1]  # TODO ask why do this?
 
         self.latest_pointcloud = points
+        
+        self.complete_slalom_rows()
+        # self.publish_slalom_completion_debug()
+
+    # def publish_slalom_completion_debug(self):
+        
+    #     debug_msg = String()
+    #     debug_msg.data = (
+    #         f"num slalom row candidates: {len(self.slalom_row_candidates)},"
+    #     )
+
+    #     self.slalom_debug_pub.publish(debug_msg)
 
     def info_callback(self, msg):
         """
@@ -175,6 +294,106 @@ class ImageCoordinator(Node):
             self.cam_model.fromCameraInfo(msg)
             self.cam_initialized = True
             self.get_logger().info('Camera model initialized with new info.')
+
+    def complete_slalom_rows(self):
+        
+        point2_array = self.latest_pointcloud.copy()[:, :2]
+
+        for white_pole in self.white_list:
+            white_vec = self._pose_to_vec2(white_pole.pose.pose)
+
+            # distances of all clusters points from the white pole
+            dists = np.linalg.norm(point2_array - white_vec, axis=1)
+
+            # boolean masks for points that satisfy distance tolerances for red pole and other white pole in a row
+            possible_valid_to_red = np.abs(dists - self.slalom_white_to_red_width_m) <= self.slalom_width_tolerance_m
+            possible_valid_to_white = np.abs(dists - self.slalom_white_to_white_width_m) <= self.slalom_width_tolerance_m
+
+            # cluster points that satisfy distances to white_vec
+            possible_reds =  point2_array[possible_valid_to_red]
+            possible_whites =  point2_array[possible_valid_to_white]
+
+            # check possible reds and other whites against each other
+            possible_reds_to_whites_dists = np.linalg.norm(possible_reds[:, np.newaxis, :] - possible_whites[np.newaxis, :, :], axis=2)
+            possible_reds_to_whites_mask = np.abs(possible_reds_to_whites_dists - self.slalom_white_to_red_width_m) <= self.slalom_width_tolerance_m
+            possible_reds_idx, possible_whites_idx = np.asarray(possible_reds_to_whites_mask).nonzero()
+
+            possible_reds = possible_reds[possible_reds_idx]
+            possible_whites = possible_whites[possible_whites_idx]
+
+            white_vec_to_possible_white = white_vec - possible_whites
+
+            # array of vectors perpendicular to the vector between white_vec and possible_whites
+            perp_vecs = np.stack([-white_vec_to_possible_white[:, 1], white_vec_to_possible_white[:, 0]], axis=1)
+            perp_unit_vecs = perp_vecs / np.linalg.norm(perp_vecs, axis=1, keepdims=True)
+
+            white_to_red_vecs = possible_reds - white_vec
+            off_dists = np.abs(np.sum(perp_unit_vecs * white_to_red_vecs, axis=1))
+
+            valid_row_mask = off_dists <= self.slalom_row_tolerance_m
+            final_reds = possible_reds[valid_row_mask]
+            final_whites = possible_whites[valid_row_mask]
+
+            n = len(final_reds)
+
+            if (n == 1):
+                class_ids = [SemanticObject.SLALOM_WHITE, SemanticObject.SLALOM_RED]
+
+                red_pose = PoseStamped()
+                red_pose.header = white_pole.header
+                red_point = Point()
+                red_point.x = float(final_reds[0][0])
+                red_point.y = float(final_reds[0][1])
+                red_point.z = float(white_pole.pose.pose.position.z)
+                red_pose.pose.position = red_point
+
+                white_pose = PoseStamped()
+                white_pose.header = white_pole.header
+                white_point = Point()
+                white_point.x = float(final_whites[0][0])
+                white_point.y = float(final_whites[0][1])
+                white_point.z = float(white_pole.pose.pose.position.z)
+                white_pose.pose.position = white_point
+
+                object_poses = [white_pose, red_pose]
+
+                self.send_request(class_ids, object_poses)
+                self.get_logger().info("completed slalom row using cluster points")
+
+            
+        # for slalom_row_candidate in self.slalom_row_candidates:
+        #     red_vec = self._pose_to_vec2(slalom_row_candidate.slalom_red.pose.pose)
+        #     white_vec = self._pose_to_vec2(slalom_row_candidate.slalom_white.pose.pose)
+
+        #     red_dists = np.linalg.norm(point2_array - red_vec, axis=1)
+        #     white_dists = np.linalg.norm(point2_array - white_vec, axis=1)
+
+        #     possible_valid_to_red = np.abs(red_dists - self.slalom_white_to_red_width_m) <= self.slalom_width_tolerance_m
+        #     possible_valid_to_white = np.abs(white_dists - self.slalom_white_to_white_width_m) <= self.slalom_width_tolerance_m
+
+        #     possible_points = point2_array[np.asarray(possible_valid_to_red & possible_valid_to_white).nonzero()]
+
+
+        #     for point in possible_points:
+                
+        #         white_to_point = white_vec - point
+
+        #         perp_vec = np.array([-white_to_point[1], white_to_point[0]])
+        #         perp_unit_vec = perp_vec / np.linalg.norm(perp_vec)
+
+        #         off_dist = np.abs(np.dot(perp_unit_vec, red_vec - white_vec))
+
+        #         if (off_dist <= self.slalom_row_tolerance_m):
+        #             object_pose = PoseStamped()
+        #             object_pose.header = slalom_row_candidate.slalom_red.header
+        #             selected_point = Point()
+        #             selected_point.x = float(point[0])
+        #             selected_point.y = float(point[1])
+        #             selected_point.z = float(slalom_row_candidate.slalom_red.pose.pose.position.z)
+        #             object_pose.pose.position = selected_point
+
+                    
+
 
     def associate_object_with_point(self, object_msg: Detection2D, point_array: np.ndarray) -> tuple:
         """
@@ -512,6 +731,10 @@ class ImageCoordinator(Node):
                 return ColorRGBA(a=1.0)
             case default:
                 return ColorRGBA(g=1.0, a=1.0)
+
+    def _pose_to_vec2(self, pose: Pose) -> np.ndarray:
+        """Convert a Pose into 2D np.array [x, y] for planar distance calculations."""
+        return np.array([pose.position.x, pose.position.y], dtype=float)
 
 
 def main(args=None):
