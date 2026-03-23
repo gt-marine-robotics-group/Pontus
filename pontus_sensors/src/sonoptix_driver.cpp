@@ -52,10 +52,17 @@ public:
     sonar_angle_rad_ = this->declare_parameter<double>("sonar_angle", M_PI / 3.0);
     intensity_min_ = this->declare_parameter<int>("intensity_min", 10);
     normalize_intensity_ = this->declare_parameter<bool>("normalize_intensity", true);
-    min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.10);   // keep points at least this deep
-    max_depth_m_ = this->declare_parameter<double>("max_depth_m", 1.6);  // keep points at most this deep
+    timestamp_offset_ms_ = this->declare_parameter<double>("timestamp_offset_ms", 0.0);
 
-    min_dist_m_ = this->declare_parameter<double>("min_dist_m", 0.45); 
+    // ---- Mitchell Pool -----
+    // min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.10);   // keep points at least this deep
+    // max_depth_m_ = this->declare_parameter<double>("max_depth_m", 1.6);  // keep points at most this deep
+
+    // ---- CRC Pool ----
+    min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.10);   // keep points at least this deep
+    max_depth_m_ = this->declare_parameter<double>("max_depth_m", 2.2);  // keep points at most this deep
+
+    min_dist_m_ = this->declare_parameter<double>("min_dist_m", 0.3); 
     max_dist_m_ = this->declare_parameter<double>("max_dist_m", 4.5);
 
 
@@ -99,9 +106,9 @@ public:
     tf_listener_ = std::make_unique<tf2_ros::TransformListener>(*tf_buffer_);
 
     RCLCPP_INFO(get_logger(),
-      "Sonoptix: sonar_res=%.6f m/bin, sonar_angle=%.3f rad, thr=%d, norm=%s, frame_id='%s', target_frame='%s'",
+      "Sonoptix: sonar_res=%.6f m/bin, sonar_angle=%.3f rad, thr=%d, norm=%s, frame_id='%s', target_frame='%s', timestamp_offset_ms=%.1f",
       sonar_res_m_, sonar_angle_rad_, intensity_min_, normalize_intensity_ ? "true" : "false",
-      frame_id_.c_str(), target_frame_.c_str()
+      frame_id_.c_str(), target_frame_.c_str(), timestamp_offset_ms_
     );
   }
 
@@ -126,6 +133,8 @@ private:
       return;
     }
 
+
+    std_msgs::msg::Header hdr = msg->header;
     processAndPublishCloud(cloud, msg->header);
   }
 
@@ -267,6 +276,12 @@ private:
       src_header.frame_id = frame_id_;
     }
 
+    if (timestamp_offset_ms_ != 0.0) {
+      rclcpp::Time shifted_time(in_header.stamp);
+      shifted_time = shifted_time - rclcpp::Duration::from_seconds(timestamp_offset_ms_ / 1000.0);
+      src_header.stamp = shifted_time;
+    }
+
     // Transform to target frame
     CloudIPtr cloud_transformed(new CloudI);
     bool tf_ok = transform_pcl_to_map_frame(*cloud_in, src_header, *cloud_transformed);
@@ -280,7 +295,7 @@ private:
 
       std_msgs::msg::Header cluster_header = in_header;
       cluster_header.frame_id = target_frame_;
-      publishEmptyCluster(cloud_msg.header);
+      publishEmptyCluster(cluster_header);
       return;
     }
 
@@ -328,13 +343,17 @@ private:
     CloudI& cloud_out)
   {
     if (src_header.frame_id.empty()) {
-      RCLCPP_WARN(get_logger(), "transform_pcl_to_map_frame(): empty frame_id; cannot transform to '%s'.",
-                  target_frame_.c_str());
+      RCLCPP_WARN(
+        get_logger(),
+        "transform_pcl_to_map_frame(): empty frame_id; cannot transform to '%s'.",
+        target_frame_.c_str());
       return false;
     }
 
     try {
-      // First, try at the cloud timestamp
+      // Only use the transform at the cloud timestamp.
+      // If it is not available yet, fail rather than using the latest transform,
+      // since using a mismatched transform time can cause map-frame drift while yawing.
       auto tf = tf_buffer_->lookupTransform(
         target_frame_,
         src_header.frame_id,
@@ -345,35 +364,70 @@ private:
       pcl_ros::transformPointCloud(cloud_in, cloud_out, tf);
       return true;
 
-    } catch (const tf2::ExtrapolationException& ex_future) {
-      try {
-        auto tf_latest = tf_buffer_->lookupTransform(
-          target_frame_,
-          src_header.frame_id,
-          tf2::TimePointZero   // latest available transform
-        );
-        pcl_ros::transformPointCloud(cloud_in, cloud_out, tf_latest);
-
-        RCLCPP_DEBUG(get_logger(),
-          "TF future extrapolation for time %.3f; used latest transform instead.",
-          rclcpp::Time(src_header.stamp).seconds());
-
-        return true;
-
-      } catch (const tf2::TransformException& ex2) {
-        RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
-          "TF fallback to latest also failed (%s -> %s): %s",
-          src_header.frame_id.c_str(), target_frame_.c_str(), ex2.what());
-        return false;
-      }
-
     } catch (const tf2::TransformException& ex) {
-      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
-        "TF to '%s' failed from '%s': %s",
-        target_frame_.c_str(), src_header.frame_id.c_str(), ex.what());
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "TF to '%s' failed from '%s' at cloud time %.3f: %s",
+        target_frame_.c_str(),
+        src_header.frame_id.c_str(),
+        rclcpp::Time(src_header.stamp).seconds(),
+        ex.what());
       return false;
     }
   }
+
+  // bool transform_pcl_to_map_frame(
+  //   const CloudI& cloud_in,
+  //   const std_msgs::msg::Header& src_header,
+  //   CloudI& cloud_out)
+  // {
+  //   if (src_header.frame_id.empty()) {
+  //     RCLCPP_WARN(get_logger(), "transform_pcl_to_map_frame(): empty frame_id; cannot transform to '%s'.",
+  //                 target_frame_.c_str());
+  //     return false;
+  //   }
+
+  //   try {
+  //     // First, try at the cloud timestamp
+  //     auto tf = tf_buffer_->lookupTransform(
+  //       target_frame_,
+  //       src_header.frame_id,
+  //       rclcpp::Time(src_header.stamp),
+  //       rclcpp::Duration::from_seconds(0.1)
+  //     );
+
+  //     pcl_ros::transformPointCloud(cloud_in, cloud_out, tf);
+  //     return true;
+
+  //   } catch (const tf2::ExtrapolationException& ex_future) {
+  //     try {
+  //       auto tf_latest = tf_buffer_->lookupTransform(
+  //         target_frame_,
+  //         src_header.frame_id,
+  //         tf2::TimePointZero   // latest available transform
+  //       );
+  //       pcl_ros::transformPointCloud(cloud_in, cloud_out, tf_latest);
+
+  //       RCLCPP_DEBUG(get_logger(),
+  //         "TF future extrapolation for time %.3f; used latest transform instead.",
+  //         rclcpp::Time(src_header.stamp).seconds());
+
+  //       return true;
+
+  //     } catch (const tf2::TransformException& ex2) {
+  //       RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
+  //         "TF fallback to latest also failed (%s -> %s): %s",
+  //         src_header.frame_id.c_str(), target_frame_.c_str(), ex2.what());
+  //       return false;
+  //     }
+
+  //   } catch (const tf2::TransformException& ex) {
+  //     RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
+  //       "TF to '%s' failed from '%s': %s",
+  //       target_frame_.c_str(), src_header.frame_id.c_str(), ex.what());
+  //     return false;
+  //   }
+  // }
 
   CloudI filter_points_pcl(
     const pcl::PointCloud<pcl::PointXYZI>& cloud_in,
@@ -539,6 +593,7 @@ private:
   double sonar_angle_rad_;
   int intensity_min_;
   bool normalize_intensity_;
+  double timestamp_offset_ms_;
   double min_depth_m_;
   double max_depth_m_;
   double min_dist_m_;

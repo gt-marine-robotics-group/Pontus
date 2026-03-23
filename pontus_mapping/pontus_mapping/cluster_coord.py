@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 import rclpy
 from rclpy.node import Node
 from rclpy.time import Time
+from rclpy.qos import QoSProfile
 from geometry_msgs.msg import Point, Pose, PoseStamped, Vector3Stamped, Vector3
 from sensor_msgs.msg import PointCloud2, CameraInfo
 from sensor_msgs_py import point_cloud2
@@ -26,9 +27,11 @@ from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker, MarkerArray
 from vision_msgs.msg import Detection2D, Detection2DArray
 
-from message_filters import ApproximateTimeSynchronizer
+from message_filters import Subscriber, ApproximateTimeSynchronizer
 
 # ------ Track Dataclass -------
+
+
 @dataclass
 class CandidateTrack:
     track_id: int
@@ -50,7 +53,8 @@ class CandidateTrack:
 
     def update_position(self, point_xyz: np.ndarray) -> None:
         self.num_pc_detections += 1
-        self.position_map += (point_xyz - self.position_map) / self.num_pc_detections
+        self.position_map += (point_xyz - self.position_map) / \
+            self.num_pc_detections
 
     def add_label_vote(self, class_id: int) -> None:
         new_count = self.label_association_counts.get(class_id, 0) + 1
@@ -67,6 +71,7 @@ class ImageCoordinator(Node):
         super().__init__('image_to_cluster_coordinator')
 
         self.latest_pointcloud: np.array = None
+        self.latest_synced_cloud_stamp = None
         # (m), width of line pointing toward object detected by yolo
         self.line_projection_width = .1
         # object score must be at least this to be added to semantic map
@@ -122,7 +127,6 @@ class ImageCoordinator(Node):
             str(SemanticObject.TARGET): SemanticObject.TARGET,
             str(SemanticObject.PATH_MARKER): SemanticObject.PATH_MARKER
         }
-
 
         # ------ Association tuning ------
         self.class_assoc_cfg = {
@@ -217,7 +221,6 @@ class ImageCoordinator(Node):
             "size_prior_m": {},
         }
 
-
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
@@ -225,20 +228,6 @@ class ImageCoordinator(Node):
             AddSemanticObject, '/pontus/add_semantic_object')
         while not self.cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
-
-        self.cluster = self.create_subscription(
-            PointCloud2,
-            '/pontus/sonar/clustercloud',
-            # self.pointcloud_callback,
-            10
-        )
-
-        self.yolo = self.create_subscription(
-            Detection2DArray,
-            '/pontus/{}/yolo_results'.format(self.camera_frame_name),
-            # self.yolo_callback,
-            10
-        )
 
         self.info_sub = self.create_subscription(
             CameraInfo,
@@ -255,15 +244,33 @@ class ImageCoordinator(Node):
         )
         self.debug_id = 0
 
-        queue_size = 30 # number of messages kept in memory for time synchronizer
-        max_delay = 0.05 # max diff in timestamps in seconds
+        qos = QoSProfile(depth=10)
+
+        self.cluster = Subscriber(
+            self,
+            PointCloud2,
+            '/pontus/sonar/clustercloud',
+            qos_profile=qos
+        )
+
+        self.yolo = Subscriber(
+            self,
+            Detection2DArray,
+            '/pontus/{}/yolo_results'.format(self.camera_frame_name),
+            qos_profile=qos
+        )
+
+        queue_size = 30  # number of messages kept in memory for time synchronizer
+        max_delay = 0.05  # max diff in timestamps in seconds
         self.time_sync = ApproximateTimeSynchronizer([self.cluster, self.yolo],
                                                      queue_size, max_delay)
-        self.time_sync.registerCallback(self.SyncCallback)
+        self.time_sync.registerCallback(self.sync_callback)
 
-    def SyncCallback(self, cluster_msg, yolo_msg) -> None:
+    def sync_callback(self, cluster_msg, yolo_msg) -> None:
         # kinda ramshackle way of doing both callbacks, both messages will have timestamp within max_delay of each other
-        self.pointcloud_callback(cluster_msg) # update latest_pointcloud before moving to yolo_callback
+        # update latest_pointcloud before moving to yolo_callback
+        self.latest_synced_cloud_stamp = cluster_msg.header.stamp
+        self.pointcloud_callback(cluster_msg)
         self.yolo_callback(yolo_msg)
         return
 
@@ -321,7 +328,6 @@ class ImageCoordinator(Node):
                     matched_track.last_publish_time_s = now_s
                     self.send_request(
                         [matched_track.best_label], [object_pose])
-
 
     def pointcloud_callback(self, msg: PointCloud2) -> None:
         """
@@ -469,7 +475,8 @@ class ImageCoordinator(Node):
 
         center_position = object_msg.bbox.center.position
 
-        point = np.array([center_position.x, center_position.y], dtype=np.float64)
+        point = np.array(
+            [center_position.x, center_position.y], dtype=np.float64)
         rectified_point = self.cam_model.rectifyPoint(point)
         ray_unit_vector = self.cam_model.projectPixelTo3dRay(rectified_point)
 
@@ -518,6 +525,7 @@ class ImageCoordinator(Node):
 
         object_pose = PoseStamped()
         object_pose.header = transformed_pose.header
+        object_pose.header.stamp = self.latest_synced_cloud_stamp
         object_pose.pose.position = selected_point
 
         return object_pose
@@ -671,9 +679,9 @@ class ImageCoordinator(Node):
         if matched_track is None:
             return None, None
 
-        object_pose = self.make_object_pose_from_track(transformed_pose, matched_track)
+        object_pose = self.make_object_pose_from_track(
+            transformed_pose, matched_track)
         return matched_track, object_pose
-
 
     def align_pose_x_with_vector(self, pose_msg: PoseStamped, target_vector: list) -> PoseStamped:
         """

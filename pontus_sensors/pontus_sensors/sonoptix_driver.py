@@ -5,6 +5,7 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
 import requests
+from rclpy.duration import Duration
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 from typing import Optional, List
 import numpy as np
@@ -20,13 +21,25 @@ class SonoptixDriver(Node):
         self.declare_parameter('gain', 1)
         self.declare_parameter('angle_range', 2.09)
         self.declare_parameter('intensity_threshold', 127)
+        self.declare_parameter('timestamp_offset_ms', 120.0)
+        self.declare_parameter('timing_debug_every_n', 30)
 
-        self.ip_address = self.get_parameter('ip_address').get_parameter_value().string_value
-        self.range = self.get_parameter('range').get_parameter_value().integer_value
-        self.gain = self.get_parameter('gain').get_parameter_value().integer_value
-        self.angle_range = self.get_parameter('angle_range').get_parameter_value().double_value
+        self.ip_address = self.get_parameter(
+            'ip_address').get_parameter_value().string_value
+        self.range = self.get_parameter(
+            'range').get_parameter_value().integer_value
+        self.gain = self.get_parameter(
+            'gain').get_parameter_value().integer_value
+        self.angle_range = self.get_parameter(
+            'angle_range').get_parameter_value().double_value
         self.intensity_threshold = self.get_parameter('intensity_threshold')\
             .get_parameter_value().integer_value
+        self.timestamp_offset_ms = self.get_parameter('timestamp_offset_ms')\
+            .get_parameter_value().double_value
+        self.timing_debug_every_n = self.get_parameter('timing_debug_every_n')\
+            .get_parameter_value().integer_value
+
+        self.frame_count = 0
 
         self.get_logger().info(f"{self.ip_address}")
 
@@ -85,15 +98,36 @@ class SonoptixDriver(Node):
         while self.cap.isOpened():
             self.get_logger().warn("read frame")
             ret, frame = self.cap.read()
+
             if ret:
+                # Assistant-added: timestamp immediately when OpenCV returns the frame.
+                frame_read_time = self.get_clock().now()
+
                 self.get_logger().warn("frame was valid")
                 preprocessed_image = self.preprocess_frame(frame)
                 # preprocessed_image = frame
-                #ros_image = self.cv_bridge.cv2_to_imgmsg(frame, encoding="bgr8")
-                ros_image = self.cv_bridge.cv2_to_imgmsg(preprocessed_image, encoding="mono8")
+                # ros_image = self.cv_bridge.cv2_to_imgmsg(frame, encoding="bgr8")
+                ros_image = self.cv_bridge.cv2_to_imgmsg(
+                    preprocessed_image, encoding="mono8")
                 ros_image.header.frame_id = "sonar_0"
-                ros_image.header.stamp = self.get_clock().now().to_msg()
+
+                # compensate for RTSP / decode latency.
+                stamp_time = frame_read_time - Duration(
+                    nanoseconds=int(self.timestamp_offset_ms * 1e6)
+                )
+                ros_image.header.stamp = stamp_time.to_msg()
+
                 self.pub.publish(ros_image)
+
+                self.frame_count += 1
+                if self.timing_debug_every_n > 0 and \
+                        (self.frame_count % self.timing_debug_every_n) == 0:
+                    publish_time = self.get_clock().now()
+                    pipeline_delay_ms = (
+                        publish_time - frame_read_time).nanoseconds / 1e6
+                    self.get_logger().info(
+                        f"Sonoptix timing: preprocess+publish delay = {pipeline_delay_ms:.1f} ms, "
+                        f"timestamp_offset_ms = {self.timestamp_offset_ms:.1f}")
             else:
                 self.get_logger().warn("Failed to read frame")
 
@@ -114,10 +148,10 @@ class SonoptixDriver(Node):
         mx = np.max(gray)
         mn = np.min(gray)
         avg = np.average(gray[gray > 1.0])
-        #masked = cv2.inRange(gray, 3, 255)
-        #masked = cv2.inRange(gray, self.intensity_threshold, 255)
+        # masked = cv2.inRange(gray, 3, 255)
+        # masked = cv2.inRange(gray, self.intensity_threshold, 255)
         gray[gray > 2.0] = gray[gray > 2.0] * (255 / mx)
-        #color = cv2.cvtColor(masked, cv2.COLOR_GRAY2BGR)
+        # color = cv2.cvtColor(masked, cv2.COLOR_GRAY2BGR)
         self.get_logger().warn(f"Max: {mx}, Min: {mn}, Avg: {avg}")
         return gray
 
