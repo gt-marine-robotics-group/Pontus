@@ -7,10 +7,10 @@
 #include <geometry_msgs/msg/transform_stamped.hpp>
 
 // --- Humble ---
-#include <cv_bridge/cv_bridge.h>
+// #include <cv_bridge/cv_bridge.h>
 
 // --- Jazzy ---
-// #include <cv_bridge/cv_bridge.hpp>
+#include <cv_bridge/cv_bridge.hpp>
 
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
@@ -38,6 +38,7 @@
 #include <cmath>
 #include <memory>
 #include <string>
+#include <limits>
 
 class SonoptixDriverNode : public rclcpp::Node {
 
@@ -51,20 +52,37 @@ public:
     sonar_angle_rad_ = this->declare_parameter<double>("sonar_angle", M_PI / 3.0);
     intensity_min_ = this->declare_parameter<int>("intensity_min", 10);
     normalize_intensity_ = this->declare_parameter<bool>("normalize_intensity", true);
-    // min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.2);   // keep points at least this deep
-    // max_depth_m_ = this->declare_parameter<double>("max_depth_m", 3.5);  // keep points at most this deep
+    timestamp_offset_ms_ = this->declare_parameter<double>("timestamp_offset_ms", 0.0);
 
-    // ---- Spring Break params -----
-    min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.06);   // keep points at least this deep
-    max_depth_m_ = this->declare_parameter<double>("max_depth_m", 1.75);  // keep points at most this deep
+    // ---- Mitchell Pool -----
+    // min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.10);   // keep points at least this deep
+    // max_depth_m_ = this->declare_parameter<double>("max_depth_m", 1.6);  // keep points at most this deep
 
-    cluster_tolerance_ = this->declare_parameter<double>("cluster_tolerance", 0.3);
-    cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 10);
-    cluster_max_points_ = this->declare_parameter<int>("cluster_max_points", 1000);
+    // ---- CRC Pool ----
+    min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.10);   // keep points at least this deep
+    max_depth_m_ = this->declare_parameter<double>("max_depth_m", 2.2);  // keep points at most this deep
+
+    min_dist_m_ = this->declare_parameter<double>("min_dist_m", 0.3); 
+    max_dist_m_ = this->declare_parameter<double>("max_dist_m", 4.5);
+
+
+    // cluster_tolerance_ = this->declare_parameter<double>("cluster_tolerance", 0.3);
+    // cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 10);
+    // cluster_max_points_ = this->declare_parameter<int>("cluster_max_points", 1000);
+
+    // line_dist_threshold_ = this->declare_parameter<double>("line_dist_threshold", 0.10);   // m
+    // line_min_inliers_    = this->declare_parameter<int>("line_min_inliers", 1000);         // "big" lines
+    // line_min_length_m_   = this->declare_parameter<double>("line_min_length", 1.0);       // length in meters
+
+
+
+    cluster_tolerance_ = this->declare_parameter<double>("cluster_tolerance", 0.15);
+    cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 20);
+    cluster_max_points_ = this->declare_parameter<int>("cluster_max_points", 400);
 
     line_dist_threshold_ = this->declare_parameter<double>("line_dist_threshold", 0.10);   // m
-    line_min_inliers_    = this->declare_parameter<int>("line_min_inliers", 1000);         // "big" lines
-    line_min_length_m_   = this->declare_parameter<double>("line_min_length", 1.0);       // length in meters
+    line_min_inliers_    = this->declare_parameter<int>("line_min_inliers", 180);         // "big" lines
+    line_min_length_m_   = this->declare_parameter<double>("line_min_length", 1.1);       // length in meters
 
     rclcpp::QoS qos(rclcpp::KeepLast(1));
     qos.best_effort();
@@ -88,9 +106,9 @@ public:
     tf_listener_ = std::make_unique<tf2_ros::TransformListener>(*tf_buffer_);
 
     RCLCPP_INFO(get_logger(),
-      "Sonoptix: sonar_res=%.6f m/bin, sonar_angle=%.3f rad, thr=%d, norm=%s, frame_id='%s', target_frame='%s'",
+      "Sonoptix: sonar_res=%.6f m/bin, sonar_angle=%.3f rad, thr=%d, norm=%s, frame_id='%s', target_frame='%s', timestamp_offset_ms=%.1f",
       sonar_res_m_, sonar_angle_rad_, intensity_min_, normalize_intensity_ ? "true" : "false",
-      frame_id_.c_str(), target_frame_.c_str()
+      frame_id_.c_str(), target_frame_.c_str(), timestamp_offset_ms_
     );
   }
 
@@ -106,16 +124,28 @@ private:
     }
 
     CloudIPtr cloud = imageToPcl(gray);
-    if(!cloud || cloud->empty()) {
+    if (!cloud || cloud->empty()) {
+      std_msgs::msg::Header hdr = msg->header;
+      if (!frame_id_.empty()) {
+        hdr.frame_id = target_frame_;
+      }
+      publishEmptyCluster(hdr);
       return;
     }
 
+
+    std_msgs::msg::Header hdr = msg->header;
     processAndPublishCloud(cloud, msg->header);
   }
 
   void onSimPointcloud(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
     CloudIPtr cloud = simPointcloudToPcl(*msg);
-    if(!cloud || cloud->empty()) {
+    if (!cloud || cloud->empty()) {
+      std_msgs::msg::Header hdr = msg->header;
+      if (!frame_id_.empty()) {
+        hdr.frame_id = target_frame_;
+      }
+      publishEmptyCluster(hdr);
       return;
     }
 
@@ -155,16 +185,32 @@ private:
     if (rows <= 0 || cols <= 0) {
       return cloud;
     }
-    
+
     const double angle_step = (cols > 0) ? (2.0 * sonar_angle_rad_ / cols) : 0.0;
     const double angle_min  = -sonar_angle_rad_;
 
     const uint8_t threshold = static_cast<uint8_t>(std::clamp(intensity_min_, 0, 255));
 
-    // Fill points
-    for (int r = 30; r < rows; ++r) {
+    const int min_row= std::max(
+      0,
+      static_cast<int>(std::ceil(min_dist_m_ / sonar_res_m_))
+    );
+
+    const int max_row = std::min(
+      rows,
+      static_cast<int>(std::floor(max_dist_m_ / sonar_res_m_)) + 1
+    );
+
+    // If the clipped range is empty, return an empty cloud.
+    if (min_row >= max_row) {
+      cloud->width = 0;
+      return cloud;
+    }
+
+    for (int r = min_row; r < max_row; ++r) {
       const double d_m = sonar_res_m_ * static_cast<double>(r);
       const uint8_t* row_line = gray.ptr<uint8_t>(r);
+
       for (int c = 0; c < cols; ++c) {
         const uint8_t pixel_intensity = row_line[c];
         if (pixel_intensity <= threshold) {
@@ -172,18 +218,23 @@ private:
         }
 
         const double theta = angle_min + c * angle_step;
+
         pcl::PointXYZI point;
         point.x = d_m * std::cos(theta);
         point.y = d_m * std::sin(theta);
         point.z = 0.0f;
-        point.intensity = normalize_intensity_ ? (pixel_intensity) / 255.0f : (pixel_intensity);
+        point.intensity = normalize_intensity_
+          ? static_cast<float>(pixel_intensity) / 255.0f
+          : static_cast<float>(pixel_intensity);
+
         cloud->points.push_back(point);
       }
     }
-    cloud->width = cloud->points.size();
 
+    cloud->width = cloud->points.size();
     return cloud;
-}
+  }
+
 
   CloudIPtr simPointcloudToPcl(const sensor_msgs::msg::PointCloud2& msg) {
     pcl::PointCloud<pcl::PointXYZ> cloud_xyz;
@@ -209,15 +260,26 @@ private:
 
   // ------ Back End Filtering and Processing ------
   void processAndPublishCloud(const CloudIPtr& cloud_in,
-                                 const std_msgs::msg::Header& in_header)
+                            const std_msgs::msg::Header& in_header)
   {
     if (!cloud_in || cloud_in->empty()) {
+      std_msgs::msg::Header hdr = in_header;
+      if (!frame_id_.empty()) {
+        hdr.frame_id = target_frame_;
+      }
+      publishEmptyCluster(hdr);
       return;
     }
 
     std_msgs::msg::Header src_header = in_header;
     if (!frame_id_.empty()) {
       src_header.frame_id = frame_id_;
+    }
+
+    if (timestamp_offset_ms_ != 0.0) {
+      rclcpp::Time shifted_time(in_header.stamp);
+      shifted_time = shifted_time - rclcpp::Duration::from_seconds(timestamp_offset_ms_ / 1000.0);
+      src_header.stamp = shifted_time;
     }
 
     // Transform to target frame
@@ -227,58 +289,52 @@ private:
     sensor_msgs::msg::PointCloud2 cloud_msg;
 
     if (!tf_ok) {
-      // publish in source frame as a fallback
       pcl::toROSMsg(*cloud_in, cloud_msg);
       cloud_msg.header = src_header;
       cloud_pub_->publish(cloud_msg);
+
+      std_msgs::msg::Header cluster_header = in_header;
+      cluster_header.frame_id = target_frame_;
+      publishEmptyCluster(cluster_header);
       return;
     }
 
     // Filter in map frame
     CloudI cloud_filtered = filter_points_pcl(*cloud_transformed, min_depth_m_, max_depth_m_);
-
     cloud_filtered = filter_lines_pcl(cloud_filtered);
 
-    // Convert to ROS PointCloud2
+    // Publish filtered cloud even if empty
     pcl::toROSMsg(cloud_filtered, cloud_msg);
     cloud_msg.header = src_header;
     cloud_msg.header.frame_id = target_frame_;
     cloud_pub_->publish(cloud_msg);
 
-    if (cloud_filtered.empty() || cloud_filtered.size() != cloud_filtered.width * cloud_filtered.height) {
-      return;
+    std::vector<Eigen::Vector4f> centroids;
+    if (!cloud_filtered.empty()) {
+      CloudIPtr cloud_filtered_ptr(new CloudI(cloud_filtered));
+      std::vector<pcl::PointIndices> clusters = euclideanClustering(cloud_filtered_ptr);
+      centroids = computeClusterCentroids(cloud_filtered_ptr, clusters);
     }
 
-    // Clustering
-    CloudIPtr cloud_filtered_ptr(new CloudI(cloud_filtered));
+    CloudI clustered_cloud;
+    clustered_cloud.height = 1;
+    clustered_cloud.is_dense = true;
+    clustered_cloud.points.reserve(centroids.size());
 
-    // Euclidean clustering
-    std::vector<pcl::PointIndices> clusters = euclideanClustering(cloud_filtered_ptr);
-    std::vector<Eigen::Vector4f> centroids = computeClusterCentroids(cloud_filtered_ptr, clusters);
-
-    // Allocate PCL cloud
-    CloudIPtr clustered_cloud(new CloudI);
-    clustered_cloud->height = 1;
-    clustered_cloud->is_dense = false;
-
-    // Populate the occupied indices for each cluster
     for (const auto& centroid : centroids) {
       pcl::PointXYZI point;
       point.x = centroid[0];
       point.y = centroid[1];
       point.z = centroid[2];
-
       point.intensity = 100.0f;
-      clustered_cloud->points.push_back(point);
+      clustered_cloud.points.push_back(point);
     }
-    clustered_cloud->width = clustered_cloud->points.size();
+    clustered_cloud.width = clustered_cloud.points.size();
 
-    if (clustered_cloud->points.size() > 1) {
-      sensor_msgs::msg::PointCloud2 clustered_msg;
-      pcl::toROSMsg(*clustered_cloud, clustered_msg);
-      clustered_msg.header = cloud_msg.header;
-      clustered_pub_->publish(clustered_msg);
-    }
+    sensor_msgs::msg::PointCloud2 clustered_msg;
+    pcl::toROSMsg(clustered_cloud, clustered_msg);
+    clustered_msg.header = cloud_msg.header;
+    clustered_pub_->publish(clustered_msg);
   }
 
   bool transform_pcl_to_map_frame(
@@ -287,13 +343,17 @@ private:
     CloudI& cloud_out)
   {
     if (src_header.frame_id.empty()) {
-      RCLCPP_WARN(get_logger(), "transform_pcl_to_map_frame(): empty frame_id; cannot transform to '%s'.",
-                  target_frame_.c_str());
+      RCLCPP_WARN(
+        get_logger(),
+        "transform_pcl_to_map_frame(): empty frame_id; cannot transform to '%s'.",
+        target_frame_.c_str());
       return false;
     }
 
     try {
-      // First, try at the cloud timestamp
+      // Only use the transform at the cloud timestamp.
+      // If it is not available yet, fail rather than using the latest transform,
+      // since using a mismatched transform time can cause map-frame drift while yawing.
       auto tf = tf_buffer_->lookupTransform(
         target_frame_,
         src_header.frame_id,
@@ -304,35 +364,70 @@ private:
       pcl_ros::transformPointCloud(cloud_in, cloud_out, tf);
       return true;
 
-    } catch (const tf2::ExtrapolationException& ex_future) {
-      try {
-        auto tf_latest = tf_buffer_->lookupTransform(
-          target_frame_,
-          src_header.frame_id,
-          tf2::TimePointZero   // latest available transform
-        );
-        pcl_ros::transformPointCloud(cloud_in, cloud_out, tf_latest);
-
-        RCLCPP_DEBUG(get_logger(),
-          "TF future extrapolation for time %.3f; used latest transform instead.",
-          rclcpp::Time(src_header.stamp).seconds());
-
-        return true;
-
-      } catch (const tf2::TransformException& ex2) {
-        RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
-          "TF fallback to latest also failed (%s -> %s): %s",
-          src_header.frame_id.c_str(), target_frame_.c_str(), ex2.what());
-        return false;
-      }
-
     } catch (const tf2::TransformException& ex) {
-      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
-        "TF to '%s' failed from '%s': %s",
-        target_frame_.c_str(), src_header.frame_id.c_str(), ex.what());
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "TF to '%s' failed from '%s' at cloud time %.3f: %s",
+        target_frame_.c_str(),
+        src_header.frame_id.c_str(),
+        rclcpp::Time(src_header.stamp).seconds(),
+        ex.what());
       return false;
     }
   }
+
+  // bool transform_pcl_to_map_frame(
+  //   const CloudI& cloud_in,
+  //   const std_msgs::msg::Header& src_header,
+  //   CloudI& cloud_out)
+  // {
+  //   if (src_header.frame_id.empty()) {
+  //     RCLCPP_WARN(get_logger(), "transform_pcl_to_map_frame(): empty frame_id; cannot transform to '%s'.",
+  //                 target_frame_.c_str());
+  //     return false;
+  //   }
+
+  //   try {
+  //     // First, try at the cloud timestamp
+  //     auto tf = tf_buffer_->lookupTransform(
+  //       target_frame_,
+  //       src_header.frame_id,
+  //       rclcpp::Time(src_header.stamp),
+  //       rclcpp::Duration::from_seconds(0.1)
+  //     );
+
+  //     pcl_ros::transformPointCloud(cloud_in, cloud_out, tf);
+  //     return true;
+
+  //   } catch (const tf2::ExtrapolationException& ex_future) {
+  //     try {
+  //       auto tf_latest = tf_buffer_->lookupTransform(
+  //         target_frame_,
+  //         src_header.frame_id,
+  //         tf2::TimePointZero   // latest available transform
+  //       );
+  //       pcl_ros::transformPointCloud(cloud_in, cloud_out, tf_latest);
+
+  //       RCLCPP_DEBUG(get_logger(),
+  //         "TF future extrapolation for time %.3f; used latest transform instead.",
+  //         rclcpp::Time(src_header.stamp).seconds());
+
+  //       return true;
+
+  //     } catch (const tf2::TransformException& ex2) {
+  //       RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
+  //         "TF fallback to latest also failed (%s -> %s): %s",
+  //         src_header.frame_id.c_str(), target_frame_.c_str(), ex2.what());
+  //       return false;
+  //     }
+
+  //   } catch (const tf2::TransformException& ex) {
+  //     RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
+  //       "TF to '%s' failed from '%s': %s",
+  //       target_frame_.c_str(), src_header.frame_id.c_str(), ex.what());
+  //     return false;
+  //   }
+  // }
 
   CloudI filter_points_pcl(
     const pcl::PointCloud<pcl::PointXYZI>& cloud_in,
@@ -477,6 +572,19 @@ private:
       return centroids;
   }
 
+  void publishEmptyCluster(const std_msgs::msg::Header& header)
+  {
+    CloudI empty_cloud;
+    empty_cloud.height = 1;
+    empty_cloud.width = 0;
+    empty_cloud.is_dense = true;
+
+    sensor_msgs::msg::PointCloud2 clustered_msg;
+    pcl::toROSMsg(empty_cloud, clustered_msg);
+    clustered_msg.header = header;
+    clustered_pub_->publish(clustered_msg);
+  }
+
 private:
   // params
   std::string frame_id_;
@@ -485,8 +593,11 @@ private:
   double sonar_angle_rad_;
   int intensity_min_;
   bool normalize_intensity_;
+  double timestamp_offset_ms_;
   double min_depth_m_;
   double max_depth_m_;
+  double min_dist_m_;
+  double max_dist_m_;
   double cluster_tolerance_;
   int cluster_min_points_;
   int cluster_max_points_;
