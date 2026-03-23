@@ -26,6 +26,8 @@ from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker, MarkerArray
 from vision_msgs.msg import Detection2D, Detection2DArray
 
+from message_filters import ApproximateTimeSynchronizer
+
 # ------ Track Dataclass -------
 @dataclass
 class CandidateTrack:
@@ -227,14 +229,14 @@ class ImageCoordinator(Node):
         self.cluster = self.create_subscription(
             PointCloud2,
             '/pontus/sonar/clustercloud',
-            self.pointcloud_callback,
+            # self.pointcloud_callback,
             10
         )
 
         self.yolo = self.create_subscription(
             Detection2DArray,
             '/pontus/{}/yolo_results'.format(self.camera_frame_name),
-            self.yolo_callback,
+            # self.yolo_callback,
             10
         )
 
@@ -252,6 +254,18 @@ class ImageCoordinator(Node):
             10
         )
         self.debug_id = 0
+
+        queue_size = 30 # number of messages kept in memory for time synchronizer
+        max_delay = 0.05 # max diff in timestamps in seconds
+        self.time_sync = ApproximateTimeSynchronizer([self.cluster, self.yolo],
+                                                     queue_size, max_delay)
+        self.time_sync.registerCallback(self.SyncCallback)
+
+    def SyncCallback(self, cluster_msg, yolo_msg) -> None:
+        # kinda ramshackle way of doing both callbacks, both messages will have timestamp within max_delay of each other
+        self.pointcloud_callback(cluster_msg) # update latest_pointcloud before moving to yolo_callback
+        self.yolo_callback(yolo_msg)
+        return
 
     def yolo_callback(self, msg: Detection2DArray) -> None:
         """
