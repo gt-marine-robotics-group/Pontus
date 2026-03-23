@@ -33,6 +33,7 @@ class PrequalSearchTask(BaseTask):
 
         self.fallback_points = fallback_points
 
+        # === Search Configuration ===
         self.search_angles = [math.radians(45), math.radians(-45)]
         self.search_index = 0
         self.start_turn = False
@@ -81,6 +82,7 @@ class PrequalSearchTask(BaseTask):
         # Wait for previous motion to finish
         if not self.start_turn or self.go_to_pose_client.at_pose():
 
+            # Enforce dwell time between turns
             now = self.get_clock().now()
             dt = (now - self.last_turn_time).nanoseconds * 1e-9
             if dt < self.turn_interval:
@@ -97,6 +99,7 @@ class PrequalSearchTask(BaseTask):
                 f"{math.degrees(abs(target_angle))} degrees"
             )
 
+            # Send turn command (RELATIVE)
             self.turn_command(target_angle)
 
             # Alternate index
@@ -106,17 +109,15 @@ class PrequalSearchTask(BaseTask):
         """
         Sends fallback semantic objects if needed.
         """
-        return
+        if not self.add_semantic_object_client.service_is_ready():
+            self.get_logger().warn("AddSemanticObject service not available")
+            return
 
-        # if not self.add_semantic_object_client.service_is_ready():
-        #     self.get_logger().warn("AddSemanticObject service not available")
-        #     return
+        req = AddSemanticObject.Request()
+        req.ids = [self.fallback_points[0][0], self.fallback_points[1][0]]
+        req.positions = [self.fallback_points[0][1], self.fallback_points[1][1]]
 
-        # req = AddSemanticObject.Request()
-        # req.ids = [self.fallback_points[0][0], self.fallback_points[1][0]]
-        # req.positions = [self.fallback_points[0][1], self.fallback_points[1][1]]
-
-        # self.add_semantic_object_client.call_async(req)
+        self.add_semantic_object_client.call_async(req)
 
     def turn_command(self, relative_yaw: float) -> None:
         """
@@ -175,7 +176,7 @@ class PrequalSearchTask(BaseTask):
 #             namespace='',
 #             parameters=[
 #                 ('number_of_spins', 0),
-#                 ('pool_depth', 2.0),
+#                 ('pool_depth', 1.8),
 #                 ('height_from_bottom', 0.5)
 #             ]
 #         )
@@ -209,7 +210,7 @@ class PrequalSearchTask(BaseTask):
         
 #         self.get_logger().info("Finished Setting Up")
         
-#         self.turn_timer = self.create_timer(1, self.turn_callback, self.service_callback_group)
+#         self.turn_timer = self.create_timer(0.5, self.turn_callback, self.service_callback_group)
     
 #     def semantic_map_callback(self, msg: SemanticMap) -> None:
 #         """

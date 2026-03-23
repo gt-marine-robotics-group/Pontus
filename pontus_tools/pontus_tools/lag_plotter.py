@@ -46,8 +46,8 @@ class LagPlotter(Node):
                 ('yolo_topic', '/pontus/camera_front/yolo_results'),
                 ('pointcloud_topic', '/pontus/sonar/clustercloud'),
                 ('odom_topic', '/pontus/odometry'),
-                ('tf_target_frame', 'map'),
-                ('tf_source_frame', 'camera_front_optical_frame'),
+                ('tf_target_frame', 'odom'),
+                ('tf_source_frame', 'base_link'),
                 ('history_size', 300),
                 ('plot_window_seconds', 30.0),
                 ('plot_update_hz', 5.0),
@@ -422,7 +422,7 @@ class LagPlotter(Node):
                 self.tf_target_frame,
                 self.tf_source_frame,
                 Time(),
-                timeout=Duration(seconds=0.05),
+                timeout=Duration(seconds=0.5),
             )
             latest_tf_stamp_sec = self._stamp_to_seconds(latest_tf_msg.header.stamp)
             if latest_tf_stamp_sec > 0.0:
