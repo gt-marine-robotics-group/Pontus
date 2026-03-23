@@ -25,6 +25,7 @@ from vision_msgs.msg import Pose2D
 
 from cv_bridge import CvBridge
 from ultralytics import YOLO
+from ultralytics.nn.autobackend import AutoBackend
 from ament_index_python.packages import get_package_share_directory
 import torch
 import numpy as np
@@ -32,7 +33,6 @@ import cv2
 import os
 
 # ------ Helpers ------
-
 
 def _build_header(node: Node, source_header: Header, fallback_frame_id: str) -> Header:
     """Return a header using the input header if valid, otherwise use the node clock."""
@@ -84,31 +84,42 @@ class YOLONode(Node):
         self.threshold = threshold
 
         # ------ Torch / YOLO ------
-        self.class_names ={0:'object'}
         self.device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
+        
+        # 1. Hardcode the classes to bypass all file/metadata issues
+        self.class_names = {
+            0: 'duck', 
+            1: 'gate_side', 
+            2: 'path_marker', 
+            3: 'red_slalom', 
+            4: 'reef_shark', 
+            5: 'saw_shark', 
+            6: 'vertical pole', 
+            7: 'white_slalom'
+        }
+        
         if model_path.endswith('.engine'):
             self.model = YOLO(model_path, task='detect')
             self.get_logger().info(f'RUNNING TENSORRT: Loaded engine from "{model_path}"')
             
-            # --- MINIMAL EDIT A: Steal metadata from the .pt file ---
-            try:
-                pt_path = model_path.replace('.engine', '.pt')
-                temp_model = YOLO(pt_path, task='detect')
-                self.class_names = temp_model.names
-                del temp_model
-            except Exception as e:
-                self.get_logger().warn(f'Could not load class names from .pt: {e}')
-                self.model.names = {0: 'object'} # Fallback
+            # --- THE CALLBACK FIX ---
+            # This hooks directly into the Ultralytics execution pipeline and forces 
+            # the dictionary into the backend right before the first image is processed.
+            def inject_metadata(predictor):
+                if hasattr(predictor, 'model'):
+                    predictor.model.names = self.class_names
+                    
+            self.model.add_callback('on_predict_start', inject_metadata)
+            
         else:
             self.model = YOLO(model_path).to(self.device)
-            self.class_names = self.model.names
+            self.class_names = getattr(self.model, 'names', self.class_names)
             self.get_logger().info(f'RUNNING PYTORCH: Loaded .pt model from "{model_path}"')
-          
 
         # ------ CVBridge ------
         self.cv_bridge: CvBridge = CvBridge()
 
-        # ------ Subscribers / Puslishers ------
+        # ------ Subscribers / Publishers ------
         self.img_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             history=HistoryPolicy.KEEP_LAST,
@@ -140,7 +151,7 @@ class YOLONode(Node):
 
         # Reenables the compressed image subscription if the raw image topic is not available
         self.topic_check_timer: Timer = self.create_timer(0.5, self.topic_check_callback)
-
+    
     # ------ Helpers ------
     def _default_pose_with_covariance(self) -> PoseWithCovariance:
         """
@@ -155,7 +166,6 @@ class YOLONode(Node):
         return pose_with_covariance
 
     # ------ Callback ------
-
     def image_callback(self, msg: Image) -> None:
         if self.image_sub_compressed is not None:
             self.destroy_subscription(self.image_sub_compressed)
@@ -183,8 +193,7 @@ class YOLONode(Node):
             return
             
         # 2. Contiguous Memory Guard (Stops the Segfault -11 in TensorRT)
-        image_bgr = np.ascontiguousarray(image_bgr)
-        
+        image_bgr = np.ascontiguousarray(image_bgr).copy()        
         try:
             # 3. Safely catch the Ultralytics list output
             results_list = self.model(image_bgr, conf=self.threshold, verbose=False)
@@ -269,7 +278,7 @@ class YOLONode(Node):
             f'YOLO kept {kept}/{len(confs)} boxes (threshold={self.threshold:.2f})')
 
     def topic_check_callback(self):
-        if self.image_sub_compressed is None: #and self.image_sub.get_publisher_count() == 0:
+        if self.image_sub_compressed is None: 
             self.image_sub_compressed = self.create_subscription(
                 CompressedImage, 'input/compressed', self.image_callback_compressed, self.img_qos
             )
