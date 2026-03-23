@@ -32,8 +32,8 @@ class PrequalVerticalMarkerTask(BaseTask):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('height_from_bottom', 1.3),
-                ('pool_depth', 1.8),
+                ('height_from_bottom', 1.2),
+                ('pool_depth', 2.2),
                 ('waypoint_dist_from_marker', 1.6),
                 ('waypoint_dist_from_gate', 1.0),
                 ('marker_centerline_tolerance', 1.5),
@@ -158,7 +158,7 @@ class PrequalVerticalMarkerTask(BaseTask):
         best_candidate_marker: Optional[np.ndarray] = None
         best_dist: Optional[float] = None
 
-        for marker in sem_map.vertical_marker:
+        for marker in sem_map.gate_left:
             marker_vec: np.ndarray = self._pose_to_nparray(marker.pose.pose)
 
             marker_gate_vec = marker_vec - gate_midpoint
@@ -169,7 +169,7 @@ class PrequalVerticalMarkerTask(BaseTask):
 
             dist_from_gate = np.linalg.norm(marker_gate_vec)
 
-            if dist <= self.marker_centerline_tolerance_m and dist_from_gate >= 2.5:
+            if dist <= self.marker_centerline_tolerance_m and dist_from_gate >= 2.0:
                 if best_dist is None or dist < best_dist:
                     best_dist = dist
                     best_candidate_marker = marker_vec

@@ -24,8 +24,8 @@ class PrequalificationRun(BaseRun):
         result = self.run_task(Submerge)
         self.get_logger().info(f"Submerge: {result}")
         # fallback_points = self._define_fallback_points()
-        # result = self.run_task(PrequalSearchTask, fallback_points)
-        # self.get_logger().info(f"Prequal Gate Task: {result}")
+        result = self.run_task(PrequalSearchTask)
+        self.get_logger().info(f"Prequal Gate Task: {result}")
 
         #Table Search Task
         #result = self.run_task(TableSearchTask)

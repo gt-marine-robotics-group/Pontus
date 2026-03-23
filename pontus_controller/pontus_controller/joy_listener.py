@@ -32,7 +32,7 @@ class JoyListener(Node):
 
         self.command_mode_pub = self.create_publisher(
             CommandMode,
-            '/CommandMode',
+            '/command_mode',
             10
         )
 
