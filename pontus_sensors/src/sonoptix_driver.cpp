@@ -7,10 +7,10 @@
 #include <geometry_msgs/msg/transform_stamped.hpp>
 
 // --- Humble ---
-#include <cv_bridge/cv_bridge.h>
+// #include <cv_bridge/cv_bridge.h>
 
 // --- Jazzy ---
-// #include <cv_bridge/cv_bridge.hpp>
+#include <cv_bridge/cv_bridge.hpp>
 
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
@@ -50,10 +50,13 @@ public:
     target_frame_ = this->declare_parameter<std::string>("target_frame", "map");
     sonar_res_m_ = this->declare_parameter<double>("sonar_res", 0.0148);
     sonar_angle_rad_ = this->declare_parameter<double>("sonar_angle", M_PI / 3.0);
-    intensity_min_ = this->declare_parameter<int>("intensity_min", 20);
+    intensity_min_ = this->declare_parameter<int>("intensity_min", 10);
     normalize_intensity_ = this->declare_parameter<bool>("normalize_intensity", true);
-    min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.35);   // keep points at least this deep
-    max_depth_m_ = this->declare_parameter<double>("max_depth_m", 1.8);  // keep points at most this deep
+    min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.10);   // keep points at least this deep
+    max_depth_m_ = this->declare_parameter<double>("max_depth_m", 1.6);  // keep points at most this deep
+
+    min_dist_m_ = this->declare_parameter<double>("min_dist_m", 0.45); 
+    max_dist_m_ = this->declare_parameter<double>("max_dist_m", 4.5);
 
 
     // cluster_tolerance_ = this->declare_parameter<double>("cluster_tolerance", 0.3);
@@ -173,16 +176,32 @@ private:
     if (rows <= 0 || cols <= 0) {
       return cloud;
     }
-    
+
     const double angle_step = (cols > 0) ? (2.0 * sonar_angle_rad_ / cols) : 0.0;
     const double angle_min  = -sonar_angle_rad_;
 
     const uint8_t threshold = static_cast<uint8_t>(std::clamp(intensity_min_, 0, 255));
 
-    // Fill points
-    for (int r = 30; r < rows; ++r) {
+    const int min_row= std::max(
+      0,
+      static_cast<int>(std::ceil(min_dist_m_ / sonar_res_m_))
+    );
+
+    const int max_row = std::min(
+      rows,
+      static_cast<int>(std::floor(max_dist_m_ / sonar_res_m_)) + 1
+    );
+
+    // If the clipped range is empty, return an empty cloud.
+    if (min_row >= max_row) {
+      cloud->width = 0;
+      return cloud;
+    }
+
+    for (int r = min_row; r < max_row; ++r) {
       const double d_m = sonar_res_m_ * static_cast<double>(r);
       const uint8_t* row_line = gray.ptr<uint8_t>(r);
+
       for (int c = 0; c < cols; ++c) {
         const uint8_t pixel_intensity = row_line[c];
         if (pixel_intensity <= threshold) {
@@ -190,18 +209,23 @@ private:
         }
 
         const double theta = angle_min + c * angle_step;
+
         pcl::PointXYZI point;
         point.x = d_m * std::cos(theta);
         point.y = d_m * std::sin(theta);
         point.z = 0.0f;
-        point.intensity = normalize_intensity_ ? (pixel_intensity) / 255.0f : (pixel_intensity);
+        point.intensity = normalize_intensity_
+          ? static_cast<float>(pixel_intensity) / 255.0f
+          : static_cast<float>(pixel_intensity);
+
         cloud->points.push_back(point);
       }
     }
-    cloud->width = cloud->points.size();
 
+    cloud->width = cloud->points.size();
     return cloud;
-}
+  }
+
 
   CloudIPtr simPointcloudToPcl(const sensor_msgs::msg::PointCloud2& msg) {
     pcl::PointCloud<pcl::PointXYZ> cloud_xyz;
@@ -517,6 +541,8 @@ private:
   bool normalize_intensity_;
   double min_depth_m_;
   double max_depth_m_;
+  double min_dist_m_;
+  double max_dist_m_;
   double cluster_tolerance_;
   int cluster_min_points_;
   int cluster_max_points_;
