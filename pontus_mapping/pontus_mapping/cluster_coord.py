@@ -96,7 +96,7 @@ class ImageCoordinator(Node):
         self.best_label_count_threshold = 5
 
         self.candidate_tracks: dict[int, CandidateTrack] = {}
-        self.unlabled_candidate_tracks : list[int] = []
+        self.unlabled_candidate_track_ids : list[int] = []
         self.next_track_id = 0
 
         self.name_map = {
@@ -396,6 +396,7 @@ class ImageCoordinator(Node):
 
         now_s = self._now_s()
         updated_track_ids: set[int] = set()
+        unlabled_candidate_tracks : list[CandidateTrack] = []
 
         for point in point_array:
             point_xyz = np.asarray(point, dtype=float)
@@ -410,12 +411,15 @@ class ImageCoordinator(Node):
                 #Checks for large unlabeled clusters and add if it is
                 if (track.best_label_count < self.best_label_count_threshold and
                     track.num_pc_detections > self.num_pc_thresholds and
-                    track.track_id not in self.unlabled_candidate_tracks):
-                        self.unlabled_candidate_tracks.append(track.track_id)
+                    track.track_id not in self.unlabled_candidate_track_ids):
+                        self.unlabled_candidate_track_ids.append(track.track_id)
+                        unlabled_candidate_tracks.append(track)
                 #Remove ids which have more candidate points
                 elif (track.best_label_count >= self.best_label_count_threshold and
-                      track.track_id in self.unlabled_candidate_tracks): 
-                        self.unlabled_candidate_tracks.remove(track.track_id)
+                      track.track_id in self.unlabled_candidate_track_ids): 
+                        self.unlabled_candidate_track_ids.remove(track.track_id)
+                elif (track.track_id in self.unlabled_candidate_track_ids):
+                    unlabled_candidate_tracks.append(track)
                 
                 dist_xy = np.linalg.norm(
                     track.position_map[:2] - point_xyz[:2])
@@ -440,7 +444,8 @@ class ImageCoordinator(Node):
             matched_track.last_seen_time_s = now_s
             updated_track_ids.add(matched_track.track_id)
         
-        self.unlabled_candidate_tracks_pub.publish(self.unlabled_candidate_tracks)
+        
+        self.unlabled_candidate_tracks_pub.publish(unlabled_candidate_tracks)
 
     def prune_stale_tracks(self) -> None:
         now_s = self._now_s()

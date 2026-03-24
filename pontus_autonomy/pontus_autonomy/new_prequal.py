@@ -22,5 +22,5 @@ class PrequalificationRun(BaseRun):
         # Submerge Task
         result = self.run_task(Submerge)
         self.get_logger().info(f"Submerge: {result}")
-
+        
         # Gate Prequal Task

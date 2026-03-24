@@ -2,6 +2,7 @@ import rclpy
 import math
 import tf_transformations
 from enum import Enum
+import numpy as np
 
 from geometry_msgs.msg import Pose
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -11,6 +12,12 @@ from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
 
 from pontus_msgs.msg import SemanticMap
 from pontus_msgs.srv import AddSemanticObject
+
+from pontus_mapping.cluster_coord import CandidateTrack
+
+from tf2_ros.buffer import Buffer
+from tf2_ros import TransformListener
+import tf2_geometry_msgs
 
 class SearchConditions(Enum):
     GATE = 0
@@ -40,15 +47,31 @@ class ScanTask(BaseTask):
         self.search_angles = [target_angle1_rad, target_angle2_rad]
         self.search_index = 0
         self.start_turn = False
+        
+        self.track_interval = 5.0 #seconds
+        self.start_track_turn = False
+        self.last_track_turn = self.get_clock().now
+        
+        self.track_angles = []
 
         self.turn_interval = 3.0  # seconds
         self.last_turn_time = self.get_clock().now()
+        
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
 
         # ROS Subscriptions
         self.semantic_map_sub = self.create_subscription(
             SemanticMap,
             '/pontus/semantic_map',
             self.semantic_map_callback,
+            10
+        )
+        
+        self.unlabled_candidate_tracks_sub = self.create_subscription(
+            list[CandidateTrack],
+            '/pontus/unlabled_candidate_tracks',
+            self.unlabled_tracks_callback,
             10
         )
 
@@ -68,6 +91,52 @@ class ScanTask(BaseTask):
             self.turn_callback,
             self.service_callback_group
         )
+        
+        self.track_timer = None
+        
+    def unlabled_tracks_callback(self, msg: list[CandidateTrack]) -> None:
+        """
+        Calculate the necessary rotations to face the cluster points
+        """
+        # Unsure of how to handle getting new cluster points while searching for cluster points. 
+        # Currently, just add it to the end of the list
+        for track in msg:
+            transformed_track_pos = self.transform_track_positions(track.position_map)
+            if transformed_track_pos is None:
+                continue
+            
+            track_angle = math.atan2(transformed_track_pos.position_map[1], transformed_track_pos.position_map[0])
+            self.track_angles.append(track_angle)
+            self.start_track_turn = True
+            if self.track_timer is None:
+                self.track_timer = self.create_timer(
+                    0.5,
+                    self.track_turn_callback,
+                    self.service_callback_group
+                )
+        self.track_angles.sort()
+    
+    def track_turn_callback(self) -> None:
+        if not self.start_track_turn or self.go_to_pose_client.at_pose():
+            now = self.get_clock().now()
+            dt = (now - self.last_track_turn).nanoseconds * 1e-9
+            if dt  < self.track_interval:
+                return
+
+            self.last_track_turn = now
+            self.start_track_turn = True
+            self.start_turn = False
+            
+            if len(self.track_angles) > 0:
+                target_angle = self.track_angles.pop(0)
+            else:
+                self.track_timer.destroy()
+                self.start_turn = True
+                self.start_track_turn = False
+                
+            self.turn_command(target_angle)
+            
+            self.track_angles -= target_angle    
 
     def semantic_map_callback(self, msg: SemanticMap) -> None:
         """
@@ -157,3 +226,31 @@ class ScanTask(BaseTask):
                 skip_orientation=False
             )
         )
+    
+    def transform_track_positions(self, position_map : np.ndarray) -> np.ndarray | None:
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                target_frame="base_link",
+                source_frame="map",
+                time = rclpy.time.Time()
+            )
+            
+            track_pose = Pose()
+            
+            track_pose.position.x = position_map[0]
+            track_pose.position.y = position_map[1]
+            track_pose.position.z = 0
+            
+            track_pose.orientation.x = 0
+            track_pose.orientation.y = 0
+            track_pose.orientation.z = 0
+            track_pose.orientation.w = 0
+            
+            track_pose_transformed = tf2_geometry_msgs.do_transform_point(
+                track_pose, transform
+            )
+            
+            return track_pose_transformed
+        except:
+            self.get_logger().warn("Transform to convert track position to base_link failed")
+            return None        
