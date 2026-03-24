@@ -90,8 +90,13 @@ class ImageCoordinator(Node):
         self.pc_detection_threshold = 4
         self.label_assoc_threshold = 5
         self.promoted_track_publish_period_s = 0.75
+        
+        #TODO: Perhaps the relationship of these numbesr should be a scale? i.e. if 1/4 or lower of the points are unlabled
+        self.num_pc_thresholds = 20
+        self.best_label_count_threshold = 5
 
         self.candidate_tracks: dict[int, CandidateTrack] = {}
+        self.unlabled_candidate_tracks : list[int] = []
         self.next_track_id = 0
 
         self.name_map = {
@@ -240,6 +245,12 @@ class ImageCoordinator(Node):
         self.debug_line_pub = self.create_publisher(
             MarkerArray,
             '/pontus/{}/debug_lines'.format(self.camera_frame_name),
+            10
+        )
+        
+        self.unlabled_candidate_tracks_pub = self.create_publisher(
+            list[CandidateTrack],
+            '/pontus/unlabled_candidate_tracks',
             10
         )
         self.debug_id = 0
@@ -395,7 +406,17 @@ class ImageCoordinator(Node):
             for track in self.candidate_tracks.values():
                 if track.track_id in updated_track_ids:
                     continue
-
+                
+                #Checks for large unlabeled clusters and add if it is
+                if (track.best_label_count < self.best_label_count_threshold and
+                    track.num_pc_detections > self.num_pc_thresholds and
+                    track.track_id not in self.unlabled_candidate_tracks):
+                        self.unlabled_candidate_tracks.append(track.track_id)
+                #Remove ids which have more candidate points
+                elif (track.best_label_count >= self.best_label_count_threshold and
+                      track.track_id in self.unlabled_candidate_tracks): 
+                        self.unlabled_candidate_tracks.remove(track.track_id)
+                
                 dist_xy = np.linalg.norm(
                     track.position_map[:2] - point_xyz[:2])
 
@@ -418,6 +439,8 @@ class ImageCoordinator(Node):
             matched_track.update_position(point_xyz)
             matched_track.last_seen_time_s = now_s
             updated_track_ids.add(matched_track.track_id)
+        
+        self.unlabled_candidate_tracks_pub.publish(self.unlabled_candidate_tracks)
 
     def prune_stale_tracks(self) -> None:
         now_s = self._now_s()
