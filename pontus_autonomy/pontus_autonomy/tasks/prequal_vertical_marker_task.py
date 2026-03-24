@@ -5,7 +5,7 @@ from typing import Optional
 
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, PoseStamped
 from nav_msgs.msg import Odometry
 
 from tf2_ros import TransformListener
@@ -16,6 +16,8 @@ from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
 
 from pontus_msgs.msg import SemanticMap, SemanticObject, SemanticMetaGate
 
+from pontus_msgs.srv import AddSemanticObject
+
 
 class MarkerSide(Enum):
     RIGHT = 0
@@ -24,7 +26,7 @@ class MarkerSide(Enum):
 
 class PrequalVerticalMarkerTask(BaseTask):
 
-    def __init__(self):
+    def __init__(self, fallback_distance=2.2, fallback_depth=1.5):
         super().__init__("prequal_vertical_marker_task")
 
         self.service_callback_group = MutuallyExclusiveCallbackGroup()
@@ -37,7 +39,7 @@ class PrequalVerticalMarkerTask(BaseTask):
                 ('waypoint_dist_from_marker', 1.6),
                 ('waypoint_dist_from_gate', 1.0),
                 ('marker_centerline_tolerance', 1.5),
-                ('follow_path_period', 0.25)
+                ('follow_path_period', 0.25),
             ]
         )
 
@@ -52,6 +54,9 @@ class PrequalVerticalMarkerTask(BaseTask):
             self.get_parameter('marker_centerline_tolerance').value)
         self.follow_path_period: float = float(
             self.get_parameter('follow_path_period').value)
+
+        self.fallback_dist = fallback_distance
+        self.fallback_depth = fallback_depth
 
         # ------ State Variables ------
         self.waypoints_are_created: bool = False
@@ -83,6 +88,9 @@ class PrequalVerticalMarkerTask(BaseTask):
 
         # ------ ROS Action / Service Managers ------
         self.go_to_pose_client = GoToPoseClient(self)
+
+        self.cli = self.create_client(
+            AddSemanticObject, '/pontus/add_semantic_object')
 
         # ------ TF Transforms ------
         self.tf_buffer = Buffer()
@@ -169,10 +177,23 @@ class PrequalVerticalMarkerTask(BaseTask):
 
             dist_from_gate = np.linalg.norm(marker_gate_vec)
 
-            if dist <= self.marker_centerline_tolerance_m and dist_from_gate >= 2.0:
+            if dist <= self.marker_centerline_tolerance_m and dist_from_gate >= 1.8:
                 if best_dist is None or dist < best_dist:
                     best_dist = dist
                     best_candidate_marker = marker_vec
+
+        if best_candidate_marker is None:
+            marker_vec = gate_midpoint + (gate_unit_norm * self.fallback_dist)
+
+            marker_pose = Pose()
+            marker_pose.position.x = float(marker_vec[0])
+            marker_pose.position.y = float(marker_vec[1])
+            marker_pose.position.z = -self.fallback_depth
+
+            marker_label = SemanticObject.VERTICAL_MARKER
+
+            self.send_request(marker_label, marker_pose)
+            return marker_vec
 
         return best_candidate_marker
 
@@ -218,6 +239,19 @@ class PrequalVerticalMarkerTask(BaseTask):
 
             target_pos_xy = self.path.pop(0)
             self._send_waypoint_command(target_pos_xy)
+
+    def send_request(self, class_id: int, pose: Pose) -> None:
+        while not self.cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
+
+        req = AddSemanticObject.Request()
+        req.ids.append(int(class_id))
+
+        pose_stamped = PoseStamped()
+        pose_stamped.header.frame_id = "map"
+        pose_stamped.pose = pose
+        req.positions.append(pose_stamped)
+        self.cli.call_async(req)
 
     def _send_waypoint_command(self, target_pos_xy: np.ndarray) -> None:
         """
