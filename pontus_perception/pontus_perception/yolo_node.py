@@ -221,6 +221,10 @@ class YOLONode(Node):
         if not name_map:
             name_map = self.class_names
 
+        # Check for debug subscribers before entering the loop to save CPU on drawing
+        debug_active = (self.debug_image_pub.get_subscription_count() > 0 or
+                        self.debug_image_compressed_pub.get_subscription_count() > 0)
+
         kept = 0
         for (x1, y1, x2, y2), conf, cls_id in zip(xyxy, confs, clss):
             if float(conf) < self.threshold:
@@ -253,20 +257,26 @@ class YOLONode(Node):
 
             kept += 1
 
-            # debug draw
-            cv2.rectangle(image_bgr, (int(x1), int(y1)),
-                          (int(x2), int(y2)), (0, 255, 0), 2)
-            cv2.putText(image_bgr, f'{label}: {float(conf):.2f}', (int(x1), int(max(0, y1 - 8))),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
+            if debug_active:
+                cv2.rectangle(image_bgr, (int(x1), int(y1)),
+                              (int(x2), int(y2)), (0, 255, 0), 2)
+                cv2.putText(image_bgr, f'{label}: {float(conf):.2f}', (int(x1), int(max(0, y1 - 8))),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
 
         self.detections_publisher.publish(detections_array)
-        try:
-            self.debug_image_pub.publish(
-                self.cv_bridge.cv2_to_imgmsg(image_bgr, encoding='bgr8'))
-            self.debug_image_compressed_pub.publish(
-                self.cv_bridge.cv2_to_compressed_imgmsg(image_bgr))
-        except Exception as e:
-            self.get_logger().warn(f'Failed to publish debug images: {e}')
+        
+        # Only pay the serialization cost when someone is actually watching
+        if debug_active:
+            try:
+                if self.debug_image_pub.get_subscription_count() > 0:
+                    self.debug_image_pub.publish(
+                        self.cv_bridge.cv2_to_imgmsg(image_bgr, encoding='bgr8'))
+                if self.debug_image_compressed_pub.get_subscription_count() > 0:
+                    self.debug_image_compressed_pub.publish(
+                        self.cv_bridge.cv2_to_compressed_imgmsg(image_bgr))
+            except Exception as e:
+                self.get_logger().warn(f'Failed to publish debug images: {e}')
+        
         self.get_logger().debug(
             f'YOLO kept {kept}/{len(confs)} boxes (threshold={self.threshold:.2f})')
 
