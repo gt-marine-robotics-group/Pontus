@@ -36,7 +36,7 @@ from message_filters import Subscriber, ApproximateTimeSynchronizer
 class CandidateTrack:
     track_id: int
     position_map: np.ndarray
-    num_pc_detections: int = 1
+    num_pc_detections: int = 1  # Number of times clustered in a pointcloud 
     label_association_counts: dict[int, int] = field(default_factory=dict)
     total_label_associations: int = 0
     best_label: int | None = None
