@@ -6,6 +6,7 @@ from pontus_autonomy.base_run import BaseRun
 from geometry_msgs.msg import PoseStamped, Point, Quaternion
 
 # Tasks
+from pontus_autonomy.tasks.search_task import ScanTask
 from pontus_autonomy.tasks.localization.submerge import Submerge
 from pontus_autonomy.tasks.prequal_gate_task import PrequalGateTask
 from pontus_autonomy.tasks.prequal_vertical_marker_task import PrequalVerticalMarkerTask
@@ -24,6 +25,11 @@ class PrequalificationRun(BaseRun):
         result = self.run_task(Submerge)
         self.get_logger().info(f"Submerge: {result}")
         # fallback_points = self._define_fallback_points()
+        
+        result = self.run_task(ScanTask, (3.14, 3.14, 4, None))
+        self.get_logger().info(f"Search: {result}")
+        return
+        
         result = self.run_task(PrequalSearchTask)
         self.get_logger().info(f"Prequal Gate Task: {result}")
 

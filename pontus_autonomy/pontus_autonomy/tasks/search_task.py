@@ -6,6 +6,7 @@ import numpy as np
 
 from geometry_msgs.msg import Pose
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from std_msgs.msg import Float64MultiArray
 
 from pontus_autonomy.tasks.base_task import BaseTask
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
@@ -31,28 +32,25 @@ class ScanTask(BaseTask):
 
     def __init__(
         self, 
-        target_angle1_rad: float,
-        target_angle2_rad: float,
-        terminating_condition: SearchConditions,
-        fallback_points=None):
+        args):
         super().__init__("prequal_search_gate_task")
 
         self.service_callback_group = MutuallyExclusiveCallbackGroup()
 
-        self.terminating_condition = terminating_condition
+        self.terminating_condition = args[2]
 
-        self.fallback_points = fallback_points
+        self.fallback_points = args[3]
 
         # ----- Search Configuration -----
-        self.search_angles = [target_angle1_rad, target_angle2_rad]
+        self.search_angles = [args[0], args[1]]
         self.search_index = 0
         self.start_turn = False
         
         self.track_interval = 5.0 #seconds
         self.start_track_turn = False
-        self.last_track_turn = self.get_clock().now
+        self.last_track_turn = self.get_clock().now()
         
-        self.track_angles = []
+        self.track_angles : np.array = np.array([])
 
         self.turn_interval = 3.0  # seconds
         self.last_turn_time = self.get_clock().now()
@@ -69,7 +67,7 @@ class ScanTask(BaseTask):
         )
         
         self.unlabled_candidate_tracks_sub = self.create_subscription(
-            list[CandidateTrack],
+            Float64MultiArray,
             '/pontus/unlabled_candidate_tracks',
             self.unlabled_tracks_callback,
             10
@@ -94,28 +92,34 @@ class ScanTask(BaseTask):
         
         self.track_timer = None
         
-    def unlabled_tracks_callback(self, msg: list[CandidateTrack]) -> None:
+    def unlabled_tracks_callback(self, msg: Float64MultiArray) -> None:
         """
         Calculate the necessary rotations to face the cluster points
         """
         # Unsure of how to handle getting new cluster points while searching for cluster points. 
-        # Currently, just add it to the end of the list
-        for track in msg:
-            transformed_track_pos = self.transform_track_positions(track.position_map)
-            if transformed_track_pos is None:
-                continue
-            
-            track_angle = math.atan2(transformed_track_pos.position_map[1], transformed_track_pos.position_map[0])
-            self.track_angles.append(track_angle)
-            self.start_track_turn = True
-            if self.track_timer is None:
-                self.track_timer = self.create_timer(
-                    0.5,
-                    self.track_turn_callback,
-                    self.service_callback_group
-                )
-        self.track_angles.sort()
+        # TODO: Don't add entries into the track_angles until it's empty
+        return
+        if len(self.track_angles) == 0:
+            track_positions = np.array(msg.data).reshape(-1, 3)
+            for position in track_positions:
+                transformed_track_pos = self.transform_track_positions(position)
+                if transformed_track_pos is None:
+                    continue
+                
+                track_angle = math.atan2(transformed_track_pos[1], transformed_track_pos[0])
+                self.track_angles = np.append(self.track_angles, track_angle)
+                self.start_track_turn = False
+                if self.track_timer is None:
+                    self.get_logger().info("Found unlabled clusters, Starting turn timer")
+                    self.track_timer = self.create_timer(
+                        0.5,
+                        self.track_turn_callback,
+                        self.service_callback_group
+                    )
+            self.track_turn_callback()       
+            self.track_angles = np.sort(self.track_angles)
     
+    #TODO: There might be instances where track_turn_callback completes, but turn goes first and steals the next movement.
     def track_turn_callback(self) -> None:
         if not self.start_track_turn or self.go_to_pose_client.at_pose():
             now = self.get_clock().now()
@@ -126,16 +130,23 @@ class ScanTask(BaseTask):
             self.last_track_turn = now
             self.start_track_turn = True
             self.start_turn = False
+            self.get_logger().info(f"Angles: {self.track_angles}")
             
             if len(self.track_angles) > 0:
-                target_angle = self.track_angles.pop(0)
+                target_angle = self.track_angles[0]
+                self.track_angles = np.delete(self.track_angles, 0)
             else:
+                self.get_logger().info("No more unlabled clusters found")
                 self.track_timer.destroy()
-                self.start_turn = True
-                self.start_track_turn = False
-                
+                self.start_turn = False
+            
+            self.get_logger().info(
+                f"Cluster Unlabled Turning {'right' if target_angle > 0 else 'left'} "
+                f"{math.degrees(abs(target_angle))} degrees"
+            )
             self.turn_command(target_angle)
             
+            #TODO: Change the target radians from the original turn as well.
             self.track_angles -= target_angle    
 
     def semantic_map_callback(self, msg: SemanticMap) -> None:
@@ -159,7 +170,7 @@ class ScanTask(BaseTask):
         """
 
         # Wait for previous motion to finish
-        if not self.start_turn or self.go_to_pose_client.at_pose():
+        if (not self.start_turn or self.go_to_pose_client.at_pose()) and not self.start_track_turn:
 
             # Enforce dwell time between turns
             now = self.get_clock().now()
@@ -173,7 +184,7 @@ class ScanTask(BaseTask):
             target_angle = self.search_angles[self.search_index]
 
             self.get_logger().info(
-                f"Turning {'right' if target_angle > 0 else 'left'} "
+                f"Base Turn Turning {'right' if target_angle > 0 else 'left'} "
                 f"{math.degrees(abs(target_angle))} degrees"
             )
 
@@ -244,13 +255,13 @@ class ScanTask(BaseTask):
             track_pose.orientation.x = 0
             track_pose.orientation.y = 0
             track_pose.orientation.z = 0
-            track_pose.orientation.w = 0
+            track_pose.orientation.w = 1.0
             
-            track_pose_transformed = tf2_geometry_msgs.do_transform_point(
+            track_pose_transformed = tf2_geometry_msgs.do_transform_pose(
                 track_pose, transform
             )
             
-            return track_pose_transformed
+            return [track_pose_transformed.position.x, track_pose_transformed.position.y, track_pose_transformed.position.z]
         except:
             self.get_logger().warn("Transform to convert track position to base_link failed")
             return None        
