@@ -1,7 +1,9 @@
 import rclpy
 import math
+import numpy as np
 import tf_transformations
 from enum import Enum
+from typing import Optional
 
 from geometry_msgs.msg import Pose
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -18,15 +20,16 @@ class SearchConditions(Enum):
     TARGET = 2
     BIN = 3
     OCTAGON = 4
+    MARKER = 5
 
 
 class ScanTask(BaseTask):
 
     def __init__(
         self, 
-        target_angle1_rad: float,
-        target_angle2_rad: float,
-        terminating_condition: SearchConditions,
+        target_angle1_rad: float = math.radians(45),
+        target_angle2_rad: float = math.radians(-45),
+        terminating_condition: SearchConditions = SearchConditions.GATE,
         fallback_points=None):
         super().__init__("prequal_search_gate_task")
 
@@ -41,7 +44,7 @@ class ScanTask(BaseTask):
         self.search_index = 0
         self.start_turn = False
 
-        self.turn_interval = 3.0  # seconds
+        self.turn_interval = 4.0  # seconds
         self.last_turn_time = self.get_clock().now()
 
         # ROS Subscriptions
@@ -82,6 +85,15 @@ class ScanTask(BaseTask):
         elif self.terminating_condition is SearchConditions.SLALOM:
             if msg.meta_slalom.header.frame_id != "":
                 self.get_logger().info("Slalom Pair detected in semantic map")
+                self.complete(True)
+
+        elif self.terminating_condition is SearchConditions.MARKER:
+            if msg.meta_gate.header.frame_id == "":
+                return
+
+            marker = self.detect_marker(msg)
+            if marker is not None:
+                self.get_logger().info("Vertical marker detected in semantic map")
                 self.complete(True)
 
     def turn_callback(self) -> None:
@@ -127,6 +139,48 @@ class ScanTask(BaseTask):
         req.positions = [self.fallback_points[0][1], self.fallback_points[1][1]]
 
         self.add_semantic_object_client.call_async(req)
+
+    def detect_marker(self, sem_map: SemanticMap) -> Optional[np.ndarray]:
+        """
+        Find a vertical-marker-like candidate using gate geometry.
+        """
+        _, gate_unit_norm, gate_midpoint = self._get_gate_unit_normal(sem_map)
+
+        best_candidate_marker: Optional[np.ndarray] = None
+        best_dist: Optional[float] = None
+
+        for marker in sem_map.gate_left:
+            marker_vec = self._pose_to_nparray(marker.pose.pose)
+            marker_gate_vec = marker_vec - gate_midpoint
+
+            parallel = np.dot(marker_gate_vec, gate_unit_norm) * gate_unit_norm
+            perp = marker_gate_vec - parallel
+            dist = float(np.linalg.norm(perp))
+
+            dist_from_gate = np.linalg.norm(marker_gate_vec)
+            if dist <= 1.5 and dist_from_gate >= 1.8:
+                if best_dist is None or dist < best_dist:
+                    best_dist = dist
+                    best_candidate_marker = marker_vec
+
+        return best_candidate_marker
+
+    def _get_gate_unit_normal(self, sem_map: SemanticMap) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        g1 = self._pose_to_nparray(sem_map.meta_gate.left_gate.pose.pose)
+        g2 = self._pose_to_nparray(sem_map.meta_gate.right_gate.pose.pose)
+
+        gate_vec = g2 - g1
+        gate_unit_vec = gate_vec / np.linalg.norm(gate_vec)
+
+        perp_vec = np.array([-gate_vec[1], gate_vec[0]])
+        perp_unit_vec = perp_vec / np.linalg.norm(perp_vec)
+
+        midpoint = (g1 + g2) / 2.0
+
+        return gate_unit_vec, perp_unit_vec, midpoint
+
+    def _pose_to_nparray(self, pose: Pose) -> np.ndarray:
+        return np.array([pose.position.x, pose.position.y], dtype=float)
 
     def turn_command(self, relative_yaw: float) -> None:
         """
