@@ -53,7 +53,6 @@ class YOLONode(Node):
     """
 
     def __init__(self) -> None:
-
         super().__init__('perception_YOLO')
 
         self.declare_parameters(
@@ -71,51 +70,45 @@ class YOLONode(Node):
         model_path_param = str(self.get_parameter('model_path').value)
         self.frame_id = str(self.get_parameter('frame_id').value)
 
-        if model_path_param:
+        # 1. Setup default paths
+        pkg_share = get_package_share_directory('pontus_perception')
+        engine_path = os.path.join(pkg_share, 'yolo', auv, 'model.engine')
+        pt_path = os.path.join(pkg_share, 'yolo', auv, 'model.pt')
+
+        # 2. PRIORITY LOGIC: Only use the path if the file actually exists on disk
+        if model_path_param and os.path.exists(model_path_param):
             model_path = model_path_param
+        elif os.path.exists(engine_path):
+            model_path = engine_path
         else:
-            pkg_share = get_package_share_directory('pontus_perception')
-            engine_path = f'{pkg_share}/yolo/{auv}/model.engine'
-            pt_path = f'{pkg_share}/yolo/{auv}/model.pt'
-            
-            # Check if .engine exists, otherwise use .pt
-            model_path = engine_path if os.path.exists(engine_path) else pt_path
+            # Fallback to .pt if .engine is missing or broken
+            self.get_logger().warn(f'Engine not found at {engine_path}. Falling back to .pt')
+            model_path = pt_path
 
         self.threshold = threshold
 
         # ------ Torch / YOLO ------
         self.device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
         
-        # 1. Hardcode the classes to bypass all file/metadata issues
         self.class_names = {
-            0: 'duck', 
-            1: 'gate_side', 
-            2: 'path_marker', 
-            3: 'red_slalom', 
-            4: 'reef_shark', 
-            5: 'saw_shark', 
-            6: 'vertical pole', 
-            7: 'white_slalom'
+            0: 'duck', 1: 'gate_side', 2: 'path_marker', 3: 'red_slalom', 
+            4: 'reef_shark', 5: 'saw_shark', 6: 'vertical pole', 7: 'white_slalom'
         }
         
         if model_path.endswith('.engine'):
             self.model = YOLO(model_path, task='detect')
-            self.get_logger().info(f'RUNNING TENSORRT: Loaded engine from "{model_path}"')
+            self.get_logger().info(f'RUNNING TENSORRT: {model_path}')
             
-            # --- THE CALLBACK FIX ---
-            # This hooks directly into the Ultralytics execution pipeline and forces 
-            # the dictionary into the backend right before the first image is processed.
             def inject_metadata(predictor):
                 if hasattr(predictor, 'model'):
                     predictor.model.names = self.class_names
-                    
             self.model.add_callback('on_predict_start', inject_metadata)
-            
         else:
             self.model = YOLO(model_path).to(self.device)
             self.class_names = getattr(self.model, 'names', self.class_names)
-            self.get_logger().info(f'RUNNING PYTORCH: Loaded .pt model from "{model_path}"')
+            self.get_logger().info(f'RUNNING PYTORCH: {model_path}')
 
+         
         # ------ CVBridge ------
         self.cv_bridge: CvBridge = CvBridge()
 
@@ -196,7 +189,7 @@ class YOLONode(Node):
         image_bgr = np.ascontiguousarray(image_bgr).copy()        
         try:
             # 3. Safely catch the Ultralytics list output
-            results_list = self.model(image_bgr, conf=self.threshold, verbose=False)
+            results_list = self.model(image_bgr, conf=self.threshold, verbose=False, half=True)
             if not results_list:
                 return
             inference_results = results_list[0]
@@ -278,7 +271,8 @@ class YOLONode(Node):
             f'YOLO kept {kept}/{len(confs)} boxes (threshold={self.threshold:.2f})')
 
     def topic_check_callback(self):
-        if self.image_sub_compressed is None: 
+        if self.image_sub_compressed is None and \
+        self.count_publishers('input') == 0:
             self.image_sub_compressed = self.create_subscription(
                 CompressedImage, 'input/compressed', self.image_callback_compressed, self.img_qos
             )
