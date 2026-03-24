@@ -127,7 +127,7 @@ class LagPlotter(Node):
             'odom_pointcloud':      self._make_series('Odom − Clustercloud',           'tab:orange', linewidth=2.0, linestyle=':'),
             'exact_tf_pointcloud':  self._make_series('Exact TF@YOLO − Clustercloud', 'tab:green',  linewidth=3.0),
             'latest_tf_pointcloud': self._make_series('Latest TF − Clustercloud',     'tab:green',  linewidth=2.0, linestyle='--'),
-            'yolo_latest_tf':       self._make_series('YOLO − Latest TF',             'black',      linewidth=2.0, linestyle='--'),
+            #'yolo_latest_tf':       self._make_series('YOLO − Latest TF',             'black',      linewidth=2.0, linestyle='--'),
             # PRIMARY last so it renders on top
             'yolo_camera':          self._make_series('YOLO − Camera  ★',             'tab:cyan',   linewidth=4.5),
         }
@@ -264,8 +264,8 @@ class LagPlotter(Node):
                 if self.last_pointcloud_stamp_sec is not None:
                     self._record('latest_tf_pointcloud', now,
                                  (latest_stamp - self.last_pointcloud_stamp_sec) * 1000.0)
-                self._record('yolo_latest_tf', now,
-                             (yolo_stamp - latest_stamp) * 1000.0)
+                #self._record('yolo_latest_tf', now,
+                 #            (yolo_stamp - latest_stamp) * 1000.0)
         except TransformException as exc:
             self.tf_latest_failure_count += 1
             if not self.last_tf_error:
