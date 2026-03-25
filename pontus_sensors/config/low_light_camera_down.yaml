@@ -1,10 +1,10 @@
 /**:
     ros__parameters:
-      video_device: "/dev/video8"
-      frame_id: "camera_1"
+      video_device: "/dev/camera_facing_down"
+      frame_id: "camera_facing_down_optical_frame"
       pixel_format: "mjpeg2rgb"  # see usb_cam/supported_formats for list of supported formats
       # av_device_format: "M-JPEG"
-      camera_name: "camera_low_light_down"
+      camera_name: "camera_facing_down"
       image_height: 480
       image_width: 640
-      camera_info_url: "package://pontus_sensors/config/front_left_camera_calibration.yaml"
+      camera_info_url: "package://pontus_sensors/config/calibration/down_camera_calibration.yaml"

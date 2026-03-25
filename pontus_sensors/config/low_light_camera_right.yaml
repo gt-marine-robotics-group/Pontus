@@ -1,9 +1,9 @@
 /**:
     ros__parameters:
-      video_device: "/dev/video0"
-      frame_id: "camera_3"
+      video_device: "/dev/camera_right"
+      frame_id: "camera_right_optical_frame"
       pixel_format: "mjpeg2rgb"  # see usb_cam/supported_formats for list of supported formats
       av_device_format: "YUV422P"
-      camera_name: "camera_low_light_right"
-      camera_info_url: "package://pontus_sensors/config/front_right_camera_calibration.yaml"
+      camera_name: "camera_right"
+      camera_info_url: "package://pontus_sensors/config/calibration/front_right_camera_calibration.yaml"
       

@@ -1,8 +1,8 @@
 /**:
     ros__parameters:
-      video_device: "/dev/video4"
-      frame_id: "camera_5"
+      video_device: "/dev/camera_tilted_down"
+      frame_id: "camera_tilted_down_optical_frame"
       pixel_format: "mjpeg2rgb"  # see usb_cam/supported_formats for list of supported formats
       av_device_format: "YUV422P"
-      camera_name: "camera_low_light_angled"
-      camera_info_url: "package://pontus_sensors/config/front_right_camera_calibration.yaml"
+      camera_name: "camera_tilted_down"
+      camera_info_url: "package://pontus_sensors/config/calibration/tilted_camera_calibration.yaml"

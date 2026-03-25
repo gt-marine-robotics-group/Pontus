@@ -1,6 +1,6 @@
 /**:
     ros__parameters:
-      video_device: "/dev/video8"
+      video_device: "/dev/camera_left"
       frame_id: "camera_left_optical_frame"
       pixel_format: "mjpeg2rgb"  # see usb_cam/supported_formats for list of supported formats
       # av_device_format: "M-JPEG"
@@ -8,4 +8,4 @@
       image_height: 480
       image_width: 640
       fps: 30
-      camera_info_url: "package://pontus_sensors/config/front_left_camera_calibration.yaml"
+      camera_info_url: "package://pontus_sensors/config/calibration/front_left_camera_calibration.yaml"

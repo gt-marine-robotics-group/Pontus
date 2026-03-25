@@ -5,7 +5,11 @@
     base_link_frame: "base_link"
 
     # ----- Cameras -----
-    cameras: ["camera_left", "camera_right"]
+    cameras: [
+      "camera_left", 
+      "camera_right", 
+      "camera_tilted_down"
+    ]
 
     # Assumes standard optical frame naming; adjust if your TF tree differs
     camera_frame_template: "{camera}_optical_frame"
