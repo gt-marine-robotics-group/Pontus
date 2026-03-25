@@ -139,26 +139,23 @@
 
   <!-- Sensors -->
 
-  <!-- Forward Camera -->
-  <xacro:camera_macro camera_id="front">
+  <!-- Left Camera (forward-facing, port side) -->
+  <xacro:camera_macro camera_id="left">
     <origin xyz="0.305 0.075 0" rpy="0 0 0" />
   </xacro:camera_macro>
 
-  <xacro:camera_macro camera_id="3">
+  <!-- Right Camera (forward-facing, starboard side) -->
+  <xacro:camera_macro camera_id="right">
     <origin xyz="0.305 -0.075 0" rpy="0 0 0" />
   </xacro:camera_macro>
 
-
-  <!-- Side Camera -->
-  <xacro:camera_macro camera_id="4">
+  <!-- Tilted Down Camera (angled downward) -->
+  <xacro:camera_macro camera_id="tilted_down">
     <origin xyz="0 0.06 0.1" rpy="0 0 ${90*pi/180}" />
   </xacro:camera_macro>
-  <xacro:camera_macro camera_id="5">
-    <origin xyz="0 -0.06 0.1" rpy="0 0 -${90*pi/180}" />
-  </xacro:camera_macro>
 
-  <!-- Downward Camera -->
-  <xacro:camera_macro camera_id="1">
+  <!-- Facing Down Camera (pointing straight down) -->
+  <xacro:camera_macro camera_id="facing_down">
     <origin xyz="0 0 -0.1" rpy="0 ${90*pi/180} 0" />
   </xacro:camera_macro>
 
