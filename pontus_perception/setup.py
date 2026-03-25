@@ -19,10 +19,12 @@ setup(
             glob(os.path.join('config',  '*.yaml'))),
 
         (os.path.join('share', package_name, 'yolo/auv'),
-            glob(os.path.join('yolo', 'auv', '*.pt'))),
+    glob(os.path.join('yolo', 'auv', '*.pt')) +
+    glob(os.path.join('yolo', 'auv', '*.engine'))),
 
         (os.path.join('share', package_name, 'yolo/sim'),
-            glob(os.path.join('yolo', 'sim', '*.pt'))),
+    glob(os.path.join('yolo', 'sim', '*.pt')) +
+    glob(os.path.join('yolo', 'sim', '*.engine'))),
         (os.path.join('share', package_name, 'test'),
             glob(os.path.join('test', '.flake8'))),
     ],

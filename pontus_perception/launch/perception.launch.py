@@ -5,12 +5,22 @@ from launch_ros.actions import Node
 import os
 import sys
 from launch import LaunchDescription
-
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.parameter_descriptions import ParameterFile
 from typing import Optional
 
 
 def generate_launch_description() -> LaunchDescription:
     pkg_share = get_package_share_directory('pontus_perception')
+
+    topics_config_arg = DeclareLaunchArgument(
+        'topics_config',
+        default_value=PathJoinSubstitution([
+            get_package_share_directory('pontus_bringup'),
+            'config', 'topics.yaml'
+        ]),
+    )
 
     # ------  Set whether sim or read hardware ------
     auv_config_str: Optional[str] = 'auv'
@@ -33,22 +43,20 @@ def generate_launch_description() -> LaunchDescription:
         package='pontus_perception',
         executable='yolo',
         name='front_camera_yolo',
-        parameters=[{
-            'auv': auv_config_str,
-            'model_path': model_path
-        }],
-        remappings=[
-            ('input',                 f'{front_camera_topic}/image_raw'),
-            ('input/compressed',      f'{front_camera_topic}/image_raw/compressed'),
-            ('results',               f'{front_camera_topic}/yolo_results'),
-            ('yolo_debug',            f'{front_camera_topic}/yolo_debug'),
-            ('yolo_debug/compressed',
-             f'{front_camera_topic}/yolo_debug/compressed')
-        ]
+        parameters=[
+    ParameterFile(LaunchConfiguration('topics_config'), allow_substs=True),
+    {
+        'auv': auv_config_str,
+        'model_path': model_path,
+    }
+]
     )
 
     launch_description: list[Node] = [
         front_camera_YOLO_node
     ]
 
-    return LaunchDescription(launch_description)
+    return LaunchDescription([
+    topics_config_arg,
+    *launch_description
+])

@@ -1,0 +1,35 @@
+/**:
+  ros__parameters:
+    # ----- Frames (match your URDF / localization) -----
+    map_frame: "map"
+    base_link_frame: "base_link"
+
+    # ----- Cameras -----
+    cameras: ["camera_front", "camera_right"]
+
+    # Assumes standard optical frame naming; adjust if your TF tree differs
+    camera_frame_template: "{camera}_optical_frame"
+
+    # ----- External inputs (from hardware drivers) -----
+    image_topic_template: "/pontus/{camera}/image_raw"
+
+    # Only right + left have camera_info; front does not in your list
+    # If front actually has one, fix this accordingly
+    camera_info_topic_template: "/pontus/{camera}/camera_info"
+
+    # No LiDAR present; leaving blank OR repurpose if needed
+    pointcloud_input_topic: ""
+
+    # ----- Internal pipeline (kept mostly as-is, but aligned to pontus namespace) -----
+    detections_topic_template: "/pontus/{camera}/yolo_results"
+
+    pointcloud_cluster_topic: "/pontus/clustercloud"
+    semantic_map_topic: "/pontus/semantic_map"
+    semantic_map_visual_topic: "/pontus/semantic_map_visual"
+    semantic_map_debug_topic: "/pontus/semantic_map_debug"
+    semantic_object_service: "/pontus/add_semantic_object"
+
+    # No explicit sonar topic in your list → leave blank unless you add one
+    sonar_pointcloud_topic: ""
+
+    occupancy_grid_topic: "/pontus/occupancy_grid"

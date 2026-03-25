@@ -26,20 +26,20 @@ def generate_launch_description():
                 ('/camera_info', '/pontus/camera_front/camera_info_sub')
                 ]
         ),
-        # Node(
-        #     package='usb_cam',
-        #     executable='usb_cam_node_exe',
-        #     name="right_camera",
-        #     output='screen',
-        #     parameters=[right_config_file],
-        #     remappings=[
-        #         ('/image_raw', '/pontus/camera_3/image_raw'),
-        #         ('/image_raw/compressed', '/pontus/camera_3/image_raw/compressed'),
-        #         ('/image_raw/compressedDepth', '/pontus/camera_3/image_raw/compressedDepth'),
-        #         ('/image_raw/theora', '/pontus/camera_3/image_raw/theora'),
-        #         ('/camera_info', '/pontus/camera_3/camera_info')
-        #         ]
-        #),
+        Node(
+            package='usb_cam',
+            executable='usb_cam_node_exe',
+            name="right_camera",
+            output='screen',
+            parameters=[right_config_file],
+            remappings=[
+                ('/image_raw', '/pontus/camera_right/image_raw'),
+                ('/image_raw/compressed', '/pontus/camera_right/image_raw/compressed'),
+                ('/image_raw/compressedDepth', '/pontus/camera_right/image_raw/compressedDepth'),
+                ('/image_raw/theora', '/pontus/camera_right/image_raw/theora'),
+                ('/camera_info', '/pontus/camera_right/camera_info')
+                ]
+        ),
         #  Node(
         #      package='usb_cam',
         #      executable='usb_cam_node_exe',

@@ -17,6 +17,8 @@ setup(
          glob(os.path.join('launch', '*[pxy][yma]*'))),
         (os.path.join('share', package_name, 'test'),
             glob(os.path.join('test', '.flake8'))),
+        (os.path.join('share', package_name, 'config'), glob(os.path.join('config', '*.json'))),
+        (os.path.join('share', package_name, 'config'), glob(os.path.join('config', '*.y*[am][ml]*')))
     ],
     install_requires=['setuptools'],
     zip_safe=True,
