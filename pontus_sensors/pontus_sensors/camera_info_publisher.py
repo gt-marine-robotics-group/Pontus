@@ -70,7 +70,7 @@ class CameraInfoPublisher(Node):
                 # If relative, it will be resolved as <package_share>/config/<calibration_file>
                 ("calibration_file", "front_left_camera_calibration.yaml"),
                 ("calibration_package", "pontus_sensors"),
-                ("camera_info_topic", "/pontus/camera_front/camera_info"),
+                ("camera_info_topic", "/pontus/camera_left/camera_info"),
                 # TODO: figure out the correct frame_id
                 ("frame_id", "narrow_stereo/left"),
                 ("publish_rate_hz", 5.0),

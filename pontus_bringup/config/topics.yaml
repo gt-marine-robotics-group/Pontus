@@ -5,23 +5,21 @@
     base_link_frame: "base_link"
 
     # ----- Cameras -----
-    cameras: ["camera_front", "camera_right"]
+    cameras: ["camera_left", "camera_right"]
 
     # Assumes standard optical frame naming; adjust if your TF tree differs
     camera_frame_template: "{camera}_optical_frame"
 
     # ----- External inputs (from hardware drivers) -----
     image_topic_template: "/pontus/{camera}/image_raw"
-
-    # Only right + left have camera_info; front does not in your list
-    # If front actually has one, fix this accordingly
     camera_info_topic_template: "/pontus/{camera}/camera_info"
 
     # No LiDAR present; leaving blank OR repurpose if needed
     pointcloud_input_topic: ""
 
-    # ----- Internal pipeline (kept mostly as-is, but aligned to pontus namespace) -----
+    # ----- Internal pipeline -----
     detections_topic_template: "/pontus/{camera}/yolo_results"
+    overlay_topic_template: "/pontus/{camera}/yolo_debug"
 
     pointcloud_cluster_topic: "/pontus/clustercloud"
     semantic_map_topic: "/pontus/semantic_map"

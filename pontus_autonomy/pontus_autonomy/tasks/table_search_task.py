@@ -6,6 +6,7 @@ import rclpy
 import tf2_geometry_msgs
 
 from pontus_autonomy.tasks.base_task import BaseTask
+from pontus_bringup.topic_config import TopicConfig
 from rclpy.clock import Clock
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from geometry_msgs.msg import Pose, Vector3Stamped, PoseStamped
@@ -20,6 +21,14 @@ from pontus_msgs.srv import AddSemanticObject
 class TableSearchTask(BaseTask):
     def __init__(self, fallback_point : Pose = None, additional_rays: bool = False, target_object: str = "gate_shark"):
         super().__init__("table_search_task")
+        self.topics = TopicConfig(self, [
+            'cameras',
+            'detections_topic_template',
+            'camera_info_topic_template',
+            'camera_frame_template',
+            'semantic_map_topic',
+            'semantic_object_service',
+        ])
         self.service_callback_group = MutuallyExclusiveCallbackGroup()
     
         #Parameters
@@ -106,30 +115,40 @@ class TableSearchTask(BaseTask):
         self.go_to_pose_client = GoToPoseClient(self)
         
         #Subscriptions
-        self.yolo_detections_sub = self.create_subscription(
-            Detection2DArray,
-            'pontus/camera_front/yolo_results',
-            self.yolo_callback,
-            10
-        )
-        
-        self.camera_info = self.create_subscription(
-            CameraInfo,
-            '/pontus/camera_front/camera_info',
-            self.camera_info_callback,
-            10
-        )
-        
+        self.yolo_detections_subs: list = []
+        for cam in self.topics.cameras:
+            det_topic = self.topics.detections_topic_template.replace('{camera}', cam)
+            self.yolo_detections_subs.append(
+                self.create_subscription(
+                    Detection2DArray,
+                    det_topic,
+                    self.yolo_callback,
+                    10
+                )
+            )
+
+        self.camera_info_subs: list = []
+        for cam in self.topics.cameras:
+            info_topic = self.topics.camera_info_topic_template.replace('{camera}', cam)
+            self.camera_info_subs.append(
+                self.create_subscription(
+                    CameraInfo,
+                    info_topic,
+                    self.camera_info_callback,
+                    10
+                )
+            )
+
         self.semantic_map_sub = self.create_subscription(
             SemanticMap,
-            '/pontus/semantic_map',
+            self.topics.semantic_map_topic,
             self.semantic_map_callback,
             10
         )
-        
+
         self.add_semantic_object_client = self.create_client(
             AddSemanticObject,
-            '/pontus/add_semantic_object',
+            self.topics.semantic_object_service,
         )
         
         #Timers
@@ -421,26 +440,28 @@ class TableSearchTask(BaseTask):
                     rectified_point = self.camera_model.rectify_point(point)
                     ray_unit_vector = self.camera_model.project_pixel_to_3d_ray(rectified_point)
                     
-                    camera_pos = self.transform_camera()
+                    det_frame = self.yolo_detections.header.frame_id
+                    camera_pos = self.transform_camera(det_frame)
                     if camera_pos is None:
                         self.get_logger().warn("Camera Transform Returned None")
                         continue
-                    
-                    
+
+
                     #self.get_logger().info(f"Before Ray Transform: {ray_unit_vector}")
-                    ray_unit_vector = self.transform_ray(ray_unit_vector)
+                    ray_unit_vector = self.transform_ray(ray_unit_vector, det_frame)
                     #self.get_logger().info(f"After Ray Transform {ray_unit_vector}")
                     
                     self.rays.append([camera_pos, ray_unit_vector])
                     new_ray = True
         return new_ray
     
-    def transform_ray(self, ray : np.array) -> np.array | None:
+    def transform_ray(self, ray: np.array, frame_id: str) -> np.array | None:
         """
         Transforms the ray from camera frame to map frame
-        
+
         Args:
             ray (np.array) : the unit vector ray
+            frame_id (str) : the source camera optical frame
 
         Returns:
             np.array | None : Returns the transformed ray as np.array or None if transform fails
@@ -448,13 +469,13 @@ class TableSearchTask(BaseTask):
         try:
             transform = self.tf_buffer.lookup_transform(
                 target_frame = "map",
-                source_frame = "camera_front_optical_frame",
+                source_frame = frame_id,
                 time = rclpy.time.Time()
                 )
-            
+
             vec_stamped = Vector3Stamped()
             vec_stamped.header.stamp = rclpy.time.Time()
-            vec_stamped.header.frame_id = "camera_front_optical_frame"
+            vec_stamped.header.frame_id = frame_id
             
             vec_stamped.vector.x = ray[0]
             vec_stamped.vector.y = ray[1]
@@ -503,10 +524,13 @@ class TableSearchTask(BaseTask):
             return None
         
     
-    def transform_camera(self) -> Pose | None:
+    def transform_camera(self, frame_id: str) -> Pose | None:
         """
         transforms the camera position to the world position
-        
+
+        Args:
+            frame_id (str) : the source camera optical frame
+
         Returns:
             (Pose None) : If a transform exists, this returns the Pose. Otherwise, it returns None
         """
@@ -514,7 +538,7 @@ class TableSearchTask(BaseTask):
         try:
             transform = self.tf_buffer.lookup_transform(
                 target_frame = "map",
-                source_frame = "camera_front_optical_frame",
+                source_frame = frame_id,
                 time = rclpy.time.Time()
                 )
 

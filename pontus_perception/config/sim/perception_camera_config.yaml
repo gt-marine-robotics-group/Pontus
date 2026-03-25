@@ -5,7 +5,7 @@ perception_camera_config:
   ]
 
   all_camera_base_topics: [
-    "/pontus/camera_front",
+    "/pontus/camera_left",
     "/pontus/camera_tilted"
   ]
 
@@ -22,6 +22,6 @@ perception_camera_config:
   ]
 
   all_camera_frames: [
-    "camera_front_link",
+    "camera_left_link",
     "cmaera_tilted_link"
   ]

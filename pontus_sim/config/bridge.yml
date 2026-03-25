@@ -1,14 +1,14 @@
 # Sensors
 
 # Camera Forward Left
-- ros_topic_name: "/pontus/camera_front/image_raw"
-  gz_topic_name: "/pontus/camera_front/image_raw"
+- ros_topic_name: "/pontus/camera_left/image_raw"
+  gz_topic_name: "/pontus/camera_left/image_raw"
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS
 
-- ros_topic_name: "/pontus/camera_front/camera_info"
-  gz_topic_name: "/pontus/camera_front/camera_info"
+- ros_topic_name: "/pontus/camera_left/camera_info"
+  gz_topic_name: "/pontus/camera_left/camera_info"
   ros_type_name: "sensor_msgs/msg/CameraInfo"
   gz_type_name: "gz.msgs.CameraInfo"
   direction: GZ_TO_ROS
@@ -19,14 +19,14 @@
   gz_type_name: "gz.msgs.CameraInfo"
   direction: GZ_TO_ROS
 
-- ros_topic_name: "/pontus/camera_front/yolo_results"
-  gz_topic_name: "/pontus/bounding_box_camera_front/results"
+- ros_topic_name: "/pontus/camera_left/yolo_results"
+  gz_topic_name: "/pontus/bounding_box_camera_left/results"
   ros_type_name: "vision_msgs/msg/Detection2DArray"
   gz_type_name: "gz.msgs.AnnotatedAxisAligned2DBox_V"
   direction: GZ_TO_ROS
 
-- ros_topic_name: "pontus/camera_front/image_raw/yolo_debug"
-  gz_topic_name: "/pontus/bounding_box_camera_front/results_image"
+- ros_topic_name: "pontus/camera_left/image_raw/yolo_debug"
+  gz_topic_name: "/pontus/bounding_box_camera_left/results_image"
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS

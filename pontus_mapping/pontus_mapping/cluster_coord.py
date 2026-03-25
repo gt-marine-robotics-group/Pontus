@@ -2,6 +2,7 @@
 import geometry_msgs
 from pontus_msgs.msg import SemanticObject
 from pontus_msgs.srv import AddSemanticObject
+from pontus_bringup.topic_config import TopicConfig
 from dataclasses import dataclass, field
 import rclpy
 from rclpy.node import Node
@@ -70,6 +71,14 @@ class ImageCoordinator(Node):
     def __init__(self) -> None:
         super().__init__('image_to_cluster_coordinator')
 
+        self.topics = TopicConfig(self, [
+            'cameras',
+            'camera_frame_template',
+            'camera_info_topic_template',
+            'detections_topic_template',
+            'semantic_object_service',
+            'pointcloud_cluster_topic',
+        ])
         self.latest_pointcloud: np.array = None
         self.latest_synced_cloud_stamp = None
         # (m), width of line pointing toward object detected by yolo
@@ -78,7 +87,6 @@ class ImageCoordinator(Node):
         self.confidence_min = 0.4
         self.vector_projection_dist = 10  # (m), how far the line is projected
         self.cam_model = PinholeCameraModel()
-        self.camera_frame_name = 'camera_front'
         self.cam_initialized = False
 
         self.min_bbox_width = 0
@@ -225,21 +233,25 @@ class ImageCoordinator(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.cli = self.create_client(
-            AddSemanticObject, '/pontus/add_semantic_object')
+            AddSemanticObject, self.topics.semantic_object_service)
         while not self.cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
 
-        self.info_sub = self.create_subscription(
-            CameraInfo,
-            # Replace with your camera info topic
-            '/pontus/{}/camera_info'.format(self.camera_frame_name),
-            self.info_callback,
-            10
-        )
+        self.info_subs: list = []
+        for cam in self.topics.cameras:
+            info_topic = self.topics.camera_info_topic_template.replace('{camera}', cam)
+            self.info_subs.append(
+                self.create_subscription(
+                    CameraInfo,
+                    info_topic,
+                    self.info_callback,
+                    10
+                )
+            )
 
         self.debug_line_pub = self.create_publisher(
             MarkerArray,
-            '/pontus/{}/debug_lines'.format(self.camera_frame_name),
+            '/pontus/cluster_coord/debug_lines',
             10
         )
         self.debug_id = 0
@@ -249,22 +261,28 @@ class ImageCoordinator(Node):
         self.cluster = Subscriber(
             self,
             PointCloud2,
-            '/pontus/sonar/clustercloud',
+            self.topics.pointcloud_cluster_topic,
             qos_profile=qos
         )
 
-        self.yolo = Subscriber(
-            self,
-            Detection2DArray,
-            '/pontus/{}/yolo_results'.format(self.camera_frame_name),
-            qos_profile=qos
-        )
-
+        self.yolo_subs: list[Subscriber] = []
+        self.time_syncs: list[ApproximateTimeSynchronizer] = []
         queue_size = 30  # number of messages kept in memory for time synchronizer
         max_delay = 0.05  # max diff in timestamps in seconds
-        self.time_sync = ApproximateTimeSynchronizer([self.cluster, self.yolo],
-                                                     queue_size, max_delay)
-        self.time_sync.registerCallback(self.sync_callback)
+        for cam in self.topics.cameras:
+            det_topic = self.topics.detections_topic_template.replace('{camera}', cam)
+            yolo_sub = Subscriber(
+                self,
+                Detection2DArray,
+                det_topic,
+                qos_profile=qos
+            )
+            self.yolo_subs.append(yolo_sub)
+            ts = ApproximateTimeSynchronizer(
+                [self.cluster, yolo_sub], queue_size, max_delay
+            )
+            ts.registerCallback(self.sync_callback)
+            self.time_syncs.append(ts)
 
     def sync_callback(self, cluster_msg, yolo_msg) -> None:
         # kinda ramshackle way of doing both callbacks, both messages will have timestamp within max_delay of each other
@@ -285,9 +303,6 @@ class ImageCoordinator(Node):
             self.get_logger().warn("No point cloud found")
             return
 
-        # TODO: This should be removed when not testing on old bag data
-        msg.header.frame_id = "camera_front_optical_frame"
-
         array_msg = MarkerArray()
         marker_msg = Marker()
         marker_msg.header = msg.header
@@ -297,8 +312,6 @@ class ImageCoordinator(Node):
         self.debug_line_pub.publish(array_msg)
 
         for detection in msg.detections:
-            # Keep the Humble bag-data workaround, but apply it to the individual detection too.
-            detection.header.frame_id = "camera_front_optical_frame"
 
             if detection.bbox.size_x < self.min_bbox_width:
                 continue
@@ -471,7 +484,6 @@ class ImageCoordinator(Node):
     def build_camera_ray_pose(self, object_msg: Detection2D) -> PoseStamped:
         camera_pose = PoseStamped()
         camera_pose.header = object_msg.header
-        camera_pose.header.frame_id = "camera_front_optical_frame"
 
         center_position = object_msg.bbox.center.position
 

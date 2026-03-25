@@ -11,6 +11,7 @@ from vision_msgs.msg import Detection2DArray
 
 from pontus_autonomy.tasks.base_task import BaseTask
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
+from pontus_bringup.topic_config import TopicConfig
 from pontus_controller.position_controller import MovementMethod
 
 from pontus_msgs.msg import SemanticMap
@@ -37,11 +38,17 @@ class SearchTask(BaseTask):
 
         super().__init__()
 
+        self.topics = TopicConfig(self, [
+            'cameras',
+            'detections_topic_template',
+            'semantic_map_topic',
+        ])
+
         # --- Params ---
         self.target_angle1_rad = target_angle1_rad
         self.target_angle2_rad = target_angle2_rad
         self.terminating_condition = terminating_condition
-        self.angle_tolerance = angle_tolerance
+        self.angle_tolerance = 0.1
         self.desired_depth = desired_depth
 
         # --- State ---
@@ -59,18 +66,23 @@ class SearchTask(BaseTask):
         self.semantic_map = None
         self.semantic_map_sub = self.create_subscription(
             SemanticMap,
-            '/pontus/semantic_map',
+            self.topics.semantic_map_topic,
             self.semantic_map_sub_callback,
             10
         )
 
         self.yolo_detections = None
-        self.yolo_detections_sub = self.create_subscription(
-            Detection2DArray,
-            '/pontus/camera_front/yolo_results',
-            self.yolo_detection_sub_callback,
-            10
-        )
+        self.yolo_detections_subs: list = []
+        for cam in self.topics.cameras:
+            det_topic = self.topics.detections_topic_template.replace('{camera}', cam)
+            self.yolo_detections_subs.append(
+                self.create_subscription(
+                    Detection2DArray,
+                    det_topic,
+                    self.yolo_detection_sub_callback,
+                    10
+                )
+            )
 
         self.odom_sub = self.create_subscription(
             Odometry,
@@ -120,7 +132,7 @@ class SearchTask(BaseTask):
                 self.target_angle = self.target_angle2_rad
                 self._send_turn_command(self.target_angle)
             else:
-                self._finish_task(self, success=False)
+                self._finish_task(success=False)
 
     def _at_target_angle(self, rel_target_angle: float) -> bool:
         """

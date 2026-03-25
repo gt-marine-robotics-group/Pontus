@@ -42,8 +42,8 @@ class LagPlotter(Node):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('camera_topic', '/pontus/camera_front/image_raw/compressed'),
-                ('yolo_topic', '/pontus/camera_front/yolo_results'),
+                ('camera_topic', '/pontus/camera_left/image_raw/compressed'),
+                ('yolo_topic', '/pontus/camera_left/yolo_results'),
                 ('pointcloud_topic', '/pontus/sonar/clustercloud'),
                 ('odom_topic', '/pontus/odometry'),
                 ('tf_target_frame', 'odom'),

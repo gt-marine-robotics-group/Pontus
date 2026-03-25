@@ -2,19 +2,20 @@
 """Multi-camera YOLO detection node with TensorRT acceleration support.
 
 Subscribes to image topics for 1..N cameras (driven by the ``cameras``
-list in the topics YAML), runs batched inference across all cameras
-that have new frames, and publishes Detection2DArray messages per camera.
+list in topics.yaml), runs batched inference across all cameras that
+have new frames, and publishes Detection2DArray messages per camera.
 
 Topic names come from topics.yaml via TopicConfig.  Compressed-image
 fallback is automatic: the node tries raw ``Image`` first and switches
 to ``CompressedImage`` if no raw publisher is found.
 
-Ported timestamp validation from pontus-core ``_build_header()``.
+The node auto-detects the TensorRT engine's max batch size and chunks
+inference accordingly — a batch=1 engine runs per-image, while a
+batch=N engine batches up to N images in a single call.
 """
 
-import importlib
-import time
 import os
+import time
 import traceback
 from typing import Dict, List, Optional, Union
 
@@ -22,11 +23,9 @@ import torch
 import numpy as np
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data, QoSProfile, ReliabilityPolicy, HistoryPolicy
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from rclpy.subscription import Subscription
 from rclpy.publisher import Publisher
-from rclpy.timer import Timer
-from pathlib import Path
 
 from std_msgs.msg import Header
 from sensor_msgs.msg import Image, CompressedImage
@@ -106,6 +105,7 @@ class MultiCamYoloNode(Node):
             'image_topic_template',
             'detections_topic_template',
             'camera_frame_template',
+            'overlay_topic_template',
         ])
 
         # ------ Model load ------
@@ -137,6 +137,12 @@ class MultiCamYoloNode(Node):
             self.model = YOLO(resolved_model).to(self.device)
             self.class_names = getattr(self.model, 'names', self.class_names)
             self.get_logger().info(f'RUNNING PYTORCH: {resolved_model}')
+
+        # ------ Batch size detection ------
+        self.max_batch_size: int = self._get_max_batch_size(resolved_model)
+        self.get_logger().info(
+            f'Max batch size: {self.max_batch_size} '
+            f'(-1 = unlimited)')
 
         # ------ CvBridge ------
         self.bridge: CvBridge = CvBridge()
@@ -172,22 +178,52 @@ class MultiCamYoloNode(Node):
     # ------ Model Resolution ------
 
     def _resolve_model_path(self, param_value: str, auv: str) -> str:
+        """Return model path with priority: engine -> param override -> .pt fallback.
+
+        TensorRT engines are preferred for inference speed on the Jetson.
+        A user-provided model_path param is used if no engine exists.
+        Falls back to the default .pt model as a last resort.
+        """
         pkg_share = get_package_share_directory('pontus_perception')
         engine_path = os.path.join(pkg_share, 'yolo', auv, 'model.engine')
         pt_path = os.path.join(pkg_share, 'yolo', auv, 'model.pt')
 
-        # 🔥 Prefer engine FIRST
         if os.path.exists(engine_path):
             return engine_path
 
-        # Then fallback to param
         if param_value and os.path.exists(param_value):
             return param_value
 
-        # Final fallback
         self.get_logger().warn(
             f'Engine not found. Falling back to {pt_path}')
         return pt_path
+
+    # ------ Batch Size Detection ------
+
+    def _get_max_batch_size(self, model_path: str) -> int:
+        """Probe the model for its maximum supported batch size.
+
+        TensorRT engines have a fixed batch dimension baked in at export
+        time.  PyTorch models support dynamic batching (returns -1).
+        """
+        if not model_path.endswith('.engine'):
+            return -1  # .pt models accept any batch size
+
+        try:
+            import tensorrt as trt
+            logger = trt.Logger(trt.Logger.WARNING)
+            with open(model_path, 'rb') as f:
+                runtime = trt.Runtime(logger)
+                engine = runtime.deserialize_cuda_engine(f.read())
+            input_shape = engine.get_binding_shape(0)
+            batch_dim = int(input_shape[0])
+            self.get_logger().info(
+                f'TRT engine input shape: {list(input_shape)}')
+            return batch_dim if batch_dim > 0 else -1
+        except Exception as e:
+            self.get_logger().warn(
+                f'Could not probe engine batch size: {e}. Defaulting to 1.')
+            return 1
 
     # ------ Per-Camera Setup ------
 
@@ -199,6 +235,8 @@ class MultiCamYoloNode(Node):
             '{camera}', cam_name)
         optical_frame = self.topics.camera_frame_template.replace(
             '{camera}', cam_name)
+        overlay_topic = self.topics.overlay_topic_template.replace(
+            '{camera}', cam_name)
 
         cs = _CamState(cam_name, image_topic, optical_frame)
 
@@ -207,7 +245,7 @@ class MultiCamYoloNode(Node):
 
         # Overlay publisher (debug annotated image)
         cs.overlay_pub = self.create_publisher(
-            Image, f"{cam_name}/yolo/overlay", self.img_qos)
+            Image, overlay_topic, self.img_qos)
 
         # Start with raw image subscription
         cs.raw_sub = self.create_subscription(
@@ -219,7 +257,7 @@ class MultiCamYoloNode(Node):
         self.cam_states[cam_name] = cs
         self.get_logger().info(
             f"  Camera '{cam_name}': image={image_topic}, "
-            f"det={det_topic}, frame={optical_frame}")
+            f"det={det_topic}, overlay={overlay_topic}, frame={optical_frame}")
 
     def _make_image_cb(
         self, cs: _CamState, compressed: bool
@@ -255,11 +293,22 @@ class MultiCamYoloNode(Node):
 
     # ------ Decoding ------
 
-    def _decode(self, msg: Union[Image, CompressedImage], compressed: bool) -> np.ndarray:
-        """Decode raw or compressed image to BGR numpy array."""
+    def _decode(
+        self, msg: Union[Image, CompressedImage], compressed: bool
+    ) -> Optional[np.ndarray]:
+        """Decode raw or compressed image to BGR numpy array.
+
+        Returns None if the image is empty.  Ensures the output is
+        contiguous in memory to prevent TensorRT segfaults.
+        """
         if compressed:
-            return self.bridge.compressed_imgmsg_to_cv2(msg, desired_encoding="bgr8")
-        return self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            img = self.bridge.compressed_imgmsg_to_cv2(
+                msg, desired_encoding="bgr8")
+        else:
+            img = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+        if img is None or img.size == 0:
+            return None
+        return np.ascontiguousarray(img).copy()
 
     # ------ Detection Conversion ------
 
@@ -291,11 +340,9 @@ class MultiCamYoloNode(Node):
             det.bbox.size_y = float(y2 - y1)
 
             hyp = ObjectHypothesisWithPose()
-            # Use the model's label name as class_id so downstream nodes
-            # can match on semantic names rather than model-specific indices.
-            if isinstance(self.model.names, dict) and cid in self.model.names:
-                hyp.hypothesis.class_id = self.model.names[cid]
-                det.id = self.model.names[cid]
+            if cid in self.class_names:
+                hyp.hypothesis.class_id = self.class_names[cid]
+                det.id = self.class_names[cid]
             else:
                 hyp.hypothesis.class_id = str(cid)
             hyp.hypothesis.score = float(score)
@@ -327,6 +374,8 @@ class MultiCamYoloNode(Node):
                 continue
             try:
                 img = self._decode(cs.latest_msg, cs.is_compressed)
+                if img is None:
+                    continue
                 batch_cams.append(cs)
                 batch_imgs.append(img)
             except Exception as e:
@@ -341,21 +390,33 @@ class MultiCamYoloNode(Node):
 
         try:
             t0 = time.time()
-            results = []
-            for img in batch_imgs:
+
+            # Chunk images by max_batch_size.  -1 means unlimited (PyTorch).
+            if self.max_batch_size == -1:
+                chunks = [batch_imgs]
+            else:
+                chunks = [
+                    batch_imgs[i:i + self.max_batch_size]
+                    for i in range(0, len(batch_imgs), self.max_batch_size)
+                ]
+
+            results: list = []
+            for chunk in chunks:
                 res = self.model(
-                    img, device=self.device,
+                    chunk, device=self.device,
                     verbose=False, conf=self.threshold, half=True)
-                results.append(res[0])
-                    
+                results.extend(res)
+
             self.last_infer_ms = (time.time() - t0) * 1000.0
 
             for cs, result in zip(batch_cams, results):
-                # Publish annotated overlay
-                ann = result.plot()
-                overlay_msg = self.bridge.cv2_to_imgmsg(ann, encoding="bgr8")
-                overlay_msg.header = cs.latest_msg.header
-                cs.overlay_pub.publish(overlay_msg)
+                # Publish annotated overlay only if someone is listening
+                if cs.overlay_pub.get_subscription_count() > 0:
+                    ann = result.plot()
+                    overlay_msg = self.bridge.cv2_to_imgmsg(
+                        ann, encoding="bgr8")
+                    overlay_msg.header = cs.latest_msg.header
+                    cs.overlay_pub.publish(overlay_msg)
 
                 # Publish detections
                 det_array = self._ultra_to_det2d_array(
