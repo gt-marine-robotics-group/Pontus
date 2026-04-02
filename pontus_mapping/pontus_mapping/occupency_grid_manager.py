@@ -33,12 +33,11 @@ class OccupancyGridManager(Node):
             10
         )
 
-        #self.timer = self.create_timer(
+        # self.timer = self.create_timer(
         #    0.1,
         #    self.occupancy_grid_update
-        #) Uncomment this line to use a timer update/remove comment in pointcloud_callback
+        # ) Uncomment this line to use a timer update/remove comment in pointcloud_callback
 
-        
         self.declare_parameter('map_resolution_m', 0.16)
         self.declare_parameter('map_width_cell', 500)
         self.declare_parameter('map_height_cell', 500)
@@ -50,7 +49,7 @@ class OccupancyGridManager(Node):
         self.point_weight = 8
         self.decay_rate = 1
 
-        self.clearance = 0.33 # meters
+        self.clearance = 0.33  # meters
 
         self.occupancy_grid: OccupancyGrid = OccupancyGrid()
         self.occupancy_grid.header.frame_id = 'map'
@@ -68,7 +67,8 @@ class OccupancyGridManager(Node):
         self.occupancy_grid.info.origin.orientation.w = 1.0
 
         self.occupancy_grid.data = [0] * (self.map_width * self.map_height)
-        self.occupancy_ndarray = np.zeros(self.map_width * self.map_height, dtype=np.int16)
+        self.occupancy_ndarray = np.zeros(
+            self.map_width * self.map_height, dtype=np.int16)
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -95,9 +95,8 @@ class OccupancyGridManager(Node):
         self.occupancy_grid.header.stamp = msg.header.stamp
 
         self.latest_pointcloud = points
-        self.occupancy_grid_update() #comment this line if you want to use a timer update time
-        
-        
+        # comment this line if you want to use a timer update time
+        self.occupancy_grid_update()
 
     def occupancy_grid_update(self) -> None:
         """
@@ -125,58 +124,63 @@ class OccupancyGridManager(Node):
         bin[:, 0] += self.map_width // 2
         bin[:, 1] = self.map_height // 2 - bin[:, 1]
 
-        #All points not within the occupancy grid range are removed
+        # All points not within the occupancy grid range are removed
         bin = bin[np.all(((bin[:, :2] >= [0, 0]) & (
             bin[:, :2] <= [self.map_width, self.map_height])), axis=1)]
 
-        score = np.full(self.map_width * self.map_height, -self.decay_rate, dtype=np.int16)
+        score = np.full(self.map_width * self.map_height, -
+                        self.decay_rate, dtype=np.int16)
 
-        #For each (x,y) pair in bin, we perform x + (y - 1) * map_width to convert from pointgrid to occupancy_grid location
+        # For each (x,y) pair in bin, we perform x + (y - 1) * map_width to convert from pointgrid to occupancy_grid location
         bin = bin[:, 0] + (bin[:, 1] - 1) * self.map_width
-        
-        bin = bin.astype(np.int32)
-        
-        #Some bin locations are negative and must be removed
-        bin = bin[bin > 0]
-        
 
-        bin = np.bincount(bin,minlength=self.map_height * self.map_width)
-        
-        #For every cell with 1 or more point, we calculate additional score as (#points * point_weight)
+        bin = bin.astype(np.int32)
+
+        # Some bin locations are negative and must be removed
+        bin = bin[bin > 0]
+
+        bin = np.bincount(bin, minlength=self.map_height * self.map_width)
+
+        # For every cell with 1 or more point, we calculate additional score as (#points * point_weight)
         bin[bin > 0] *= self.point_weight
-        #Subtract decay_rate as decay rate is added to all cells in score
+        # Subtract decay_rate as decay rate is added to all cells in score
         bin[bin > 0] += self.decay_rate
 
         bin = self.add_score_to_cells_within_range(bin)
-        
+
         score += self.occupancy_ndarray + bin
 
-        #Scores are clamped to between 0-100
-        score[score<0] = 0
-        score[score>100] = 100
+        # Scores are clamped to between 0-100
+        score[score < 0] = 0
+        score[score > 100] = 100
         self.occupancy_ndarray = score
 
-    def add_score_to_cells_within_range(self, score: np.ndarray): 
+    def add_score_to_cells_within_range(self, score: np.ndarray):
         # creates box of clearance around each point with a score in score array, could be optimized with circle of indices about a point
         score_copy = np.copy(score)
         score_copy = score_copy.reshape((self.map_width, self.map_height))
         temp_score = np.zeros_like(score_copy)
-        for i in range(score_copy.shape[0]):
-            for j in range(score_copy.shape[1]):
-                min_x = math.floor(i - self.clearance/self.resolution)
-                min_y = math.floor(j - self.clearance/self.resolution)
-                max_x = math.ceil(i + self.clearance/self.resolution)
-                max_y = math.ceil(j + self.clearance/self.resolution)
-                if min_x < 0: 
-                    min_x = 0
-                if min_y < 0: 
-                    min_y = 0
-                if max_x > score_copy.shape[0]: 
-                    max_x = score_copy.shape[0]
-                if max_y > score_copy.shape[1]: 
-                    max_y = score_copy.shape[1]
+        indices = np.where(score_copy != 0.0)
 
-                temp_score[min_x:max_x, min_y:max_y] += score_copy[i,j]
+        for index in indices:
+            index_2d = np.unravel_index(index, score_copy.shape)
+            i = index_2d[0]
+            j = index_2d[1]
+
+            min_x = math.floor(i - self.clearance/self.resolution)
+            min_y = math.floor(j - self.clearance/self.resolution)
+            max_x = math.ceil(i + self.clearance/self.resolution)
+            max_y = math.ceil(j + self.clearance/self.resolution)
+            if min_x < 0:
+                min_x = 0
+            if min_y < 0:
+                min_y = 0
+            if max_x > score_copy.shape[0]:
+                max_x = score_copy.shape[0]
+            if max_y > score_copy.shape[1]:
+                max_y = score_copy.shape[1]
+
+                temp_score[min_x:max_x, min_y:max_y] += score_copy[i, j]
         temp_score = temp_score.reshape(score.shape)
         return temp_score
 
