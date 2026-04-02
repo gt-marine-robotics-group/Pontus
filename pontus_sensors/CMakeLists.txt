@@ -35,16 +35,24 @@ include_directories(
   include
   $(rclcpp_INCLUDE_DIRS)
   ${OpenCV_INCLUDE_DIRS}
-  colormaps
 )
 
 add_executable(sonoptix_driver_node
   src/sonoptix_driver.cpp
 )
 
+add_executable(dvl_processor
+  src/dvl_processor
+)
+
 target_include_directories(sonoptix_driver_node PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
-  ${CMAKE_CURRENT_SOURCE_DIR}/colormaps
+  ${PCL_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIRS}
+)
+
+target_include_directories(dvl_processor PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${PCL_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}
 )
@@ -62,13 +70,30 @@ ament_target_dependencies(sonoptix_driver_node
   tf2_eigen
 )
 
+ament_target_dependencies(dvl_processor
+  rclcpp
+  sensor_msgs
+  PCL
+  pcl_conversions
+  pcl_ros
+  tf2
+  tf2_ros 
+  tf2_sensor_msgs
+  tf2_eigen
+)
+
 target_link_libraries(sonoptix_driver_node 
+  ${PCL_LIBRARIES}
+)
+
+target_link_libraries(dvl_processor
   ${OpenCV_LIBS}
   ${PCL_LIBRARIES}
 )
 
 install(TARGETS 
   sonoptix_driver_node
+  dvl_processor
   DESTINATION lib/${PROJECT_NAME}
 )
 
