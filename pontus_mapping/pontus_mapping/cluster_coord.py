@@ -268,7 +268,7 @@ class ImageCoordinator(Node):
         self.yolo_subs: list[Subscriber] = []
         self.time_syncs: list[ApproximateTimeSynchronizer] = []
         queue_size = 30  # number of messages kept in memory for time synchronizer
-        max_delay = 0.05  # max diff in timestamps in seconds
+        max_delay = 0.5  # max diff in timestamps in seconds
         for cam in self.topics.cameras:
             det_topic = self.topics.detections_topic_template.replace('{camera}', cam)
             yolo_sub = Subscriber(
@@ -284,9 +284,26 @@ class ImageCoordinator(Node):
             ts.registerCallback(self.sync_callback)
             self.time_syncs.append(ts)
 
+            self.get_logger().info(f"Camera topic subscribed: {det_topic}")
+
+        self.test_cluster = self.create_subscription(
+            PointCloud2,
+            "/pontus/sonar/clustercloud",
+            self.pointcloud_callback,
+            qos_profile=qos
+        )
+        self.test_yolo = self.create_subscription(
+            Detection2DArray,
+            "/pontus/camera_left/yolo_results",
+            self.yolo_callback,
+            qos_profile=qos
+        )
+
     def sync_callback(self, cluster_msg, yolo_msg) -> None:
         # kinda ramshackle way of doing both callbacks, both messages will have timestamp within max_delay of each other
         # update latest_pointcloud before moving to yolo_callback
+
+        self.get_logger().info("Syncroizer running")
         self.latest_synced_cloud_stamp = cluster_msg.header.stamp
         self.pointcloud_callback(cluster_msg)
         self.yolo_callback(yolo_msg)
@@ -302,6 +319,8 @@ class ImageCoordinator(Node):
         elif self.latest_pointcloud is None:
             self.get_logger().warn("No point cloud found")
             return
+
+        self.get_logger().info("Got yolo results")
 
         array_msg = MarkerArray()
         marker_msg = Marker()
@@ -679,6 +698,7 @@ class ImageCoordinator(Node):
         marker_msg.scale.z = 0.05
         marker_msg.color = self.get_debug_line_color(class_id)
         array_msg.markers.append(marker_msg)
+        self.get_logger().info(f"Debug Line Published {array_msg}")
         self.debug_line_pub.publish(array_msg)
 
         visual_range_m = self.estimate_range_from_bbox(object_msg, class_id)

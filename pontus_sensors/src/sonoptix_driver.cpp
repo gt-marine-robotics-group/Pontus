@@ -55,12 +55,12 @@ public:
     timestamp_offset_ms_ = this->declare_parameter<double>("timestamp_offset_ms", 0.0);
 
     // ---- Mitchell Pool -----
-    min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.10);   // keep points at least this deep
-    max_depth_m_ = this->declare_parameter<double>("max_depth_m", 2.3);  // keep points at most this deep
+    // min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.10);   // keep points at least this deep
+    // max_depth_m_ = this->declare_parameter<double>("max_depth_m", 2.3);  // keep points at most this deep
 
     // ---- CRC Pool ----
-    // min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.10);   // keep points at least this deep
-    // max_depth_m_ = this->declare_parameter<double>("max_depth_m", 2.2);  // keep points at most this deep
+    min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.10);   // keep points at least this deep
+    max_depth_m_ = this->declare_parameter<double>("max_depth_m", 2.2);  // keep points at most this deep
 
     min_dist_m_ = this->declare_parameter<double>("min_dist_m", 0.3); 
     max_dist_m_ = this->declare_parameter<double>("max_dist_m", 4.5);

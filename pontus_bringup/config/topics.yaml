@@ -8,7 +8,7 @@
     cameras: [
       "camera_left", 
       "camera_right", 
-      "camera_tilted_down"
+      # "camera_tilted_down"
     ]
 
     # Assumes standard optical frame naming; adjust if your TF tree differs

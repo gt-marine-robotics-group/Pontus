@@ -23,8 +23,8 @@ class PrequalSearchTask(BaseTask):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('pool_depth', 1.8),
-                ('height_from_bottom', 1.4)
+                ('pool_depth', 3.0),
+                ('height_from_bottom', 1.0)
             ]
         )
 

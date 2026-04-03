@@ -28,12 +28,12 @@ def generate_launch_description():
             output='screen',
         ),
 
-        Node(
-            package='pontus_mapping',
-            executable='occupancy_grid_manager',
-            name='occupancy_grid_manager',
-            output='screen',
-        ),
+        # Node(
+        #     package='pontus_mapping',
+        #     executable='occupancy_grid_manager',
+        #     name='occupancy_grid_manager',
+        #     output='screen',
+        # ),
 
         Node(
             package='pontus_mapping',

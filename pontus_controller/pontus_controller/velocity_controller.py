@@ -24,7 +24,7 @@ class VelocityNode(Node):
 
         param_list = (
             ('default_command_mode', CommandMode.ESTOP),
-            ('x_kp', 10.0),
+            ('x_kp', 12.0),
             ('x_ki', 0.0),
             ('x_kd', 0.0),
             ('y_kp', 10.0),
@@ -50,6 +50,7 @@ class VelocityNode(Node):
             ('yaw_C', 4.0),
             ('linear_drag_gain', 1.0),
             ('angular_drag_gain', 0.2),
+            ('buoyancy_feedforward_gain', 1.19),
             ('direct_mode_linear_gain', 12.0),
             ('direct_mode_angular_gain', 0.35)
         )
@@ -238,7 +239,7 @@ class VelocityNode(Node):
 
         # Calculate buoyancy force
         # F = pVg
-        f_buoyancy = self.vehicle_params.fluid_density * \
+        f_buoyancy = self.buoyancy_feedforward_gain * self.vehicle_params.fluid_density * \
             sub_volume * self.vehicle_params.gravity
         # F = mg
         f_gravity = self.vehicle_params.mass * self.vehicle_params.gravity
