@@ -6,11 +6,11 @@
 #include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 
-// --- Humble ---
-#include <cv_bridge/cv_bridge.h>
-
-// --- Jazzy ---
-// #include <cv_bridge/cv_bridge.hpp>
+#ifdef ROS_DISTRO_HUMBLE
+  #include <cv_bridge/cv_bridge.h>
+#else
+  #include <cv_bridge/cv_bridge.hpp>
+#endif
 
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>

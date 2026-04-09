@@ -1,10 +1,10 @@
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/header.hpp>
 #include "geometry_msgs/msg/transform_stamped.hpp"
+#include "geometry_msgs/msg/point_stamped.hpp"
 #include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
-#include <geometry_msgs/msg/transform_stamped.hpp>
-#include <nav_msgs/msg/Odometry.hpp>
-#include <dvl_msgs/msg/DVLDR.hpp>
+#include <nav_msgs/msg/odometry.hpp>
+#include <dvl_msgs/msg/dvl.hpp>
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -13,6 +13,7 @@
 #include <pcl/segmentation/extract_clusters.h>
 
 #include <tf2_ros/buffer.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <tf2_ros/transform_listener.h>
 #include "tf2_ros/static_transform_broadcaster.hpp"
 
@@ -24,6 +25,8 @@
 #include <pcl/filters/extract_indices.h>
 
 #include <Eigen/Core>
+#include <tf2_eigen/tf2_eigen.hpp>
+#include <tf2/LinearMath/Quaternion.h>
 
 #include <algorithm>
 #include <cmath>
@@ -37,32 +40,61 @@ public:
 
   DVLProcessorNode() : rclcpp::Node("dvl_processor") {
     // Parameters
-    frame_id_ = this->declare_parameter<std::string>("frame_id", "");
     target_frame_ = this->declare_parameter<std::string>("target_frame", "map");
-
-    min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.10);   // keep points at least this deep
-    max_depth_m_ = this->declare_parameter<double>("max_depth_m", 2.3);  // keep points at most this deep
+    // target_frame_ = this->declare_parameter<std::string>("target_frame", "base_link");
 
     rclcpp::QoS qos(rclcpp::KeepLast(1));
     qos.best_effort();
 
     dvl_odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
-      "/dvl/odometry", 1, 
+      "/dvl/odometry", qos, 
       std::bind(&DVLProcessorNode::dvl_odom_callback, this, std::placeholders::_1)
     );
 
-    dvl_data_sub_ = this->create_subscription<dvl_msgs::msg::DVLDR>(
-      "/dvl/data", 1, 
+    dvl_data_sub_ = this->create_subscription<dvl_msgs::msg::DVL>(
+      "/dvl/data", qos, 
       std::bind(&DVLProcessorNode::dvl_data_callback, this, std::placeholders::_1)
     );
 
     odom_pub_ = this->create_publisher<nav_msgs::msg::Odometry>("/pontus/odometry", 10);
+    altimeter_cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/debug/altimeter/pointcloud", 10);
+    beam_cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/debug/beam/pointcloud", 10);
 
     // TF
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_unique<tf2_ros::TransformListener>(*tf_buffer_);
-    tf_static_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
+    tf_static_broadcaster_ = std::make_unique<tf2_ros::StaticTransformBroadcaster>(this);
 
+    /*
+          ^
+          |
+         3 4 
+         2 1
+    */
+
+    double beam_axis_angle = -22.5 * (M_PI / 180);
+    // tf2::Quaternion beam_axis_rotation;
+    // beam_axis_rotation.setRPY(, 0, 0); 
+
+    // Beam angles
+    for (u_int i = 0; i < 4; i++) {
+      double angle = M_PI/4 + (i * M_PI / 2);
+      tf2::Quaternion beam_number_rotation;
+      beam_number_rotation.setRPY(0, (-M_PI/2 + beam_axis_angle), angle);
+
+      geometry_msgs::msg::TransformStamped beam_tf;
+      beam_tf.transform.rotation = tf2::toMsg(beam_number_rotation);
+      // beam_tf.transform.rotation = tf2::toMsg(beam_axis_rotation * beam_number_rotation);
+
+      std::cerr << beam_tf.transform.rotation.x << ", " 
+                << beam_tf.transform.rotation.y << ", "
+                << beam_tf.transform.rotation.z << ", "
+                << beam_tf.transform.rotation.w << std::endl;
+
+      beam_tfs.push_back(beam_tf);
+    }
+
+    // std::cerr << "tf size " << beam_tfs.size() << std::endl;
   }
 
 private:
@@ -71,364 +103,199 @@ private:
 
   // ----------- Callbacks -----------
   void dvl_odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
+    // std::cerr << "odom z: " << msg->pose.pose.position.z << std::endl;
   }
 
-  void dvl_data_callback(const dvl_msgs::msg::Data::SharedPtr msg) {
-  }
+  void dvl_data_callback(const dvl_msgs::msg::DVL::SharedPtr msg) {
+    std::cerr << "altitude: " << msg->altitude << std::endl;
 
-  CloudIPtr imageToPcl(const cv::Mat& gray) {
-    const int rows = gray.rows;
-    const int cols = gray.cols;
+    // BEAMS
+    msg->header.frame_id = "dvl_a50_link";
+    beam_cloud.clear(); // TODO: REMOVE THIS
 
-    CloudIPtr cloud(new CloudI);
-    cloud->height = 1;
-    cloud->is_dense = false;
-    cloud->points.reserve(rows * cols);
-
-    if (rows <= 0 || cols <= 0) {
-      return cloud;
-    }
-
-    const double angle_step = (cols > 0) ? (2.0 * sonar_angle_rad_ / cols) : 0.0;
-    const double angle_min  = -sonar_angle_rad_;
-
-    const uint8_t threshold = static_cast<uint8_t>(std::clamp(intensity_min_, 0, 255));
-
-    const int min_row= std::max(
-      0,
-      static_cast<int>(std::ceil(min_dist_m_ / sonar_res_m_))
-    );
-
-    const int max_row = std::min(
-      rows,
-      static_cast<int>(std::floor(max_dist_m_ / sonar_res_m_)) + 1
-    );
-
-    // If the clipped range is empty, return an empty cloud.
-    if (min_row >= max_row) {
-      cloud->width = 0;
-      return cloud;
-    }
-
-    for (int r = min_row; r < max_row; ++r) {
-      const double d_m = sonar_res_m_ * static_cast<double>(r);
-      const uint8_t* row_line = gray.ptr<uint8_t>(r);
-
-      for (int c = 0; c < cols; ++c) {
-        const uint8_t pixel_intensity = row_line[c];
-        if (pixel_intensity <= threshold) {
-          continue;
-        }
-
-        const double theta = angle_min + c * angle_step;
-
-        pcl::PointXYZI point;
-        point.x = d_m * std::cos(theta);
-        point.y = d_m * std::sin(theta);
-        point.z = 0.0f;
-        point.intensity = normalize_intensity_
-          ? static_cast<float>(pixel_intensity) / 255.0f
-          : static_cast<float>(pixel_intensity);
-
-        cloud->points.push_back(point);
+    for (u_int i = 0; i < beam_tfs.size(); i++) {
+      if (!msg->beams[i].valid) {
+        continue;
       }
-    }
 
-    cloud->width = cloud->points.size();
-    return cloud;
-  }
+      // Create the source point
+      geometry_msgs::msg::PointStamped beam_point;
+      beam_point.header.frame_id = msg->header.frame_id;
+      beam_point.header.stamp = this->get_clock()->now();
+      // beam_point.point.x = 1.0;
+      beam_point.point.x = msg->beams[i].distance;
 
-  // ------ Back End Filtering and Processing ------
-  void processAndPublishCloud(const CloudIPtr& cloud_in,
-                            const std_msgs::msg::Header& in_header)
-  {
-    if (!cloud_in || cloud_in->empty()) {
-      std_msgs::msg::Header hdr = in_header;
-      if (!frame_id_.empty()) {
-        hdr.frame_id = target_frame_;
+      auto beam_tf = beam_tfs[i];
+
+      geometry_msgs::msg::PointStamped transformed_beam_point;
+      tf2::doTransform(beam_point, transformed_beam_point, beam_tf);
+
+      geometry_msgs::msg::PointStamped map_point;
+
+      try {
+        auto tf = tf_buffer_->lookupTransform(
+          target_frame_,
+          msg->header.frame_id,
+          rclcpp::Time(msg->header.stamp),
+          rclcpp::Duration::from_seconds(0.1)
+        );
+
+        tf2::doTransform(transformed_beam_point, map_point, tf);
+      } catch (const tf2::TransformException& ex) {
+        RCLCPP_WARN_THROTTLE(
+          get_logger(), *get_clock(), 2000,
+          "TF to '%s' failed from '%s' at altimeter_cloud time %.3f: %s",
+          target_frame_.c_str(),
+          msg->header.frame_id.c_str(),
+          rclcpp::Time(msg->header.stamp).seconds(),
+          ex.what());
+        return;
       }
-      publishEmptyCluster(hdr);
-      return;
+
+      pcl::PointXYZ pcl_point(map_point.point.x, map_point.point.y, map_point.point.z);
+      beam_cloud.points.push_back(pcl_point);
+      beam_cloud.width = beam_cloud.points.size();
+      beam_cloud.height = 1;
+
+      std::cerr << map_point.point.x << ", " << map_point.point.y << ", " << map_point.point.z << std::endl;
     }
 
-    std_msgs::msg::Header src_header = in_header;
-    if (!frame_id_.empty()) {
-      src_header.frame_id = frame_id_;
-    }
+      sensor_msgs::msg::PointCloud2 beam_cloud_msg;
+      pcl::toROSMsg(beam_cloud, beam_cloud_msg);
+      beam_cloud_msg.header.frame_id = target_frame_;
+      beam_cloud_msg.header.stamp = msg->header.stamp;
+      beam_cloud_pub_->publish(beam_cloud_msg);
 
-    if (timestamp_offset_ms_ != 0.0) {
-      rclcpp::Time shifted_time(in_header.stamp);
-      shifted_time = shifted_time - rclcpp::Duration::from_seconds(timestamp_offset_ms_ / 1000.0);
-      src_header.stamp = shifted_time;
-    }
+      // std::cerr << "beam_cloud size: " << beam_cloud.points.size() << std::endl;
 
-    // Transform to target frame
-    CloudIPtr cloud_transformed(new CloudI);
-    bool tf_ok = transform_pcl_to_map_frame(*cloud_in, src_header, *cloud_transformed);
 
-    sensor_msgs::msg::PointCloud2 cloud_msg;
+    // ALTIMETER
+    // altimeter_cloud.clear(); // TODO: REMOVE THIS
 
-    if (!tf_ok) {
-      pcl::toROSMsg(*cloud_in, cloud_msg);
-      cloud_msg.header = src_header;
-      cloud_pub_->publish(cloud_msg);
+    // Create the source point
+    geometry_msgs::msg::PointStamped altimeter_point;
+    altimeter_point.header.frame_id = msg->header.frame_id;
+    altimeter_point.header.stamp = this->get_clock()->now();
+    altimeter_point.point.z = msg->altitude;
 
-      std_msgs::msg::Header cluster_header = in_header;
-      cluster_header.frame_id = target_frame_;
-      publishEmptyCluster(cluster_header);
-      return;
-    }
-
-    // Filter in map frame
-    CloudI cloud_filtered = filter_points_pcl(*cloud_transformed, min_depth_m_, max_depth_m_);
-    cloud_filtered = filter_lines_pcl(cloud_filtered);
-
-    // Publish filtered cloud even if empty
-    pcl::toROSMsg(cloud_filtered, cloud_msg);
-    cloud_msg.header = src_header;
-    cloud_msg.header.frame_id = target_frame_;
-    cloud_pub_->publish(cloud_msg);
-
-    std::vector<Eigen::Vector4f> centroids;
-    if (!cloud_filtered.empty()) {
-      CloudIPtr cloud_filtered_ptr(new CloudI(cloud_filtered));
-      std::vector<pcl::PointIndices> clusters = euclideanClustering(cloud_filtered_ptr);
-      centroids = computeClusterCentroids(cloud_filtered_ptr, clusters);
-    }
-
-    CloudI clustered_cloud;
-    clustered_cloud.height = 1;
-    clustered_cloud.is_dense = true;
-    clustered_cloud.points.reserve(centroids.size());
-
-    for (const auto& centroid : centroids) {
-      pcl::PointXYZI point;
-      point.x = centroid[0];
-      point.y = centroid[1];
-      point.z = centroid[2];
-      point.intensity = 100.0f;
-      clustered_cloud.points.push_back(point);
-    }
-    clustered_cloud.width = clustered_cloud.points.size();
-
-    sensor_msgs::msg::PointCloud2 clustered_msg;
-    pcl::toROSMsg(clustered_cloud, clustered_msg);
-    clustered_msg.header = cloud_msg.header;
-    clustered_pub_->publish(clustered_msg);
-  }
-
-  bool transform_pcl_to_map_frame(
-    const CloudI& cloud_in,
-    const std_msgs::msg::Header& src_header,
-    CloudI& cloud_out)
-  {
-    if (src_header.frame_id.empty()) {
-      RCLCPP_WARN(
-        get_logger(),
-        "transform_pcl_to_map_frame(): empty frame_id; cannot transform to '%s'.",
-        target_frame_.c_str());
-      return false;
-    }
+    geometry_msgs::msg::PointStamped map_point;
 
     try {
-      // Only use the transform at the cloud timestamp.
-      // If it is not available yet, fail rather than using the latest transform,
-      // since using a mismatched transform time can cause map-frame drift while yawing.
       auto tf = tf_buffer_->lookupTransform(
         target_frame_,
-        src_header.frame_id,
-        rclcpp::Time(src_header.stamp),
+        msg->header.frame_id,
+        rclcpp::Time(msg->header.stamp),
         rclcpp::Duration::from_seconds(0.1)
       );
 
-      pcl_ros::transformPointCloud(cloud_in, cloud_out, tf);
-      return true;
-
+      tf2::doTransform(altimeter_point, map_point, tf);
     } catch (const tf2::TransformException& ex) {
       RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000,
-        "TF to '%s' failed from '%s' at cloud time %.3f: %s",
+        "TF to '%s' failed from '%s' at altimeter_cloud time %.3f: %s",
         target_frame_.c_str(),
-        src_header.frame_id.c_str(),
-        rclcpp::Time(src_header.stamp).seconds(),
+        msg->header.frame_id.c_str(),
+        rclcpp::Time(msg->header.stamp).seconds(),
         ex.what());
-      return false;
+      return;
+    }
+
+    pcl::PointXYZ pcl_point(map_point.point.x, map_point.point.y, map_point.point.z);
+    altimeter_cloud.points.push_back(pcl_point);
+    altimeter_cloud.width = altimeter_cloud.points.size();
+    altimeter_cloud.height = 1;
+
+    sensor_msgs::msg::PointCloud2 altimeter_cloud_msg;
+    pcl::toROSMsg(altimeter_cloud, altimeter_cloud_msg);
+    altimeter_cloud_msg.header.frame_id = target_frame_;
+    altimeter_cloud_msg.header.stamp = msg->header.stamp;
+    altimeter_cloud_pub_->publish(altimeter_cloud_msg);
+
+    // std::cerr << "altimeter_cloud size: " << altimeter_cloud.points.size() << std::endl;
+
+    // fit_plane_pcl(altimeter_cloud + beam_cloud, map_point);
+    if (altimeter_cloud.points.size() > 100) {
+      fit_plane_pcl(altimeter_cloud, map_point);
     }
   }
 
-  CloudI filter_points_pcl(
-    const pcl::PointCloud<pcl::PointXYZI>& cloud_in,
-    double min_depth_m,
-    double max_depth_m)
+  void fit_plane_pcl(const Cloud& cloud_in, geometry_msgs::msg::PointStamped altimeter_point)
   {
-    auto cloudPtr = std::make_shared<CloudI>(cloud_in);
-    auto filtered_data = std::make_shared<CloudI>();
-
-    pcl::PassThrough<pcl::PointXYZI> pass;
-    pass.setInputCloud(cloudPtr);
-    pass.setFilterFieldName("z");
-    pass.setFilterLimits(-max_depth_m, -min_depth_m); // Z axis is inverted from "depth"
-    pass.filter(*filtered_data);
-
-    return *filtered_data;
-  }
-
-  CloudI filter_lines_pcl(const CloudI& cloud_in)
-  {
-    CloudIPtr cloud(new CloudI(cloud_in));
-    if (cloud->empty()) {
-      return *cloud;
+    CloudPtr altimeter_cloud(new Cloud(cloud_in));
+    if (altimeter_cloud->empty()) {
+      return;
     }
 
-    pcl::SACSegmentation<pcl::PointXYZI> seg;
-    seg.setOptimizeCoefficients(true);
-    seg.setModelType(pcl::SACMODEL_LINE);
-    seg.setMethodType(pcl::SAC_RANSAC);
-    seg.setDistanceThreshold(line_dist_threshold_);
-    seg.setMaxIterations(500);
+    pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
+    pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
 
-    pcl::ExtractIndices<pcl::PointXYZI> extract;
+    // Create the segmentation object
+    pcl::SACSegmentation<pcl::PointXYZ> seg;
+    // Optional
+    seg.setOptimizeCoefficients (true);
+    // Mandatory
+    seg.setModelType (pcl::SACMODEL_PLANE);
+    seg.setMethodType (pcl::SAC_RANSAC);
+    seg.setDistanceThreshold (0.05);
 
-    while (true) {
-      if (cloud->size() < static_cast<size_t>(line_min_inliers_)) {
-        break;  // not enough points left to contain a “large” line
-      }
+    seg.setInputCloud (altimeter_cloud);
+    seg.segment (*inliers, *coefficients);
 
-      pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
-      pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients());
+    // std::cerr << "Plane Model coefficients: " << coefficients->values[0] << " " 
+    //                                           << coefficients->values[1] << " "
+    //                                           << coefficients->values[2] << " " 
+    //                                           << coefficients->values[3] << std::endl;
 
-      seg.setInputCloud(cloud);
-      seg.segment(*inliers, *coefficients);
+    geometry_msgs::msg::TransformStamped t;
+    
+    // Set Header
+    t.header.stamp = this->get_clock()->now();
+    t.header.frame_id = "odom";
+    // t.header.frame_id = "base_link";
+    t.child_frame_id = "test_map";
 
-      if (inliers->indices.empty()) {
-        // No line found
-        break;
-      }
+    // Calculate Orientation
+    Eigen::Vector3d normal(coefficients->values[0],
+      coefficients->values[1],
+      coefficients->values[2]
+    );
+    normal.normalize();
+    
+    // Find rotation from Z-up to the normal
+    Eigen::Quaterniond q = Eigen::Quaterniond::FromTwoVectors(Eigen::Vector3d::UnitZ(), normal);
 
-      if (static_cast<int>(inliers->indices.size()) < line_min_inliers_) {
-        // line exists but small, keep it
-        break;
-      }
+    // t.transform.translation.x = altimeter_point.point.x;
+    // t.transform.translation.y = altimeter_point.point.y;
+    // t.transform.translation.z = altimeter_point.point.z;
 
-      // Coeffs for line: point (x0, y0, z0), direction (dx, dy, dz)
-      const double x0 = coefficients->values[0];
-      const double y0 = coefficients->values[1];
-      const double z0 = coefficients->values[2];
-      const double dx = coefficients->values[3];
-      const double dy = coefficients->values[4];
-      const double dz = coefficients->values[5];
+    t.transform.rotation.x = q.x();
+    t.transform.rotation.y = q.y();
+    t.transform.rotation.z = q.z();
+    t.transform.rotation.w = q.w();
 
-      Eigen::Vector3d p0(x0, y0, z0);
-      Eigen::Vector3d dir(dx, dy, dz);
-      const double dir_norm = dir.norm();
-      if (dir_norm < 1e-6) {
-        break;  // degenerate direction
-      }
-      Eigen::Vector3d dir_unit = dir / dir_norm;
-
-      // Estimate line segment length along the direction
-      double t_min = std::numeric_limits<double>::infinity();
-      double t_max = -std::numeric_limits<double>::infinity();
-
-      for (int idx : inliers->indices) {
-        const auto& pt = cloud->points[idx];
-        Eigen::Vector3d p(pt.x, pt.y, pt.z);
-        double t = (p - p0).dot(dir_unit);  // projection scalar
-        t_min = std::min(t_min, t);
-        t_max = std::max(t_max, t);
-      }
-
-      double segment_length = (t_max - t_min);          // in “t” units
-      double line_length_m  = std::fabs(segment_length); // since dir_unit is unit, t has meters
-
-      if (line_length_m < line_min_length_m_) {
-        // Long-enough line not found; treat remaining as non-wall
-        break;
-      }
-
-      // Remove this line from the cloud
-      extract.setInputCloud(cloud);
-      extract.setIndices(inliers);
-      extract.setNegative(true);  // keep everything except the line
-      CloudIPtr cloud_without_line(new CloudI);
-      extract.filter(*cloud_without_line);
-
-      cloud.swap(cloud_without_line);
-
-      // Loop to strip multiple walls if they exist
-    }
-
-    return *cloud;
+    tf_static_broadcaster_->sendTransform(t);
   }
 
-  std::vector<pcl::PointIndices> euclideanClustering(const CloudIPtr& pcl_data) {
-
-      pcl::search::KdTree<pcl::PointXYZI>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZI>());
-      tree->setInputCloud(pcl_data);
-
-      std::vector<pcl::PointIndices> cluster_indices;
-      pcl::EuclideanClusterExtraction<pcl::PointXYZI> ec;
-      ec.setClusterTolerance(cluster_tolerance_);
-      ec.setMinClusterSize(cluster_min_points_); 
-      ec.setMaxClusterSize(cluster_max_points_);
-      ec.setSearchMethod(tree);
-      ec.setInputCloud(pcl_data);
-      ec.extract(cluster_indices);
-
-      return cluster_indices;
-  }
-
-  std::vector<Eigen::Vector4f> computeClusterCentroids(const CloudIPtr& pcl_data, const std::vector<pcl::PointIndices>& cluster_indices) {
-      std::vector<Eigen::Vector4f> centroids;
-
-      for (const auto& indices : cluster_indices) {
-          Eigen::Vector4f centroid(0, 0, 0, 0);
-          for (const auto& index : indices.indices) {
-              centroid[0] += pcl_data->points[index].x;
-              centroid[1] += pcl_data->points[index].y;
-              centroid[2] += pcl_data->points[index].z;
-          }
-          centroid[0] /= indices.indices.size();
-          centroid[1] /= indices.indices.size();
-          centroid[2] /= indices.indices.size();
-          centroid[3] = 1.0; // Homogeneous coordinate, usually set to 1
-          
-          centroids.push_back(centroid);
-      }
-
-      return centroids;
-  }
-
-  void publishEmptyCluster(const std_msgs::msg::Header& header)
-  {
-    CloudI empty_cloud;
-    empty_cloud.height = 1;
-    empty_cloud.width = 0;
-    empty_cloud.is_dense = true;
-
-    sensor_msgs::msg::PointCloud2 clustered_msg;
-    pcl::toROSMsg(empty_cloud, clustered_msg);
-    clustered_msg.header = header;
-    clustered_pub_->publish(clustered_msg);
-  }
-
-private:
   // params
-  std::string frame_id_;
   std::string target_frame_;
 
+  Cloud altimeter_cloud;
+  Cloud beam_cloud;
+
   // ROS I/O
-  rclcpp::Subscriber<nav_msgs::msg::Odometry>::SharedPtr dvl_odom_sub_;
-  rclcpp::Subscriber<dvl_msgs::msg::DVLDR>::SharedPtr dvl_data_sub_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr dvl_odom_sub_;
+  rclcpp::Subscription<dvl_msgs::msg::DVL>::SharedPtr dvl_data_sub_;
 
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr altimeter_cloud_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr beam_cloud_pub_;
 
   // TF2
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
   std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
-  std::unique_ptr<tf2_ros::StaticTransformBroadcaster>(this);
+  std::unique_ptr<tf2_ros::StaticTransformBroadcaster> tf_static_broadcaster_;
 
+  std::vector<geometry_msgs::msg::TransformStamped> beam_tfs;
 };
 
 int main(int argc, char** argv) {

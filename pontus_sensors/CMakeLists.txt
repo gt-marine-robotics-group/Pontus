@@ -6,6 +6,11 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+# Set ROS version flag
+if(ROS_DISTRO MATCHES "humble")
+    add_definitions(-DROS_DISTRO_HUMBLE)
+endif()
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
@@ -16,6 +21,8 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(image_transport REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(dvl_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(OpenCV 4.0.0 REQUIRED)
 find_package(pontus_msgs REQUIRED)
@@ -42,7 +49,7 @@ add_executable(sonoptix_driver_node
 )
 
 add_executable(dvl_processor
-  src/dvl_processor
+  src/dvl_processor.cpp
 )
 
 target_include_directories(sonoptix_driver_node PRIVATE
@@ -73,6 +80,8 @@ ament_target_dependencies(sonoptix_driver_node
 ament_target_dependencies(dvl_processor
   rclcpp
   sensor_msgs
+  nav_msgs
+  dvl_msgs
   PCL
   pcl_conversions
   pcl_ros
