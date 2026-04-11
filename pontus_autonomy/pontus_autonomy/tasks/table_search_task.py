@@ -357,7 +357,7 @@ class TableSearchTask(BaseTask):
         """
         return np.matrix([pose.position.x, pose.position.y, pose.position.z])
     
-    def _pose_to_array(self, pose: Pose) -> np.array:
+    def _pose_to_array(self, pose: Pose) -> np.ndarray:
         """
         Converts a given pose to np.array
         
@@ -435,7 +435,7 @@ class TableSearchTask(BaseTask):
                     new_ray = True
         return new_ray
     
-    def transform_ray(self, ray : np.array) -> np.array | None:
+    def transform_ray(self, ray : np.array) -> np.ndarray | None:
         """
         Transforms the ray from camera frame to map frame
         

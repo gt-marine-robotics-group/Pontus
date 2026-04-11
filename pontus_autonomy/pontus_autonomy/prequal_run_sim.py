@@ -11,7 +11,7 @@ from pontus_autonomy.tasks.localization.submerge import Submerge
 from pontus_autonomy.tasks.prequal_gate_task import PrequalGateTask
 from pontus_autonomy.tasks.prequal_vertical_marker_task import PrequalVerticalMarkerTask
 
-# from pontus_autonomy.tasks.table_search_task import TableSearchTask
+from pontus_autonomy.tasks.table_search_task import TableSearchTask
 
 from pontus_autonomy.tasks.prequal_search_gate_task import PrequalSearchTask
 
@@ -26,7 +26,7 @@ class PrequalificationRun(BaseRun):
         self.get_logger().info(f"Submerge: {result}")
         # fallback_points = self._define_fallback_points()
         
-        result = self.run_task(ScanTask, (3.14, 3.14, 4, None))
+        result = self.run_task(ScanTask, (-1, -2, 0, None))
         self.get_logger().info(f"Search: {result}")
         return
         

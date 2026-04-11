@@ -1391,7 +1391,7 @@
     <!-- GATE TASK -->
     <include>
       <uri>Gate</uri>
-      <pose>1.4 2 -1.5 0.0 3.14 1.57</pose>
+      <pose>1.4 3 -1.5 0.0 3.14 1.57</pose>
       <!-- <pose>3.7 0.5 -1.8 1.8 0 1.57</pose> -->
       <!-- Right side -->
       <!-- <pose>4.0 -3.0 -1.5 0.0 3.14 1.0</pose> -->
@@ -1404,19 +1404,19 @@
     </include>
     <include>
       <uri>GateLeftLabel</uri>
-      <pose>1.4 2 -1.5 0.0 3.14 1.57</pose>
+      <pose>1.4 3 -1.5 0.0 3.14 1.57</pose>
     </include>
     <include>
       <uri>GateRightLabel</uri>
-      <pose>1.4 2 -1.5 0.0 3.14 1.57</pose>
+      <pose>1.4 3 -1.5 0.0 3.14 1.57</pose>
     </include>
     <include>
       <uri>GateLeftImageLabel</uri>
-      <pose>1.4 2 -1.5 0.0 3.14 1.57</pose>
+      <pose>1.4 3 -1.5 0.0 3.14 1.57</pose>
     </include>
     <include>
       <uri>GateRightImageLabel</uri>
-      <pose>1.4 2 -1.5 0.0 3.14 1.57</pose>
+      <pose>1.4 3 -1.5 0.0 3.14 1.57</pose>
     </include>
 
     <!-- Path Marker -->

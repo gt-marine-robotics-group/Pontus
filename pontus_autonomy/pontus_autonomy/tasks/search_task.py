@@ -40,23 +40,37 @@ class ScanTask(BaseTask):
         self.terminating_condition = args[2]
 
         self.fallback_points = args[3]
+        self.get_logger().info(f"Terminating Condition: {self.terminating_condition}")
+        # ----- Parameters -----
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('max_iterations', 2),
+                ('max_cluster_iterations', 3)
+            ]
+        )
 
         # ----- Search Configuration -----
         self.search_angles = [args[0], args[1]]
         self.search_index = 0
         self.start_turn = False
+        self.reset_time = False
         
-        self.track_interval = 5.0 #seconds
         self.start_track_turn = False
         self.last_track_turn = self.get_clock().now()
         
         self.track_angles : np.array = np.array([])
 
-        self.turn_interval = 3.0  # seconds
+        self.turn_interval = 10.0  # seconds
         self.last_turn_time = self.get_clock().now()
         
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
+        
+        self.max_iterations = self.get_parameter('max_iterations').value
+        self.max_cluster_iterations = self.get_parameter('max_cluster_iterations').value #Max number of cluster iterations before stopping
+        self.cur_cluster_iteration = 0
+        self.cur_iteration = 0
 
         # ROS Subscriptions
         self.semantic_map_sub = self.create_subscription(
@@ -90,16 +104,14 @@ class ScanTask(BaseTask):
             self.service_callback_group
         )
         
-        self.track_timer = None
-        
     def unlabled_tracks_callback(self, msg: Float64MultiArray) -> None:
         """
         Calculate the necessary rotations to face the cluster points
         """
         # Unsure of how to handle getting new cluster points while searching for cluster points. 
-        # TODO: Don't add entries into the track_angles until it's empty
-        return
         if len(self.track_angles) == 0:
+            if self.cur_cluster_iteration >= self.max_cluster_iterations:
+                self.complete(False)
             track_positions = np.array(msg.data).reshape(-1, 3)
             for position in track_positions:
                 transformed_track_pos = self.transform_track_positions(position)
@@ -109,45 +121,39 @@ class ScanTask(BaseTask):
                 track_angle = math.atan2(transformed_track_pos[1], transformed_track_pos[0])
                 self.track_angles = np.append(self.track_angles, track_angle)
                 self.start_track_turn = False
-                if self.track_timer is None:
-                    self.get_logger().info("Found unlabled clusters, Starting turn timer")
-                    self.track_timer = self.create_timer(
-                        0.5,
-                        self.track_turn_callback,
-                        self.service_callback_group
-                    )
-            self.track_turn_callback()       
+            self.cur_cluster_iteration += 1
+            self.get_logger().info(f"Current Cluster Iterations: {self.cur_cluster_iteration}")       
             self.track_angles = np.sort(self.track_angles)
     
     #TODO: There might be instances where track_turn_callback completes, but turn goes first and steals the next movement.
-    def track_turn_callback(self) -> None:
-        if not self.start_track_turn or self.go_to_pose_client.at_pose():
-            now = self.get_clock().now()
-            dt = (now - self.last_track_turn).nanoseconds * 1e-9
-            if dt  < self.track_interval:
-                return
+    # def track_turn_callback(self) -> None:
+    #     if not self.start_track_turn or self.go_to_pose_client.at_pose():
+    #         now = self.get_clock().now()
+    #         dt = (now - self.last_track_turn).nanoseconds * 1e-9
+    #         if dt  < self.track_interval:
+    #             return 
 
-            self.last_track_turn = now
-            self.start_track_turn = True
-            self.start_turn = False
-            self.get_logger().info(f"Angles: {self.track_angles}")
+    #         self.last_track_turn = now
+    #         self.start_track_turn = True
+    #         self.start_turn = False
+    #         self.get_logger().info(f"Angles: {self.track_angles}")
             
-            if len(self.track_angles) > 0:
-                target_angle = self.track_angles[0]
-                self.track_angles = np.delete(self.track_angles, 0)
-            else:
-                self.get_logger().info("No more unlabled clusters found")
-                self.track_timer.destroy()
-                self.start_turn = False
+    #         if len(self.track_angles) > 0:
+    #             target_angle = self.track_angles[0]
+    #             self.track_angles = np.delete(self.track_angles, 0)
+    #         else:
+    #             self.get_logger().info("No more unlabled clusters found")
+    #             self.track_timer.destroy()
+    #             self.start_turn = False
             
-            self.get_logger().info(
-                f"Cluster Unlabled Turning {'right' if target_angle > 0 else 'left'} "
-                f"{math.degrees(abs(target_angle))} degrees"
-            )
-            self.turn_command(target_angle)
+    #         self.get_logger().info(
+    #             f"Cluster Unlabled Turning {'right' if target_angle > 0 else 'left'} "
+    #             f"{math.degrees(abs(target_angle))} degrees"
+    #         )
+    #         self.turn_command(target_angle)
             
-            #TODO: Change the target radians from the original turn as well.
-            self.track_angles -= target_angle    
+    #         #TODO: Change the target radians from the original turn as well.
+    #         self.track_angles -= target_angle    
 
     def semantic_map_callback(self, msg: SemanticMap) -> None:
         """
@@ -170,13 +176,37 @@ class ScanTask(BaseTask):
         """
 
         # Wait for previous motion to finish
-        if (not self.start_turn or self.go_to_pose_client.at_pose()) and not self.start_track_turn:
+        if (not self.start_track_turn or self.go_to_pose_client.at_pose()) and len(self.track_angles) > 0:
+            now = self.get_clock().now()
+            dt = (now - self.last_track_turn).nanoseconds * 1e-9
+            if dt  < self.turn_interval:
+                return 
 
+            self.last_track_turn = now
+            self.start_track_turn = True
+            self.get_logger().info(f"Angles: {self.track_angles}")
+            
+            if len(self.track_angles) > 0:
+                target_angle = self.track_angles[0]
+                self.track_angles = np.delete(self.track_angles, 0)
+            
+            self.get_logger().info(
+                f"Cluster Unlabled Turning {'right' if target_angle > 0 else 'left'} "
+                f"{math.degrees(abs(target_angle))} degrees"
+            )
+            self.turn_command(target_angle) 
+        elif (not self.start_turn or self.go_to_pose_client.at_pose()):
             # Enforce dwell time between turns
             now = self.get_clock().now()
+            if self.go_to_pose_client.at_pose():
+                self.last_turn_time = now
             dt = (now - self.last_turn_time).nanoseconds * 1e-9
             if dt < self.turn_interval:
                 return
+            
+            if self.cur_iteration == self.max_iterations:
+                self.complete(False)
+            
 
             self.last_turn_time = now
             self.start_turn = True
@@ -192,7 +222,10 @@ class ScanTask(BaseTask):
             self.turn_command(target_angle)
 
             # Alternate index
+            if (self.search_index + 1) >= len(self.search_angles):
+                self.cur_iteration += 1
             self.search_index = (self.search_index + 1) % len(self.search_angles)
+            
 
     def _send_fallback_semantic_objects(self) -> None:
         """
