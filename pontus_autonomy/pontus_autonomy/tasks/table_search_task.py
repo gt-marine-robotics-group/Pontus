@@ -396,7 +396,7 @@ class TableSearchTask(BaseTask):
         cmd_pose = Pose()
         cmd_pose.position.x = target_pos[0]
         cmd_pose.position.y = target_pos[1]
-        cmd_pose.position.z = target_pos[2] -0.44 #Adding a constant value
+        cmd_pose.position.z = target_pos[2] #Adding a constant value
         #self.get_logger().info(f"Sending the location pose: {cmd_pose}")
     
         self.go_to_pose_client.go_to_pose(pose_obj=PoseObj(cmd_pose=cmd_pose, skip_orientation=True))

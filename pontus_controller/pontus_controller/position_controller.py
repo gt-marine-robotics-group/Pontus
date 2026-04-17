@@ -41,10 +41,10 @@ class PositionController(Node):
 
         param_list = (
             ('default_command_mode', CommandMode.ESTOP),
-            ('x_vmax', 0.5), # m/s
-            ('y_vmax', 0.2), # m/s
-            # ('yaw_vmax', 0.35), # radians/s
-            ('yaw_vmax', 0.15), # radians/s
+            ('x_vmax', 0.8), # m/s
+            ('y_vmax', 0.8), # m/s
+            ('yaw_vmax', 4.0), # radians/s
+            # ('yaw_vmax', 0.15), # radians/s
             ('lookahead_distance', 1.0), # m
             ('x_kp', 1.0),
             ('x_ki', 0.0),
@@ -61,7 +61,8 @@ class PositionController(Node):
             ('p_kp', 0.0),
             ('p_ki', 0.0),
             ('p_kd', 0.0),
-            ('yaw_kp', 0.5),
+            # ('yaw_kp', 0.5),
+            ('yaw_kp', 3.0),
             ('yaw_ki', 0.0),
             ('yaw_kd', 0.0),
         )
@@ -150,7 +151,7 @@ class PositionController(Node):
         # Acceptable error for each dof
         self.linear_thresholds = 0.5 # m
         self.depth_threshold = 0.2 # m
-        self.angular_thresholds = np.array([0.1, 0.1, 0.1]) # r, p, y
+        self.angular_thresholds = np.array([0.1, 0.1, 0.1]) # r, p, yx
         self.velocity_thresholds = np.array([0.1, 0.3]) # linear, angular
 
         self.skip_orientation = False
@@ -310,8 +311,8 @@ class PositionController(Node):
             self.current_twist.angular.z,
         ])
 
-        depth_good = goal_linear_err[2] < self.depth_threshold
-        orientation_good = self.skip_orientation or np.all(goal_angular_err < self.angular_thresholds)
+        depth_good = abs(goal_linear_err[2]) < self.depth_threshold
+        orientation_good = self.skip_orientation or np.all(abs(goal_angular_err) < self.angular_thresholds)
         velocity_good = np.all(linear_vel < self.velocity_thresholds[0]) \
                            and np.all(angular_vel < self.velocity_thresholds[1])
 
