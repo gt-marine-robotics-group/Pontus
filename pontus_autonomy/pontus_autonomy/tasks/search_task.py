@@ -1,12 +1,13 @@
 import rclpy
 import math
-import numpy as np
 import tf_transformations
 from enum import Enum
-from typing import Optional
+import numpy as np
+from rclpy.duration import Duration
 
 from geometry_msgs.msg import Pose
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from std_msgs.msg import Float64MultiArray
 
 from pontus_autonomy.tasks.base_task import BaseTask
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
@@ -14,44 +15,92 @@ from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
 from pontus_msgs.msg import SemanticMap
 from pontus_msgs.srv import AddSemanticObject
 
+from pontus_mapping.cluster_coord import CandidateTrack
+from nav_msgs.msg import Odometry
+
+
+from tf2_ros.buffer import Buffer
+from tf2_ros import TransformListener
+import tf2_geometry_msgs
+
 class SearchConditions(Enum):
     GATE = 0
     SLALOM = 1
     TARGET = 2
     BIN = 3
     OCTAGON = 4
-    MARKER = 5
+    VERTICAL_MARKER=5
 
+#Notes:
+#Angle threshold should be tuned since it's relativtly low right now. Could increase
+#Currently, it iterates clusters in groups.
+# It takes the message and does all the clusters in that message before doing a new one
+# This was done so that it would be consistent and wouldn't have constantly updating or neverending clusters or be using outdated clusters where we see something but already recieved the message for it's arival
+# This may be unecessary? 
+# Also, the angle print statements are incorrect, but I'm pretty sure everything is working since it turns how I expect with the current layout
+# Minor Optimization: Currently, it sorts the angles from smallest to biggest. This does cause issues where it prioritizes angles which are smaller, but farther from the current position. Could be optimized, but may be unecessary
 
 class ScanTask(BaseTask):
 
     def __init__(
         self, 
-        target_angle1_rad: float = math.radians(45),
-        target_angle2_rad: float = math.radians(-45),
-        terminating_condition: SearchConditions = SearchConditions.GATE,
-        fallback_points=None):
+        args):
         super().__init__("prequal_search_gate_task")
 
         self.service_callback_group = MutuallyExclusiveCallbackGroup()
 
-        self.terminating_condition = terminating_condition
+        self.terminating_condition = args[2]
 
-        self.fallback_points = fallback_points
+        #self.fallback_points = args[3]
+        # ----- Parameters -----
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('max_iterations', 2),
+                ('max_cluster_iterations', 3),
+            ]
+        )
 
         # ----- Search Configuration -----
-        self.search_angles = [target_angle1_rad, target_angle2_rad]
+        self.search_angles = [args[0], args[1]]
         self.search_index = 0
         self.start_turn = False
+        
+        self.cluster_angles : np.array = np.array([])
 
-        self.turn_interval = 4.0  # seconds
+        self.turn_interval = 3.0  # seconds
         self.last_turn_time = self.get_clock().now()
+        self.angle_merge_threshold = 5 #degrees
+        
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+        
+        self.max_iterations = self.get_parameter('max_iterations').value
+        self.max_cluster_iterations = self.get_parameter('max_cluster_iterations').value #Max number of cluster iterations before stopping
+        self.cur_cluster_iteration = 0
+        self.cur_iteration = 0
+        self.saved_pose : Pose = None 
+        self.finished_turn = True
 
         # ROS Subscriptions
         self.semantic_map_sub = self.create_subscription(
             SemanticMap,
             '/pontus/semantic_map',
             self.semantic_map_callback,
+            10
+        )
+        
+        self.unlabled_candidate_tracks_sub = self.create_subscription(
+            Float64MultiArray,
+            '/pontus/unlabled_candidate_tracks',
+            self.unlabled_tracks_callback,
+            10
+        )
+        
+        self.odom_sub = self.create_subscription(
+            Odometry,
+            '/pontus/odometry',
+            self.odom_callback,
             10
         )
 
@@ -71,10 +120,64 @@ class ScanTask(BaseTask):
             self.turn_callback,
             self.service_callback_group
         )
+    
+    def odom_callback(self, msg: Odometry) -> None:
+        """
+        Saves the current position of the sub
+        
+        Return:
+            N/A
+        """
+        
+        if self.saved_pose is None:
+            self.saved_pose = msg.pose.pose
+            #self.get_logger().info(f"Saved Pose: {self.saved_pose}")
+        
+     
+    def unlabled_tracks_callback(self, msg: Float64MultiArray) -> None:
+        """
+        Calculate the necessary rotations to face the cluster points
+        
+        args:
+            msg [Float64MultiArray] : A msg with a flattened positions of the unrevealed clusters
+        
+        Returns:
+            N/A
+        """
+        # Only take new cluster points if we have finished our current search
+        if len(self.cluster_angles) == 0:
+            self.get_logger().info(f"Current Cluster Iterations: {self.cur_cluster_iteration}")       
+            if self.cur_cluster_iteration >= self.max_cluster_iterations:
+                self.complete(False)
+            cluster_positions = np.array(msg.data).reshape(-1, 3)
+            for position in cluster_positions:
+                transformed_cluster_pos = self.transform_cluster_positions(position)
+                if transformed_cluster_pos is None:
+                    continue
+                
+                cluster_angle = math.atan2(transformed_cluster_pos[1], transformed_cluster_pos[0]) #radians
+                self.cluster_angles = np.append(self.cluster_angles, cluster_angle)
+            self.cur_cluster_iteration += 1
+            self.cluster_angles = np.sort(self.cluster_angles)
+            
+            index = 0
+            while(index < len(self.cluster_angles) - 1):
+                if abs(math.degrees(self.cluster_angles[index]) - math.degrees(self.cluster_angles[index + 1])) <= self.angle_merge_threshold:
+                    self.cluster_angles = np.delete(self.cluster_angles, index + 1)
+                else:
+                    index += 1
+                    
+                
 
     def semantic_map_callback(self, msg: SemanticMap) -> None:
         """
         If a gate is detected, stop the search immediately.
+        
+        args:
+            msg [SemanticMap] : A message of all objects on the semantic map
+        
+        Return:
+            N/A
         """
 
         if self.terminating_condition is SearchConditions.GATE: 
@@ -86,119 +189,119 @@ class ScanTask(BaseTask):
             if msg.meta_slalom.header.frame_id != "":
                 self.get_logger().info("Slalom Pair detected in semantic map")
                 self.complete(True)
-
-        elif self.terminating_condition is SearchConditions.MARKER:
-            if msg.meta_gate.header.frame_id == "":
-                return
-
-            marker = self.detect_marker(msg)
-            if marker is not None:
-                self.get_logger().info("Vertical marker detected in semantic map")
+        elif self.terminating_condition is SearchConditions.VERTICAL_MARKER:
+            if len(msg.vertical_marker) > 0:
+                self.get_logger().info("Vertical Marker detected in semantic map")
                 self.complete(True)
 
     def turn_callback(self) -> None:
         """
         Follows the given target angles 
+        
+        Prefers to follow cluster angles over the base turn angles
+        
+        Return:
+            N/A
         """
 
         # Wait for previous motion to finish
-        if not self.start_turn or self.go_to_pose_client.at_pose():
-
-            # Enforce dwell time between turns
+        if (not self.start_turn or self.go_to_pose_client.at_pose()) and len(self.cluster_angles) > 0 and self.saved_pose is not None:
             now = self.get_clock().now()
-            dt = (now - self.last_turn_time).nanoseconds * 1e-9
-            if dt < self.turn_interval:
-                return
+            if not self.finished_turn:
+                self.get_logger().info(f"Setting Time and Pose is {self.go_to_pose_client.at_pose()}")
+                self.last_turn_time = now
+                self.finished_turn = True
+            dt = now - self.last_turn_time
+            if dt < Duration(seconds=self.turn_interval):
+                return 
 
             self.last_turn_time = now
             self.start_turn = True
-
-            target_angle = self.search_angles[self.search_index]
-
+            self.finished_turn = False
+            
+            if len(self.cluster_angles) > 0:
+                target_angle = self.cluster_angles[0]
+                self.cluster_angles = np.delete(self.cluster_angles, 0)
+            
             self.get_logger().info(
-                f"Turning {'right' if target_angle > 0 else 'left'} "
+                f"Cluster Unlabled Turning {'right' if target_angle > 0 else 'left'} "
                 f"{math.degrees(abs(target_angle))} degrees"
             )
+            self.turn_command(target_angle) 
+        elif (not self.start_turn or self.go_to_pose_client.at_pose()) and self.saved_pose is not None: 
+            # Enforce dwell time between turns
+            now = self.get_clock().now()
+            if not self.finished_turn:
+                self.last_turn_time = now
+                self.finished_turn = True
+            dt = now - self.last_turn_time
+            if dt < Duration(seconds=self.turn_interval):
+                return
+            
+            if self.cur_iteration == self.max_iterations:
+                self.complete(False)
+                return
+            
 
-            # Send turn command (RELATIVE)
+            self.last_turn_time = now
+            self.start_turn = True
+            self.finished_turn = False
+
+            
+            target_angle = self.search_angles[self.search_index] + self.convert_quaternion_to_euler(self.saved_pose.orientation)[1]
+
+            self.get_logger().info(
+                f"Base Turn Turning {'right' if target_angle > 0 else 'left'} "
+                f"{math.degrees(abs(target_angle))} degrees"
+                f"{target_angle} radians"
+            )
+
+            # Send turn command (ABSOLUTE)
             self.turn_command(target_angle)
 
             # Alternate index
+            if (self.search_index + 1) >= len(self.search_angles):
+                self.cur_iteration += 1
             self.search_index = (self.search_index + 1) % len(self.search_angles)
-
-    def _send_fallback_semantic_objects(self) -> None:
+        
+    def convert_quaternion_to_euler(self, quaternion) -> tuple[float, float, float]:
         """
-        Sends fallback semantic objects if needed.
+        Converts a Quaternion object to tuple of euler angles
+        
+        arg:
+            quaternion [Quaternion] : the quaternion object to be converted
+
+        Return:
+            tuple[float, float, float] : tuple of euler angles
         """
-        if not self.add_semantic_object_client.service_is_ready():
-            self.get_logger().warn("AddSemanticObject service not available")
-            return
+        x = quaternion.x
+        y = quaternion.y
+        z = quaternion.z
+        w = quaternion.w
+        euler = tf_transformations.euler_from_quaternion((x, y, z, w))
+        return euler
+        
 
-        req = AddSemanticObject.Request()
-        req.ids = [self.fallback_points[0][0], self.fallback_points[1][0]]
-        req.positions = [self.fallback_points[0][1], self.fallback_points[1][1]]
-
-        self.add_semantic_object_client.call_async(req)
-
-    def detect_marker(self, sem_map: SemanticMap) -> Optional[np.ndarray]:
+    def turn_command(self, absolute_yaw: float) -> None:
         """
-        Find a vertical-marker-like candidate using gate geometry.
-        """
-        _, gate_unit_norm, gate_midpoint = self._get_gate_unit_normal(sem_map)
-
-        best_candidate_marker: Optional[np.ndarray] = None
-        best_dist: Optional[float] = None
-
-        for marker in sem_map.gate_left:
-            marker_vec = self._pose_to_nparray(marker.pose.pose)
-            marker_gate_vec = marker_vec - gate_midpoint
-
-            parallel = np.dot(marker_gate_vec, gate_unit_norm) * gate_unit_norm
-            perp = marker_gate_vec - parallel
-            dist = float(np.linalg.norm(perp))
-
-            dist_from_gate = np.linalg.norm(marker_gate_vec)
-            if dist <= 1.5 and dist_from_gate >= 1.8:
-                if best_dist is None or dist < best_dist:
-                    best_dist = dist
-                    best_candidate_marker = marker_vec
-
-        return best_candidate_marker
-
-    def _get_gate_unit_normal(self, sem_map: SemanticMap) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        g1 = self._pose_to_nparray(sem_map.meta_gate.left_gate.pose.pose)
-        g2 = self._pose_to_nparray(sem_map.meta_gate.right_gate.pose.pose)
-
-        gate_vec = g2 - g1
-        gate_unit_vec = gate_vec / np.linalg.norm(gate_vec)
-
-        perp_vec = np.array([-gate_vec[1], gate_vec[0]])
-        perp_unit_vec = perp_vec / np.linalg.norm(perp_vec)
-
-        midpoint = (g1 + g2) / 2.0
-
-        return gate_unit_vec, perp_unit_vec, midpoint
-
-    def _pose_to_nparray(self, pose: Pose) -> np.ndarray:
-        return np.array([pose.position.x, pose.position.y], dtype=float)
-
-    def turn_command(self, relative_yaw: float) -> None:
-        """
-        Sends a RELATIVE rotation command.
+        Sends a ABSOLUTE rotation command.
+        
+        arg:
+            absolute_yaw [float] : Absolute angle to turn to
         """
 
         cmd_pose = Pose()
 
         # Convert yaw to quaternion
         qx, qy, qz, qw = tf_transformations.quaternion_from_euler(
-            0.0, 0.0, relative_yaw
+            0.0, 0.0, absolute_yaw
         )
 
         # No positional movement
-        cmd_pose.position.x = 0.0
-        cmd_pose.position.y = 0.0
-        cmd_pose.position.z = 0.0
-
+        cmd_pose.position.x = self.saved_pose.position.x
+        cmd_pose.position.y = self.saved_pose.position.y
+        cmd_pose.position.z = self.saved_pose.position.z #May need to change in the future if constant depth is desired
+        
         cmd_pose.orientation.x = qx
         cmd_pose.orientation.y = qy
         cmd_pose.orientation.z = qz
@@ -207,7 +310,43 @@ class ScanTask(BaseTask):
         self.go_to_pose_client.go_to_pose(
             pose_obj=PoseObj(
                 cmd_pose=cmd_pose,
-                use_relative_position=True,
-                skip_orientation=False
             )
         )
+    
+    def transform_cluster_positions(self, position_map : np.ndarray) -> np.ndarray | None:
+        """
+        Transforms the cluster positions from map to base_link
+        
+        arg:
+            position_map [np.ndarray] : array of x,y and z position
+        
+        Returns:
+            np.ndarray | None : returns np.ndarray if successful transform, otherwise, None is returned
+        """
+        
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                target_frame="base_link",
+                source_frame="map",
+                time = rclpy.time.Time()
+            )
+            
+            cluster_pose = Pose()
+            
+            cluster_pose.position.x = position_map[0]
+            cluster_pose.position.y = position_map[1]
+            cluster_pose.position.z = 0
+            
+            cluster_pose.orientation.x = 0
+            cluster_pose.orientation.y = 0
+            cluster_pose.orientation.z = 0
+            cluster_pose.orientation.w = 1.0
+            
+            cluster_pose_transformed = tf2_geometry_msgs.do_transform_pose(
+                cluster_pose, transform
+            )
+            
+            return [cluster_pose_transformed.position.x, cluster_pose_transformed.position.y, cluster_pose_transformed.position.z]
+        except:
+            self.get_logger().warn("Transform to convert cluster position to base_link failed")
+            return None        

@@ -2,7 +2,6 @@
 import geometry_msgs
 from pontus_msgs.msg import SemanticObject
 from pontus_msgs.srv import AddSemanticObject
-from pontus_bringup.topic_config import TopicConfig
 from dataclasses import dataclass, field
 import rclpy
 from rclpy.node import Node
@@ -24,7 +23,7 @@ from sensor_msgs.msg import PointField
 from sensor_msgs_py import point_cloud2 as pc2
 
 import tf_transformations
-from std_msgs.msg import ColorRGBA
+from std_msgs.msg import ColorRGBA, Float64MultiArray
 from visualization_msgs.msg import Marker, MarkerArray
 from vision_msgs.msg import Detection2D, Detection2DArray
 
@@ -71,14 +70,6 @@ class ImageCoordinator(Node):
     def __init__(self) -> None:
         super().__init__('image_to_cluster_coordinator')
 
-        self.topics = TopicConfig(self, [
-            'cameras',
-            'camera_frame_template',
-            'camera_info_topic_template',
-            'detections_topic_template',
-            'semantic_object_service',
-            'pointcloud_cluster_topic',
-        ])
         self.latest_pointcloud: np.array = None
         self.latest_synced_cloud_stamp = None
         # (m), width of line pointing toward object detected by yolo
@@ -87,6 +78,7 @@ class ImageCoordinator(Node):
         self.confidence_min = 0.4
         self.vector_projection_dist = 10  # (m), how far the line is projected
         self.cam_model = PinholeCameraModel()
+        self.camera_frame_name = 'camera_front'
         self.cam_initialized = False
 
         self.min_bbox_width = 0
@@ -98,8 +90,13 @@ class ImageCoordinator(Node):
         self.pc_detection_threshold = 4
         self.label_assoc_threshold = 5
         self.promoted_track_publish_period_s = 0.75
+        
+        #TODO: Perhaps the relationship of these numbesr should be a scale? i.e. if 1/4 or lower of the points are unlabled
+        self.num_pc_thresholds = 20
+        self.best_label_count_threshold = 5
 
         self.candidate_tracks: dict[int, CandidateTrack] = {}
+        self.unlabled_candidate_track_ids : list[int] = []
         self.next_track_id = 0
 
         self.name_map = {
@@ -233,25 +230,27 @@ class ImageCoordinator(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.cli = self.create_client(
-            AddSemanticObject, self.topics.semantic_object_service)
+            AddSemanticObject, '/pontus/add_semantic_object')
         while not self.cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
 
-        self.info_subs: list = []
-        for cam in self.topics.cameras:
-            info_topic = self.topics.camera_info_topic_template.replace('{camera}', cam)
-            self.info_subs.append(
-                self.create_subscription(
-                    CameraInfo,
-                    info_topic,
-                    self.info_callback,
-                    10
-                )
-            )
+        self.info_sub = self.create_subscription(
+            CameraInfo,
+            # Replace with your camera info topic
+            '/pontus/{}/camera_info'.format(self.camera_frame_name),
+            self.info_callback,
+            10
+        )
 
         self.debug_line_pub = self.create_publisher(
             MarkerArray,
-            '/pontus/cluster_coord/debug_lines',
+            '/pontus/{}/debug_lines'.format(self.camera_frame_name),
+            10
+        )
+        
+        self.unlabled_candidate_tracks_pub = self.create_publisher(
+            Float64MultiArray,
+            '/pontus/unlabled_candidate_tracks',
             10
         )
         self.debug_id = 0
@@ -261,50 +260,26 @@ class ImageCoordinator(Node):
         self.cluster = Subscriber(
             self,
             PointCloud2,
-            self.topics.pointcloud_cluster_topic,
+            '/pontus/sonar/clustercloud',
             qos_profile=qos
         )
-        self.get_logger().info(f"Cluster topic subscribed: {self.topics.pointcloud_cluster_topic}")
 
-        self.yolo_subs: list[Subscriber] = []
-        self.time_syncs: list[ApproximateTimeSynchronizer] = []
-        queue_size = 30 # number of messages kept in memory for time synchronizer
-        max_delay = 0.1  # max diff in timestamps in seconds
-        for cam in self.topics.cameras:
-            det_topic = self.topics.detections_topic_template.replace('{camera}', cam)
-            yolo_sub = Subscriber(
-                self,
-                Detection2DArray,
-                det_topic,
-                qos_profile=qos
-            )
-            self.yolo_subs.append(yolo_sub)
-            ts = ApproximateTimeSynchronizer(
-                [self.cluster, yolo_sub], queue_size, max_delay
-            )
-            ts.registerCallback(self.sync_callback)
-            self.time_syncs.append(ts)
+        self.yolo = Subscriber(
+            self,
+            Detection2DArray,
+            '/pontus/{}/yolo_results'.format(self.camera_frame_name),
+            qos_profile=qos
+        )
 
-            self.get_logger().info(f"Camera topic subscribed: {det_topic}")
-
-        # self.test_cluster = self.create_subscription(
-        #     PointCloud2,
-        #     "/pontus/sonar/clustercloud",
-        #     self.pointcloud_callback,
-        #     qos_profile=qos
-        # )
-        # self.test_yolo = self.create_subscription(
-        #     Detection2DArray,
-        #     "/pontus/camera_left/yolo_results",
-        #     self.yolo_callback,
-        #     qos_profile=qos
-        # )
+        queue_size = 30  # number of messages kept in memory for time synchronizer
+        max_delay = 0.05  # max diff in timestamps in seconds
+        self.time_sync = ApproximateTimeSynchronizer([self.cluster, self.yolo],
+                                                     queue_size, max_delay)
+        self.time_sync.registerCallback(self.sync_callback)
 
     def sync_callback(self, cluster_msg, yolo_msg) -> None:
         # kinda ramshackle way of doing both callbacks, both messages will have timestamp within max_delay of each other
         # update latest_pointcloud before moving to yolo_callback
-
-        # self.get_logger().info("Syncroizer running")
         self.latest_synced_cloud_stamp = cluster_msg.header.stamp
         self.pointcloud_callback(cluster_msg)
         self.yolo_callback(yolo_msg)
@@ -321,6 +296,8 @@ class ImageCoordinator(Node):
             self.get_logger().warn("No point cloud found")
             return
 
+        # TODO: This should be removed when not testing on old bag data
+        msg.header.frame_id = "camera_front_optical_frame"
 
         array_msg = MarkerArray()
         marker_msg = Marker()
@@ -331,6 +308,8 @@ class ImageCoordinator(Node):
         self.debug_line_pub.publish(array_msg)
 
         for detection in msg.detections:
+            # Keep the Humble bag-data workaround, but apply it to the individual detection too.
+            detection.header.frame_id = "camera_front_optical_frame"
 
             if detection.bbox.size_x < self.min_bbox_width:
                 continue
@@ -368,8 +347,6 @@ class ImageCoordinator(Node):
         ----
         msg (PointCloud2): subscribed pointcloud
         """
-
-
 
         # clustered_cloud is already in correct space, optionally add transform logic here just in case
         if msg.header.frame_id != 'map':
@@ -419,6 +396,7 @@ class ImageCoordinator(Node):
 
         now_s = self._now_s()
         updated_track_ids: set[int] = set()
+        unlabled_candidate_positions = []
 
         for point in point_array:
             point_xyz = np.asarray(point, dtype=float)
@@ -429,7 +407,7 @@ class ImageCoordinator(Node):
             for track in self.candidate_tracks.values():
                 if track.track_id in updated_track_ids:
                     continue
-
+                
                 dist_xy = np.linalg.norm(
                     track.position_map[:2] - point_xyz[:2])
 
@@ -452,6 +430,27 @@ class ImageCoordinator(Node):
             matched_track.update_position(point_xyz)
             matched_track.last_seen_time_s = now_s
             updated_track_ids.add(matched_track.track_id)
+        
+        for track in self.candidate_tracks.values():
+            if (track.best_label_count < self.best_label_count_threshold and
+                track.num_pc_detections > self.num_pc_thresholds and
+                track.track_id not in self.unlabled_candidate_track_ids):
+                    self.unlabled_candidate_track_ids.append(track.track_id)
+                    unlabled_candidate_positions.append(track.position_map)
+            #Remove ids which have more candidate points
+            elif (track.best_label_count >= self.best_label_count_threshold and
+                track.track_id in self.unlabled_candidate_track_ids): 
+                    self.unlabled_candidate_track_ids.remove(track.track_id)
+            elif (track.track_id in self.unlabled_candidate_track_ids):
+                unlabled_candidate_positions.append(track.position_map)
+        
+        if len(unlabled_candidate_positions) > 0:
+            unlabled_candidate_positions = np.array(unlabled_candidate_positions).flatten().tolist()
+            
+            msg = Float64MultiArray()
+            msg.data = unlabled_candidate_positions
+            
+            self.unlabled_candidate_tracks_pub.publish(msg)
 
     def prune_stale_tracks(self) -> None:
         now_s = self._now_s()
@@ -505,6 +504,7 @@ class ImageCoordinator(Node):
     def build_camera_ray_pose(self, object_msg: Detection2D) -> PoseStamped:
         camera_pose = PoseStamped()
         camera_pose.header = object_msg.header
+        camera_pose.header.frame_id = "camera_front_optical_frame"
 
         center_position = object_msg.bbox.center.position
 
@@ -700,7 +700,6 @@ class ImageCoordinator(Node):
         marker_msg.scale.z = 0.05
         marker_msg.color = self.get_debug_line_color(class_id)
         array_msg.markers.append(marker_msg)
-        self.get_logger().info(f"Debug Line Published {array_msg}")
         self.debug_line_pub.publish(array_msg)
 
         visual_range_m = self.estimate_range_from_bbox(object_msg, class_id)

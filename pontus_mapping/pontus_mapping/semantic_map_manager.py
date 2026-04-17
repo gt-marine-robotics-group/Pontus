@@ -392,6 +392,8 @@ class SemanticMapManager(Node):
         - Use body_frame transform to decide which is left vs right.
         """
 
+        self.get_logger().info("Updating Meta Gate")
+
         # Lock Check: First meta_gate we find we keep set
         if self.semantic_map.semantic_map.meta_gate.header.frame_id != "":
             return
@@ -447,6 +449,8 @@ class SemanticMapManager(Node):
         """
         Look at detected slalom poles, and use expected widths and tolerances to determine slalom rows
         """
+
+        self.get_logger().info("Updating Meta Slalom")
 
         # TODO: implement behaviour for gate not detected or don't rely on distance to gate for ordering at all
         # if self.semantic_map.semantic_map.meta_gate.header.frame_id == "":
