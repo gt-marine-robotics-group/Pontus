@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Iterator, Optional, List
 import math
 import numpy as np
+import sys
 
 import rclpy
 from rclpy.node import Node
@@ -88,6 +89,12 @@ class SemanticMapDC:
         if obj_list is None:
             return
 
+        # Only add valid vertical markers based on the gate location
+        if obj.object_type == SemanticObject.VERTICAL_MARKER:
+            if not self.should_add_vertical_marker(obj):
+                return
+            # self.get_logger().info("Adding Vertical Marker")
+
         for existing in obj_list:
             if self.check_semantic_object_duplicant(obj, existing):
                 # Fuse via online mean for position only.
@@ -118,6 +125,7 @@ class SemanticMapDC:
 
     # ------ Add Meta Objects ------
     def add_meta_gate(self, left_gate: SemanticObject, right_gate: SemanticObject) -> None:
+        # self.get_logger().info("Adding Meta Gate")
         gate = SemanticMetaGate()
 
         gate.header = Header()
@@ -131,6 +139,7 @@ class SemanticMapDC:
         self.semantic_map.meta_gate = self.meta_gate
 
     def add_meta_slalom(self, slalom_rows: List[SemanticMetaSlalomRow]) -> None:
+        # self.get_logger().info("Adding Meta Slalom")
         slalom = SemanticMetaSlalom()
 
         slalom.header = Header()
@@ -141,6 +150,50 @@ class SemanticMapDC:
 
         self.meta_slalom = slalom
         self.semantic_map.meta_slalom = self.meta_slalom
+    
+    def should_add_vertical_marker(self, obj):
+        if self.meta_gate is None:
+            return
+
+        def pose_to_nparray(msg: Pose) -> np.ndarray:
+            return np.array([
+                msg.position.x,
+                msg.position.y],
+                dtype=float
+            )
+        g1: np.ndarray = pose_to_nparray(
+            self.meta_gate.left_gate.pose.pose)
+        g2: np.ndarray = pose_to_nparray(
+            self.meta_gate.right_gate.pose.pose)
+
+        # Gate vector from left side to right side
+        gate_vec = g2 - g1
+        gate_unit_vec = gate_vec / np.linalg.norm(gate_vec)
+
+        # Perpendicular Vector
+        perp_vec = np.array([-gate_vec[1], gate_vec[0]])
+        perp_unit_vec = perp_vec / np.linalg.norm(perp_vec)
+
+        midpoint = (g1 + g2) / 2.0
+
+        marker_vec: np.ndarray = np.array([
+            obj.pose.pose.position.x,
+            obj.pose.pose.position.y],
+            dtype=float
+        )
+
+        marker_gate_vec = marker_vec - midpoint
+
+        parallel = np.dot(marker_gate_vec, gate_unit_vec) * gate_unit_vec
+        # perp = marker_gate_vec - parallel
+        # dist = float(np.linalg.norm(perp))
+        angle = np.arcsin(np.dot(perp_vec, marker_gate_vec) / (np.linalg.norm(perp_vec) * np.linalg.norm(marker_gate_vec)))
+
+        dist_from_gate = np.linalg.norm(marker_gate_vec)
+
+        print(f"considering {angle} radians, {dist_from_gate} m", file=sys.stderr)
+
+        return abs(angle) <= np.pi/6 and abs(dist_from_gate) >= 4.0
 
     def create_message(self) -> SemanticMap:
         """Return the SemanticMap ROS message"""
@@ -392,8 +445,6 @@ class SemanticMapManager(Node):
         - Use body_frame transform to decide which is left vs right.
         """
 
-        self.get_logger().info("Updating Meta Gate")
-
         # Lock Check: First meta_gate we find we keep set
         if self.semantic_map.semantic_map.meta_gate.header.frame_id != "":
             return
@@ -449,8 +500,6 @@ class SemanticMapManager(Node):
         """
         Look at detected slalom poles, and use expected widths and tolerances to determine slalom rows
         """
-
-        self.get_logger().info("Updating Meta Slalom")
 
         # TODO: implement behaviour for gate not detected or don't rely on distance to gate for ordering at all
         # if self.semantic_map.semantic_map.meta_gate.header.frame_id == "":

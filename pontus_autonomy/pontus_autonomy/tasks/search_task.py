@@ -328,7 +328,7 @@ class ScanTask(BaseTask):
             transform = self.tf_buffer.lookup_transform(
                 target_frame="base_link",
                 source_frame="map",
-                time = rclpy.time.Time()
+                time = self.get_clock().now()
             )
             
             cluster_pose = Pose()

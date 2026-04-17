@@ -2,6 +2,7 @@
 import geometry_msgs
 from pontus_msgs.msg import SemanticObject
 from pontus_msgs.srv import AddSemanticObject
+from pontus_bringup.topic_config import TopicConfig
 from dataclasses import dataclass, field
 import rclpy
 from rclpy.node import Node
@@ -70,10 +71,18 @@ class ImageCoordinator(Node):
     def __init__(self) -> None:
         super().__init__('image_to_cluster_coordinator')
 
+        self.topics = TopicConfig(self, [
+            'cameras',
+            'camera_frame_template',
+            'camera_info_topic_template',
+            'detections_topic_template',
+            'semantic_object_service',
+            'pointcloud_cluster_topic',
+        ])
         self.latest_pointcloud: np.array = None
         self.latest_synced_cloud_stamp = None
         # (m), width of line pointing toward object detected by yolo
-        self.line_projection_width = .1
+        self.line_projection_width = .25
         # object score must be at least this to be added to semantic map
         self.confidence_min = 0.4
         self.vector_projection_dist = 10  # (m), how far the line is projected
@@ -230,23 +239,27 @@ class ImageCoordinator(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.cli = self.create_client(
-            AddSemanticObject, '/pontus/add_semantic_object')
+            AddSemanticObject, self.topics.semantic_object_service)
         while not self.cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
 
-        self.info_sub = self.create_subscription(
-            CameraInfo,
-            # Replace with your camera info topic
-            '/pontus/{}/camera_info'.format(self.camera_frame_name),
-            self.info_callback,
-            10
-        )
+        self.info_subs: list = []
+        for cam in self.topics.cameras:
+            info_topic = self.topics.camera_info_topic_template.replace('{camera}', cam)
+            self.info_subs.append(
+                self.create_subscription(
+                    CameraInfo,
+                    info_topic,
+                    self.info_callback,
+                    10
+                )
+            )
 
-        self.debug_line_pub = self.create_publisher(
-            MarkerArray,
-            '/pontus/{}/debug_lines'.format(self.camera_frame_name),
-            10
-        )
+            self.debug_line_pub = self.create_publisher(
+                MarkerArray,
+                '/pontus/{}/debug_lines'.format(self.camera_frame_name),
+                10
+            )
         
         self.unlabled_candidate_tracks_pub = self.create_publisher(
             Float64MultiArray,
@@ -260,22 +273,32 @@ class ImageCoordinator(Node):
         self.cluster = Subscriber(
             self,
             PointCloud2,
-            '/pontus/sonar/clustercloud',
+            self.topics.pointcloud_cluster_topic,
             qos_profile=qos
         )
 
-        self.yolo = Subscriber(
-            self,
-            Detection2DArray,
-            '/pontus/{}/yolo_results'.format(self.camera_frame_name),
-            qos_profile=qos
-        )
+        self.get_logger().info(f"Cluster topic subscribed: {self.topics.pointcloud_cluster_topic}")
 
-        queue_size = 30  # number of messages kept in memory for time synchronizer
-        max_delay = 0.05  # max diff in timestamps in seconds
-        self.time_sync = ApproximateTimeSynchronizer([self.cluster, self.yolo],
-                                                     queue_size, max_delay)
-        self.time_sync.registerCallback(self.sync_callback)
+        self.yolo_subs: list[Subscriber] = []
+        self.time_syncs: list[ApproximateTimeSynchronizer] = []
+        queue_size = 30 # number of messages kept in memory for time synchronizer
+        max_delay = 0.1  # max diff in timestamps in seconds
+        for cam in self.topics.cameras:
+            det_topic = self.topics.detections_topic_template.replace('{camera}', cam)
+            yolo_sub = Subscriber(
+                self,
+                Detection2DArray,
+                det_topic,
+                qos_profile=qos
+            )
+            self.yolo_subs.append(yolo_sub)
+            ts = ApproximateTimeSynchronizer(
+                [self.cluster, yolo_sub], queue_size, max_delay
+            )
+            ts.registerCallback(self.sync_callback)
+            self.time_syncs.append(ts)
+
+            self.get_logger().info(f"Camera topic subscribed: {det_topic}")
 
     def sync_callback(self, cluster_msg, yolo_msg) -> None:
         # kinda ramshackle way of doing both callbacks, both messages will have timestamp within max_delay of each other
@@ -297,7 +320,7 @@ class ImageCoordinator(Node):
             return
 
         # TODO: This should be removed when not testing on old bag data
-        msg.header.frame_id = "camera_front_optical_frame"
+        # msg.header.frame_id = "camera_front_optical_frame"
 
         array_msg = MarkerArray()
         marker_msg = Marker()
@@ -309,7 +332,7 @@ class ImageCoordinator(Node):
 
         for detection in msg.detections:
             # Keep the Humble bag-data workaround, but apply it to the individual detection too.
-            detection.header.frame_id = "camera_front_optical_frame"
+            # detection.header.frame_id = "camera_front_optical_frame"
 
             if detection.bbox.size_x < self.min_bbox_width:
                 continue
@@ -362,6 +385,21 @@ class ImageCoordinator(Node):
 
         self.latest_pointcloud = points
         self.update_candidate_tracks(points)
+
+        # SUPER CURSED VERTICAL MARKER HACK
+        id_list = []
+        pose_list = []
+        for point in points:
+            id_list.append(SemanticObject.VERTICAL_MARKER)
+            pose = PoseStamped()
+            pose.header = transformed_msg.header
+            pose.pose.position.x = float(point[0])
+            pose.pose.position.y = float(point[1])
+            pose.pose.position.z = float(point[2])
+            pose_list.append(pose)
+        self.send_request(id_list, pose_list)
+
+
 
     def info_callback(self, msg):
         """
@@ -504,7 +542,7 @@ class ImageCoordinator(Node):
     def build_camera_ray_pose(self, object_msg: Detection2D) -> PoseStamped:
         camera_pose = PoseStamped()
         camera_pose.header = object_msg.header
-        camera_pose.header.frame_id = "camera_front_optical_frame"
+        # camera_pose.header.frame_id = "camera_front_optical_frame"
 
         center_position = object_msg.bbox.center.position
 
