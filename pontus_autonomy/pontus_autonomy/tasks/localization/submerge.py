@@ -13,7 +13,7 @@ class Submerge(BaseTask):
 
         # Determines the desired depth the sub should start autonomy
         # TODO: See if the DVL is able to get this
-        self.desired_depth = -2.0
+        self.desired_depth = -1.9
 
         # End
 

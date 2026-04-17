@@ -264,11 +264,12 @@ class ImageCoordinator(Node):
             self.topics.pointcloud_cluster_topic,
             qos_profile=qos
         )
+        self.get_logger().info(f"Cluster topic subscribed: {self.topics.pointcloud_cluster_topic}")
 
         self.yolo_subs: list[Subscriber] = []
         self.time_syncs: list[ApproximateTimeSynchronizer] = []
-        queue_size = 30  # number of messages kept in memory for time synchronizer
-        max_delay = 0.5  # max diff in timestamps in seconds
+        queue_size = 30 # number of messages kept in memory for time synchronizer
+        max_delay = 0.1  # max diff in timestamps in seconds
         for cam in self.topics.cameras:
             det_topic = self.topics.detections_topic_template.replace('{camera}', cam)
             yolo_sub = Subscriber(
@@ -286,24 +287,24 @@ class ImageCoordinator(Node):
 
             self.get_logger().info(f"Camera topic subscribed: {det_topic}")
 
-        self.test_cluster = self.create_subscription(
-            PointCloud2,
-            "/pontus/sonar/clustercloud",
-            self.pointcloud_callback,
-            qos_profile=qos
-        )
-        self.test_yolo = self.create_subscription(
-            Detection2DArray,
-            "/pontus/camera_left/yolo_results",
-            self.yolo_callback,
-            qos_profile=qos
-        )
+        # self.test_cluster = self.create_subscription(
+        #     PointCloud2,
+        #     "/pontus/sonar/clustercloud",
+        #     self.pointcloud_callback,
+        #     qos_profile=qos
+        # )
+        # self.test_yolo = self.create_subscription(
+        #     Detection2DArray,
+        #     "/pontus/camera_left/yolo_results",
+        #     self.yolo_callback,
+        #     qos_profile=qos
+        # )
 
     def sync_callback(self, cluster_msg, yolo_msg) -> None:
         # kinda ramshackle way of doing both callbacks, both messages will have timestamp within max_delay of each other
         # update latest_pointcloud before moving to yolo_callback
 
-        self.get_logger().info("Syncroizer running")
+        # self.get_logger().info("Syncroizer running")
         self.latest_synced_cloud_stamp = cluster_msg.header.stamp
         self.pointcloud_callback(cluster_msg)
         self.yolo_callback(yolo_msg)
@@ -320,7 +321,6 @@ class ImageCoordinator(Node):
             self.get_logger().warn("No point cloud found")
             return
 
-        self.get_logger().info("Got yolo results")
 
         array_msg = MarkerArray()
         marker_msg = Marker()
@@ -368,6 +368,8 @@ class ImageCoordinator(Node):
         ----
         msg (PointCloud2): subscribed pointcloud
         """
+
+
 
         # clustered_cloud is already in correct space, optionally add transform logic here just in case
         if msg.header.frame_id != 'map':

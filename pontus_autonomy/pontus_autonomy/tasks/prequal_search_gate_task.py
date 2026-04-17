@@ -24,7 +24,7 @@ class PrequalSearchTask(BaseTask):
             namespace='',
             parameters=[
                 ('pool_depth', 3.0),
-                ('height_from_bottom', 1.0)
+                ('height_from_bottom', 0.8)
             ]
         )
 
@@ -134,7 +134,8 @@ class PrequalSearchTask(BaseTask):
         # No positional movement
         cmd_pose.position.x = 0.0
         cmd_pose.position.y = 0.0
-        cmd_pose.position.z = -self.pool_depth + self.height_from_bottom_m
+        # cmd_pose.position.z = -self.pool_depth + self.height_from_bottom_m
+        cmd_pose.position.z = 0.0
 
         cmd_pose.orientation.x = qx
         cmd_pose.orientation.y = qy

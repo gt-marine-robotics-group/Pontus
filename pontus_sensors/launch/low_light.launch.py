@@ -23,7 +23,7 @@ def generate_launch_description():
                 ('/image_raw/compressed', '/pontus/camera_left/image_raw/compressed'),
                 # ('/image_raw/compressedDepth', '/pontus/camera_left/image_raw/compressedDepth'),
                 ('/image_raw/theora', '/pontus/camera_left/image_raw/theora'),
-                ('/camera_info', '/pontus/camera_left/camera_info_sub')
+                ('/camera_info', '/pontus/camera_left/camera_info')
                 ]
         ),
         Node(

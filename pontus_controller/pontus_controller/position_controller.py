@@ -43,7 +43,7 @@ class PositionController(Node):
             ('default_command_mode', CommandMode.ESTOP),
             ('x_vmax', 0.5), # m/s
             ('y_vmax', 0.2), # m/s
-            ('yaw_vmax', 0.35), # radians/s
+            ('yaw_vmax', 0.20), # radians/s
             ('lookahead_distance', 1.0), # m
             ('x_kp', 0.8),
             ('x_ki', 0.0),
@@ -54,12 +54,12 @@ class PositionController(Node):
             ('z_kp', 0.5),
             ('z_ki', 0.0),
             ('z_kd', 0.0),
-            ('r_kp', 0.0),
+            ('r_kp', 0.8),
             ('r_ki', 0.0),
             ('r_kd', 0.0),
-            ('p_kp', 0.0),
+            ('p_kp', 5.0),
             ('p_ki', 0.0),
-            ('p_kd', 0.0),
+            ('p_kd', 0.4),
             ('yaw_kp', 0.5),
             ('yaw_ki', 0.0),
             ('yaw_kd', 0.0),

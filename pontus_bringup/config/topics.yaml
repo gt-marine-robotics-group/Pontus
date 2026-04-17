@@ -25,7 +25,7 @@
     detections_topic_template: "/pontus/{camera}/yolo_results"
     overlay_topic_template: "/pontus/{camera}/yolo_debug"
 
-    pointcloud_cluster_topic: "/pontus/clustercloud"
+    pointcloud_cluster_topic: "/pontus/sonar/clustercloud"
     semantic_map_topic: "/pontus/semantic_map"
     semantic_map_visual_topic: "/pontus/semantic_map_visual"
     semantic_map_debug_topic: "/pontus/semantic_map_debug"

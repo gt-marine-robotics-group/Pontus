@@ -30,10 +30,9 @@ class PrequalificationRun(BaseRun):
         result = self.run_task(Submerge)
         self.get_logger().info(f"Submerge: {result}")
 
-        self.get_logger().info("Starging Gate Scan")
-        result = self.run_task(ScanTask,
-                               terminating_condition=SearchConditions.GATE)
-        self.get_logger().info(f"Prequal Gate Task: {result}")
+        # self.get_logger().info("Starging Gate Scan")
+        # result = self.run_task(ScanTask)
+        # self.get_logger().info(f"Prequal Gate Task: {result}")
 
         # Gate Task Prequal
         self.get_logger().info("Starting Gate Execution")
@@ -41,16 +40,15 @@ class PrequalificationRun(BaseRun):
         self.get_logger().info(f"Prequal Gate Task: {result}")
 
         # Marker Task Prequal
-        self.get_logger().info("Starting Marker Scan")
-        result = self.run_task(ScanTask,
-                               target_angle1_rad=math.radians(15),
-                               target_angle2_rad=math.radians(-15),
-                               terminating_condition=SearchConditions.MARKER)
-        self.get_logger().info(f"Prequal Vertical Marker Search: {result}")
+        # self.get_logger().info("Starting Marker Scan")
+        # result = self.run_task(ScanTask,
+        #                        target_angle1_rad=math.radians(15),
+        #                        target_angle2_rad=math.radians(-15),
+        #                        terminating_condition=SearchConditions.MARKER)
+        # self.get_logger().info(f"Prequal Vertical Marker Search: {result}")
 
         self.get_logger().info("Starting Vertical Marker Execution")
-        result = self.run_task(PrequalVerticalMarkerTask,
-                               fallback_distance=2.2)
+        result = self.run_task(PrequalVerticalMarkerTask)
         self.get_logger().info(f"Prequal Vertical Marker Task: {result}")
 
 

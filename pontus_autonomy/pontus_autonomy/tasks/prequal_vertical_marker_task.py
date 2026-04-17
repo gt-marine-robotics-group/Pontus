@@ -34,7 +34,7 @@ class PrequalVerticalMarkerTask(BaseTask):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('height_from_bottom', 1.0),
+                ('height_from_bottom', 1.2),
                 ('pool_depth', 3.0),
                 ('waypoint_dist_from_marker', 1.6),
                 ('waypoint_dist_from_gate', 1.0),
@@ -166,7 +166,7 @@ class PrequalVerticalMarkerTask(BaseTask):
         best_candidate_marker: Optional[np.ndarray] = None
         best_dist: Optional[float] = None
 
-        for marker in sem_map.gate_left:
+        for marker in sem_map.vertical_marker:
             marker_vec: np.ndarray = self._pose_to_nparray(marker.pose.pose)
 
             marker_gate_vec = marker_vec - gate_midpoint
