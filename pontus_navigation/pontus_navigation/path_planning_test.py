@@ -34,8 +34,8 @@ def main(args=None):
 
     minimal_client = path_planner_tester_client()
     test_pose = PoseStamped()
-    test_pose.pose.position.x = 5.0
-    test_pose.pose.position.y = -3.0
+    test_pose.pose.position.x = 15.5
+    test_pose.pose.position.y = 4.0
     test_pose.pose.position.z = 0.0
     response = minimal_client.send_request(test_pose)
     minimal_client.get_logger().info(
