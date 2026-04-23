@@ -38,13 +38,12 @@ class PositionController(Node):
     def __init__(self):
         super().__init__('position_controller')
         self.state = PositionControllerState.Stopped
-
+        
         param_list = (
             ('default_command_mode', CommandMode.ESTOP),
-            ('x_vmax', 0.8), # m/s
-            ('y_vmax', 0.8), # m/s
-            ('yaw_vmax', 4.0), # radians/s
-            # ('yaw_vmax', 0.15), # radians/s
+            ('x_vmax', 0.4), # m/s
+            ('y_vmax', 0.2), # m/s
+            ('yaw_vmax', 0.35), # radians/s
             ('lookahead_distance', 1.0), # m
             ('x_kp', 1.0),
             ('x_ki', 0.0),
@@ -55,14 +54,13 @@ class PositionController(Node):
             ('z_kp', 0.5),
             ('z_ki', 0.0),
             ('z_kd', 0.0),
-            ('r_kp', 0.0),
+            ('r_kp', 0.1),
             ('r_ki', 0.0),
             ('r_kd', 0.0),
-            ('p_kp', 0.0),
+            ('p_kp', 0.5),
             ('p_ki', 0.0),
             ('p_kd', 0.0),
-            # ('yaw_kp', 0.5),
-            ('yaw_kp', 3.0),
+            ('yaw_kp', 0.5),
             ('yaw_ki', 0.0),
             ('yaw_kd', 0.0),
         )
