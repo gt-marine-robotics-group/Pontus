@@ -241,8 +241,12 @@ class path_planner(Node):
         if goal_not_explored:
             self.get_logger().warn("Goal index not found")
         else:
+            if request.string_pulling:
+                shorter_path = self.get_string_pulled_path(cell_record[goal_index].path_to_cell, self.latest_occupancy_grid)
+            else:
+                shorter_path = cell_record[goal_index].path_to_cell
 
-            for index in cell_record[goal_index].path_to_cell:
+            for index in shorter_path:
 
                 # get position from indices and target height, skip orientation
                 position = self.index_to_position(index)
@@ -261,6 +265,37 @@ class path_planner(Node):
         self.latest_path = response.path_to_object
 
         return response
+    
+    def get_string_pulled_path(self, path_to_cell: list[tuple[int]], occupancy_grid: np.ndarray) -> list[tuple[int]]:
+        # could be optimized by finding corner of cell that is closest
+        shortest_path = []
+        shortest_path.append(path_to_cell[0])
+        index = 0
+        while index < len(path_to_cell) - 1:
+            count = index + 2 # by necessity, a-star finds cells that are immediately next to each other, so the cell after index can be skipped as they are adjacent
+            clear_los = True
+            while clear_los and count < len(path_to_cell):
+                clear_los = self.check_los(path_to_cell[index], path_to_cell[count], occupancy_grid)
+                count += 1
+            index = count
+            shortest_path.append(path_to_cell[count - 1])
+        return shortest_path
+    
+    def check_los(self, start_index: tuple[int], end_index: tuple[int], occupancy_grid: np.ndarray):
+        ## I ripped this straight from stack exchange: https://stackoverflow.com/questions/46035033/line-of-sight-from-numpy-array-in-python
+        startX = start_index[0]
+        startY = start_index[1]
+        endX = end_index[0]
+        endY = end_index[1]
+        n = 4 # steps per unit distance, higher is more accurate
+
+        b = occupancy_grid > self.score_threshold
+
+        dxy = int((np.sqrt((endX - startX) ** 2 + (endY - startY) ** 2)) * n)
+        i = np.rint(np.linspace(startX, endX, dxy)).astype(int)
+        j = np.rint(np.linspace(startY, endY, dxy)).astype(int)
+        has_collision = np.any(b[i, j])
+        return not has_collision
 
     def get_adjacency(self, index: tuple[int], array: np.ndarray, eight_way: bool = False) -> list[tuple[int]]:
         """_summary_
