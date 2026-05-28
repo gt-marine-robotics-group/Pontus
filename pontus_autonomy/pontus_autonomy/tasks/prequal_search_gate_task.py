@@ -24,7 +24,7 @@ class PrequalSearchTask(BaseTask):
             namespace='',
             parameters=[
                 ('pool_depth', 3.0),
-                ('height_from_bottom', 0.8)
+                ('height_from_bottom', 1.3)
             ]
         )
 

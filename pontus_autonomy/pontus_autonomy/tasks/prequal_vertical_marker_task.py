@@ -26,7 +26,7 @@ class MarkerSide(Enum):
 
 class PrequalVerticalMarkerTask(BaseTask):
 
-    def __init__(self, fallback_distance=2.2, fallback_depth=1.5):
+    def __init__(self, fallback_distance=10.0, fallback_depth=1.4):
         super().__init__("prequal_vertical_marker_task")
 
         self.service_callback_group = MutuallyExclusiveCallbackGroup()
@@ -34,10 +34,10 @@ class PrequalVerticalMarkerTask(BaseTask):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('height_from_bottom', 1.2),
-                ('pool_depth', 3.0),
+                ('height_from_bottom', 1.35),
+                ('pool_depth', 2.7),
                 ('waypoint_dist_from_marker', 1.6),
-                ('waypoint_dist_from_gate', 1.0),
+                ('waypoint_dist_from_gate', 0.7),
                 ('marker_centerline_tolerance', 1.5),
                 ('follow_path_period', 0.25),
             ]
@@ -238,7 +238,11 @@ class PrequalVerticalMarkerTask(BaseTask):
                 return
 
             target_pos_xy = self.path.pop(0)
-            self._send_waypoint_command(target_pos_xy)
+            z_off = 0
+
+            if len(self.path) < 2:
+                z_off = 0.55
+            self._send_waypoint_command(target_pos_xy, z_offset=z_off)
 
     def send_request(self, class_id: int, pose: Pose) -> None:
         while not self.cli.wait_for_service(timeout_sec=1.0):
@@ -253,7 +257,7 @@ class PrequalVerticalMarkerTask(BaseTask):
         req.positions.append(pose_stamped)
         self.cli.call_async(req)
 
-    def _send_waypoint_command(self, target_pos_xy: np.ndarray) -> None:
+    def _send_waypoint_command(self, target_pos_xy: np.ndarray, z_offset = 0) -> None:
         """
         Convert a np.ndarray 2D vector to a command pose and send to pos_controller
         """
@@ -261,7 +265,7 @@ class PrequalVerticalMarkerTask(BaseTask):
 
         cmd_pose.position.x = target_pos_xy[0]
         cmd_pose.position.y = target_pos_xy[1]
-        cmd_pose.position.z = -self.pool_depth + self.height_from_bottom_m
+        cmd_pose.position.z = -self.pool_depth + self.height_from_bottom_m + z_offset
 
         self.curr_waypoint = cmd_pose
 

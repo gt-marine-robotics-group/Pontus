@@ -16,24 +16,52 @@ from pontus_autonomy.tasks.prequal_vertical_marker_task import PrequalVerticalMa
 from pontus_autonomy.tasks.prequal_search_gate_task import PrequalSearchTask
 from pontus_autonomy.tasks.search_task import ScanTask, SearchConditions
 
+from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
+
+from pontus_msgs.msg import CommandMode
+
 import math
+import time
+import subprocess
 
 
 class PrequalificationRun(BaseRun):
     def __init__(self):
         super().__init__("prequalification_run_sim")
 
+        self.command_pub = self.create_publisher(CommandMode, "/command_mode", 10)
+
         self.get_logger().info("Starting Prequalification Run")
 
+        time.sleep(60)
+
+        # process = subprocess.Popen(
+        #     ['ros2', 'launch', 'pontus_sensors', 'dvl.launch.py'])
+        # time.sleep(5)
+
         # Submerge Task
+
+        cmd_mode = CommandMode()
+
+        self.get_logger().info("Start run commandmode")
+
+        cmd_mode.command_mode = 7
+        for i in range(5):
+            self.command_pub.publish(cmd_mode)
 
         self.get_logger().info("Starging Submerge")
         result = self.run_task(Submerge)
         self.get_logger().info(f"Submerge: {result}")
 
         self.get_logger().info(f"Prequal Gate Searching")
-        result = self.run_task(ScanTask, (-np.pi/5, np.pi/5, 0))
+        result = self.run_task(ScanTask, (-np.pi/3, np.pi/3, 0))
         self.get_logger().info(f"Search: {result}")
+
+        if (not result):
+            self.get_logger().info("Ending run")
+            cmd_mode.command_mode = 0
+            self.command_pub.publish(cmd_mode)
+            return
 
         # Gate Task Prequal
         self.get_logger().info("Starting Gate Execution")
@@ -49,6 +77,9 @@ class PrequalificationRun(BaseRun):
         result = self.run_task(PrequalVerticalMarkerTask)
         self.get_logger().info(f"Prequal Vertical Marker Task: {result}")
 
+        self.get_logger().info("Ending run")
+        cmd_mode.command_mode = 0
+        self.command_pub.publish(cmd_mode)
 
 def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)

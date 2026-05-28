@@ -62,7 +62,7 @@ public:
     min_depth_m_ = this->declare_parameter<double>("min_depth_m", 0.10);   // keep points at least this deep
     max_depth_m_ = this->declare_parameter<double>("max_depth_m", 2.2);  // keep points at most this deep
 
-    min_dist_m_ = this->declare_parameter<double>("min_dist_m", 0.3); 
+    min_dist_m_ = this->declare_parameter<double>("min_dist_m", 0.6); 
     max_dist_m_ = this->declare_parameter<double>("max_dist_m", 4.5);
 
 

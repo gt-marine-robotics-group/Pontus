@@ -56,8 +56,8 @@ class ScanTask(BaseTask):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('max_iterations', 2),
-                ('max_cluster_iterations', 3),
+                ('max_iterations', 20),
+                ('max_cluster_iterations', 30),
             ]
         )
 
@@ -151,9 +151,10 @@ class ScanTask(BaseTask):
                 self.complete(False)
             cluster_positions = np.array(msg.data).reshape(-1, 3)
             for position in cluster_positions:
-                transformed_cluster_pos = self.transform_cluster_positions(position)
-                if transformed_cluster_pos is None:
-                    continue
+                # transformed_cluster_pos = self.transform_cluster_positions(position)
+                # if transformed_cluster_pos is None:
+                #     continue
+                transformed_cluster_pos = position.copy()
                 
                 cluster_angle = math.atan2(transformed_cluster_pos[1], transformed_cluster_pos[0]) #radians
                 self.cluster_angles = np.append(self.cluster_angles, cluster_angle)
@@ -180,10 +181,10 @@ class ScanTask(BaseTask):
             N/A
         """
 
-        if self.terminating_condition is SearchConditions.GATE: 
-            if msg.meta_gate.header.frame_id != "":
-                self.get_logger().info("Gate pair detected in semantic map")
-                self.complete(True)
+        # if self.terminating_condition is SearchConditions.GATE: 
+        if msg.meta_gate.header.frame_id != "":
+            self.get_logger().info("Gate pair detected in semantic map")
+            self.complete(True)
 
         elif self.terminating_condition is SearchConditions.SLALOM:
             if msg.meta_slalom.header.frame_id != "":
