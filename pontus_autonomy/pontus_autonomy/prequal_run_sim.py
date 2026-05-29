@@ -7,6 +7,7 @@ from pontus_autonomy.base_run import BaseRun
 from geometry_msgs.msg import PoseStamped, Point, Quaternion
 
 # Tasks
+from pontus_autonomy.tasks.localization.wait_for_enable import WaitForEnable
 from pontus_autonomy.tasks.localization.submerge import Submerge
 from pontus_autonomy.tasks.prequal_gate_task import PrequalGateTask
 from pontus_autonomy.tasks.prequal_vertical_marker_task import PrequalVerticalMarkerTask
@@ -31,24 +32,25 @@ class PrequalificationRun(BaseRun):
 
         self.command_pub = self.create_publisher(CommandMode, "/command_mode", 10)
 
-        self.get_logger().info("Starting Prequalification Run")
+        self.get_logger().info("Starting Prequalification Run, waiting for autonomy switch")
 
-        time.sleep(60)
+        result = self.run_task(WaitForEnable)
+        self.get_logger().info(f"Autonomy switch enable: {result}")
 
-        # process = subprocess.Popen(
-        #     ['ros2', 'launch', 'pontus_sensors', 'dvl.launch.py'])
-        # time.sleep(5)
+        # ['ros2', 'launch', 'pontus_sensors', 'dvl.launch.py'])
+        self.process = subprocess.Popen(
+            ['ros2', 'launch', 'pontus_localization', 'localization.launch.py', 'auv:=auv'])
+        time.sleep(8)
+        self.get_logger().info("Started")
 
-        # Submerge Task
-
-        cmd_mode = CommandMode()
-
+        # Enable position controller autonomy
         self.get_logger().info("Start run commandmode")
-
+        cmd_mode = CommandMode()
         cmd_mode.command_mode = 7
         for i in range(5):
             self.command_pub.publish(cmd_mode)
 
+        # Submerge Task
         self.get_logger().info("Starging Submerge")
         result = self.run_task(Submerge)
         self.get_logger().info(f"Submerge: {result}")
@@ -81,9 +83,20 @@ class PrequalificationRun(BaseRun):
         cmd_mode.command_mode = 0
         self.command_pub.publish(cmd_mode)
 
+        self.get_logger().info("Stopping")
+
+        self.process.kill()
+        self.process.wait()
+        self.get_logger().info("Stopped")
+
 def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
     node = PrequalificationRun()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        node.process.kill()
+        node.process.wait()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
