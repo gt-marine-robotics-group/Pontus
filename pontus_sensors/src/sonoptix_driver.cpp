@@ -6,11 +6,8 @@
 #include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 
-// --- Humble ---
-#include <cv_bridge/cv_bridge.h>
-
-// --- Jazzy ---
-// #include <cv_bridge/cv_bridge.hpp>
+// ROS 2 Jazzy uses the newer cv_bridge header layout.
+#include <cv_bridge/cv_bridge.hpp>
 
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
