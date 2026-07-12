@@ -19,11 +19,6 @@ _DEFAULT_PARAMS_FILE = os.path.join(
   'config',
   'params.yml'
 )
-_EMPTY_PARAMS_FILE = os.path.join(
-  get_package_share_directory(_PACKAGE_NAME),
-  'config',
-  'empty.yml'
-)
 
 _PONTUS_PARAMS_FILE = os.path.join(
     get_package_share_directory('pontus_sensors'),

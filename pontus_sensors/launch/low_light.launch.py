@@ -32,17 +32,29 @@ def generate_launch_description():
             ]
         )
 
+        cam_settings = [
+            "white_balance_automatic=0",
+            "white_balance_temperature=4600",
+            "brightness=50",
+            "saturation=100",
+            "hue=-15",
+        ]
+        cam_setting_string = "--set-ctrl="
+        for setting in cam_settings:
+            cam_setting_string += f"{setting},"
+
         # Could also set exposure dynamic framerate to stop lowering framerate in low light conditions
         set_v4l_configs = RegisterEventHandler(
             OnProcessStart(
                 target_action = camera_node,
                 on_start = [
                     ExecuteProcess(
-                        cmd=['v4l2-ctl', '-d', f'/dev/camera_{name}', 
-                            '--set-ctrl=white_balance_automatic=0,white_balance_temperature=5500'])
+                        cmd=['v4l2-ctl', '-d', f'/dev/camera_{name}', cam_setting_string])
                 ]
             )
         )
+
+        print('v4l2-ctl ' + '-d ' + f'/dev/camera_{name} ' + cam_setting_string)
 
         launch_descriptions.append(camera_node)
         launch_descriptions.append(set_v4l_configs)

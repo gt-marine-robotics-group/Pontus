@@ -17,24 +17,3 @@
         enable_pub_plugins: [
           'image_transport/compressed'
         ]
-
-      # Some of these auto fields do not match the reported V4L camera controls
-      # so they may not actually do anything
-
-      # Most of these whitebalance features don't work, have to set them manually in the launch file
-      auto_whitebalance: false
-      white_balance_automatic: false
-      whitebalance_temperature: 5999
-
-      brightness: 50
-
-      autoexposure: false
-      exposure: 100
-
-      autofocus: false
-      focus: -1
-
-      saturation: -1
-      sharpness: -1
-      contrast: -1
-      gain: -1
