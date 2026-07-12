@@ -239,9 +239,9 @@ class SemanticMapManager(Node):
                 ('gate_width_tolerance', 0.5),  # tolerance for pairing
                 ("slalom_white_to_white_width", 3.0),
                 ("slalom_white_to_red_width", 1.5),
-                ("slalom_width_tolerance", 0.3),  # slalom pairing tolerance
+                ("slalom_width_tolerance", 0.8),  # slalom pairing tolerance
                 # red slalom row deviation tolerance
-                ("slalom_row_tolerance", 0.3)
+                ("slalom_row_tolerance", 1.0)
             ]
         )
 

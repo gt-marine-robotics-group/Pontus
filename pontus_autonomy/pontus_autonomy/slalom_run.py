@@ -22,10 +22,11 @@ class SlalomRun(BaseRun):
         self.get_logger().info(f"Submerge: {result}")
 
         # Gate Task Prequal
-        result = self.run_task(PrequalGateTask)
-        self.get_logger().info(f"Prequal Gate Task: {result}")
+        # result = self.run_task(PrequalGateTask)
+        # self.get_logger().info(f"Prequal Gate Task: {result}")
         
         # Slalom Task
+        self.get_logger().info(f"Starting Slaloms")
         result = self.run_task(SlalomTask)
         self.get_logger().info(f"Slalom Navigation Task: {result}")
 

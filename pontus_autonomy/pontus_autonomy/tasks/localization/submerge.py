@@ -13,7 +13,7 @@ class Submerge(BaseTask):
 
         # Determines the desired depth the sub should start autonomy
         # TODO: See if the DVL is able to get this
-        self.desired_depth = -1.9
+        self.desired_depth = -1.2
 
         # End
 
@@ -43,6 +43,7 @@ class Submerge(BaseTask):
         if not self.cmd_sent:
             lower_pose = Pose()
             lower_pose.position.z = self.desired_depth
+            lower_pose.orientation.w = 1.0
             pose_obj = PoseObj(cmd_pose=lower_pose)
             self.go_to_pose_client.go_to_pose(pose_obj)
             self.cmd_sent = True

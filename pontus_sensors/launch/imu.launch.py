@@ -73,7 +73,7 @@ def generate_launch_description():
   )
 
   launch_description.append(microstrain_node)
-  launch_description.append(republisher)
+  # launch_description.append(republisher)
   return LaunchDescription(launch_description)
   
 

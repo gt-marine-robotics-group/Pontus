@@ -1,71 +1,50 @@
 import os
 import launch
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, RegisterEventHandler
+from launch.event_handlers import OnProcessStart
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
     pontus_sensors_share = get_package_share_directory('pontus_sensors')
-    left_config_file = f'{pontus_sensors_share}/config/low_light_camera_left.yaml'
-    right_config_file = f'{pontus_sensors_share}/config/low_light_camera_right.yaml'
-    angled_config_file = f'{pontus_sensors_share}/config/low_light_angled.yaml'
-    down_config_file = f'{pontus_sensors_share}/config/low_light_camera_down.yaml'
-    return LaunchDescription([
-        Node(
+
+    launch_descriptions = []
+
+    camera_names = [
+        "left",
+        "right",
+        "facing_down",
+        "tilted_down"
+    ]
+
+    for name in camera_names:
+        camera_node = Node(
             package='usb_cam',
             executable='usb_cam_node_exe',
-            name="left_camera",
+            name=f"{name}_camera",
             output='screen',
-            parameters=[left_config_file],
+            parameters=[f'{pontus_sensors_share}/config/low_light_camera_{name}.yaml'],
             remappings=[
-                ('/image_raw', '/pontus/camera_left/image_raw'),
-                ('/image_raw/compressed', '/pontus/camera_left/image_raw/compressed'),
-                # ('/image_raw/compressedDepth', '/pontus/camera_left/image_raw/compressedDepth'),
-                ('/image_raw/theora', '/pontus/camera_left/image_raw/theora'),
-                ('/camera_info', '/pontus/camera_left/camera_info')
+                # ('/image_raw', f'/pontus/camera_{name}/image_raw'), # Theoretically these are disabled for efficiency
+                ('/image_raw/compressed', f'/pontus/camera_{name}/image_raw/compressed'),
+                ('/camera_info', f'/pontus/camera_{name}/camera_info')
+            ]
+        )
+
+        # Could also set exposure dynamic framerate to stop lowering framerate in low light conditions
+        set_v4l_configs = RegisterEventHandler(
+            OnProcessStart(
+                target_action = camera_node,
+                on_start = [
+                    ExecuteProcess(
+                        cmd=['v4l2-ctl', '-d', f'/dev/camera_{name}', 
+                            '--set-ctrl=white_balance_automatic=0,white_balance_temperature=5500'])
                 ]
-        ),
-        Node(
-            package='usb_cam',
-            executable='usb_cam_node_exe',
-            name="right_camera",
-            output='screen',
-            parameters=[right_config_file],
-            remappings=[
-                ('/image_raw', '/pontus/camera_right/image_raw'),
-                ('/image_raw/compressed', '/pontus/camera_right/image_raw/compressed'),
-                ('/image_raw/compressedDepth', '/pontus/camera_right/image_raw/compressedDepth'),
-                ('/image_raw/theora', '/pontus/camera_right/image_raw/theora'),
-                ('/camera_info', '/pontus/camera_right/camera_info')
-                ]
-        ),
-         Node(
-             package='usb_cam',
-             executable='usb_cam_node_exe',
-             name="side_camera",
-             output='screen',
-             parameters=[angled_config_file],
-             remappings=[
-                 ('/image_raw', '/pontus/camera_tilted_down/image_raw'),
-                 ('/image_raw/compressed', '/pontus/camera_tilted_down/image_raw/compressed'),
-                 ('/image_raw/compressedDepth', '/pontus/camera_tilted_down/image_raw/compressedDepth'),
-                 ('/image_raw/theora', '/pontus/camera_tilted_down/image_raw/theora'),
-                 ('/camera_info', '/pontus/camera_tilted_down/camera_info')
-                 ]
-         ),
-         Node(
-             package='usb_cam',
-             executable='usb_cam_node_exe',
-             name="down_camera",
-             output='screen',
-             parameters=[down_config_file],
-             remappings=[
-                 ('/image_raw', '/pontus/camera_facing_down/image_raw'),
-                 ('/image_raw/compressed', '/pontus/camera_facing_down/image_raw/compressed'),
-                 ('/image_raw/compressedDepth', '/pontus/camera_facing_down/image_raw/compressedDepth'),
-                 ('/image_raw/theora', '/pontus/camera_facing_down/image_raw/theora'),
-                 ('/camera_info', '/pontus/camera_facing_down/camera_info')
-                 ]
-         )
-    ])
+            )
+        )
+
+        launch_descriptions.append(camera_node)
+        launch_descriptions.append(set_v4l_configs)
+
+    return LaunchDescription(launch_descriptions)

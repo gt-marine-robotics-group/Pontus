@@ -36,11 +36,10 @@ class VelocityNode(Node):
             ('r_kp', 0.1),
             ('r_ki', 0.0),
             ('r_kd', 0.01),
-            # ('p_kp', 3.0),
-            ('p_kp', 0.0),
+            ('p_kp', 3.0),
             ('p_ki', 0.0),
             ('p_kd', 0.0),
-            ('yaw_kp', 0.4),
+            ('yaw_kp', 0.3),
             ('yaw_ki', 0.0),
             ('yaw_kd', 0.05),
             ('x_C', 0.82),
@@ -274,6 +273,9 @@ class VelocityNode(Node):
             (self.linear_drag_gain * linear_f_drag / self.vehicle_params.mass)
         angular_ff = (self.angular_drag_gain *
                       angular_f_drag / self.vehicle_params.mass)
+
+        # Compute hacky pitch FF term to counteract drag on the bottom of the vehicle
+        # angular_ff[1] = -0.2 * self.cmd_linear[0]
 
         return linear_ff, angular_ff
 

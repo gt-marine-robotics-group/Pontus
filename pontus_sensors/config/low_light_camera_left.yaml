@@ -2,10 +2,39 @@
     ros__parameters:
       video_device: "/dev/camera_left"
       frame_id: "camera_left_optical_frame"
-      pixel_format: "mjpeg2rgb"  # see usb_cam/supported_formats for list of supported formats
-      # av_device_format: "M-JPEG"
+
+      # Unfortunately the usb cam node doesn't properly support efficiently converting
+      # most of its suppported pixel_formats to ros messages so most options don't help
+      # pixel_format: "raw_mjpeg" # raw_mjpeg seems to be like 3x more cpu efficient than "mjpeg2rgb"
+      pixel_format: "mjpeg2rgb"
       camera_name: "camera_left"
       image_height: 480
       image_width: 640
       fps: 30
       camera_info_url: "package://pontus_sensors/config/calibration/front_left_camera_calibration.yaml"
+
+      image_raw:
+        enable_pub_plugins: [
+          'image_transport/compressed'
+        ]
+
+      # Some of these auto fields do not match the reported V4L camera controls
+      # so they may not actually do anything
+
+      # Most of these whitebalance features don't work, have to set them manually in the launch file
+      auto_whitebalance: false
+      white_balance_automatic: false
+      whitebalance_temperature: 5999
+
+      brightness: 50
+
+      autoexposure: false
+      exposure: 100
+
+      autofocus: false
+      focus: -1
+
+      saturation: -1
+      sharpness: -1
+      contrast: -1
+      gain: -1

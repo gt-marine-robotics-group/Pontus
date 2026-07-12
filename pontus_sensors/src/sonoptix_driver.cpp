@@ -77,7 +77,7 @@ public:
 
 
     cluster_tolerance_ = this->declare_parameter<double>("cluster_tolerance", 0.15);
-    cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 20);
+    cluster_min_points_ = this->declare_parameter<int>("cluster_min_points", 8);
     cluster_max_points_ = this->declare_parameter<int>("cluster_max_points", 400);
 
     line_dist_threshold_ = this->declare_parameter<double>("line_dist_threshold", 0.10);   // m

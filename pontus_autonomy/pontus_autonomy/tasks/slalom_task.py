@@ -42,14 +42,14 @@ class SlalomTask(BaseTask):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('height_from_bottom', 1.0),
+                ('height_from_bottom', 1.8),
                 ('slalom_side', 0),  # Go on the right of the red pole
                 # How far should the apparoach and pass through points be to the slalom poles
                 ('waypoint_dist_from_pole', 0.4),
                 ('require_all_rows', False),
                 ('start_gate_side', True),
                 ('follow_path_period', 0.25),
-                ('pool_depth', 2.0)
+                ('pool_depth', 3.0)
             ]
         )
 
@@ -386,9 +386,11 @@ class SlalomTask(BaseTask):
             return pose_transformed_stamped.pose
 
         except Exception as e:
+            '''
             self.get_logger().warn(
                 f"Failed to transform semantic object to base_link"
                 f"(current frame: {obj.header.frame_id})"
             )
             self.get_logger().warn(f"exception: {e}")
+            '''
             return pose_stamped.pose
