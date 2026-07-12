@@ -13,7 +13,9 @@ def generate_launch_description():
     gazebo_config = LaunchConfiguration('gazebo', default='True')
 
     # URDF spawner
-    args = ['-name', 'pontus', '-topic', 'robot_description']
+    args = ['-name', 'pontus',
+            '-topic', 'robot_description'
+            ]
     spawn = Node(
         package='ros_gz_sim',
         executable='create',

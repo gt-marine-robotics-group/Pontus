@@ -201,11 +201,16 @@
 
     <gazebo reference="imu_${imu_id}">
       <sensor name="imu_sensor" type="imu">
+        <imu>
+          <orientation_reference_frame>
+            <localization>ENU</localization>
+            <custom_rpy>0 0 0</custom_rpy>
+          </orientation_reference_frame>
+        </imu>
         <pose>0 0 0 0 0 0</pose>
         <always_on>1</always_on>
         <visualize>true</visualize>
         <topic>pontus/imu_${imu_id}</topic>
-        <enable_metrics>true</enable_metrics>
         <update_rate>100</update_rate>
 
         <!-- This tag isn't recognized by SDF but is extremely important for getting the correct TF data for the IMU frame-->
