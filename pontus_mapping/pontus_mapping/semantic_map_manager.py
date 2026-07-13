@@ -268,7 +268,10 @@ class SlalomRowProposal:
     line_unit_vec: np.ndarray
     white1: SlalomCandidate
     red: SlalomCandidate
-    white2_pos: np.ndarray
+    white2: SlalomCandidate # synthetic sometimes
+    score: float
+    derived: bool # whether this proposal was derived from a known row or not
+    suspected_mislabel: Optional[SlalomCandidate] = None  # a known-red candidate suspected to actually be white
 
 # ------- Node ------
 class SemanticMapManager(Node):
@@ -288,8 +291,8 @@ class SemanticMapManager(Node):
                 ("slalom_width_tolerance", 0.5),  # slalom pairing tolerance
                 # red slalom row deviation tolerance
                 ("slalom_row_width", 2.0),
-                ("slalom_row_tolerance", 0.4),
-                ("slalom_dup_tolerance", 0.5),
+                ("slalom_row_tolerance", 0.7),
+                ("slalom_dup_tolerance", 0.7),
                 ("slalom_row_deviation", 1.2), # max deviation along row direction between rows
                 ("slalom_row_deviation_deg", 15.0), # max deviation along row direction between rows
             ]
@@ -619,7 +622,8 @@ class SemanticMapManager(Node):
 
         proposals: List[SlalomRowProposal] = []
 
-        left_gate = self._pose_to_vec2(self.semantic_map.semantic_map.meta_gate.left_gate.pose.pose)
+        proposals = self._find_full_triplets(all_candidates)
+
         flag = False
         for i in range(len(all_candidates)):
             for j in range(i+1, len(all_candidates)):
@@ -656,7 +660,12 @@ class SemanticMapManager(Node):
                     white1, red = (p2, p1) if p2.kind == CandidateKind.SLALOM_WHITE else (p1, p2)
 
                 row_line_unit_vec = (red.pose - white1.pose) / np.linalg.norm(red.pose - white1.pose)
+
+                # Create a synthetic white2 position based on the red position and the row line unit vector
                 w2_pos = red.pose + (row_line_unit_vec * self.slalom_white_to_red_width)
+                w2_candidate = SlalomCandidate(kind=CandidateKind.SLALOM_WHITE, pose=w2_pos, known=False)
+
+                # TODO: Check if the synthetic white2 position is too close to any existing candidates
 
                 # Create a proposal for the slalom row
                 proposals.append(SlalomRowProposal(
@@ -664,7 +673,10 @@ class SemanticMapManager(Node):
                     line_unit_vec=row_line_unit_vec,
                     white1=white1,
                     red=red,
-                    white2_pos=w2_pos
+                    white2=w2_candidate, # synthetic
+                    score=float('-inf'), # never wins dedup against a real triplet
+                    derived=True,
+                    suspected_mislabel=None # synthetic position, check at promotion time instead (see below)
                 ))
 
                 if flag:
@@ -682,16 +694,31 @@ class SemanticMapManager(Node):
         if not proposals:
             return
 
+        left_gate = self._pose_to_vec2(self.semantic_map.semantic_map.meta_gate.left_gate.pose.pose)
         slalom_rows = []
         for p in proposals:
+            if p.suspected_mislabel is not None:
+                # Real triplet caught a known-red candidate acting as an outer point -- flip it directly,
+                # no position search needed since we already have the exact object reference.
+                obj = p.suspected_mislabel.obj
+                red_list = self.semantic_map.objects[SemanticObject.SLALOM_RED]
+                if obj in red_list:
+                    red_list.remove(obj)
+                    obj.object_type = SemanticObject.SLALOM_WHITE
+                    self.semantic_map.objects[SemanticObject.SLALOM_WHITE].append(obj)
+                    self.get_logger().warn(
+                        f"Reclassified suspected mislabel at ({obj.pose.pose.position.x:.2f},"
+                        f"{obj.pose.pose.position.y:.2f}) from RED to WHITE"
+                    )
+                w1_obj = obj if p.white1 is p.suspected_mislabel else self._promote_candidate(p.white1, SemanticObject.SLALOM_WHITE, trust_geometry=not p.derived)
+                w2_obj = obj if p.white2 is p.suspected_mislabel else self._promote_candidate(p.white2, SemanticObject.SLALOM_WHITE, trust_geometry=not p.derived)
+            else:
+                w1_obj = self._promote_candidate(p.white1, SemanticObject.SLALOM_WHITE, trust_geometry=not p.derived)
+                w2_obj = self._promote_candidate(p.white2, SemanticObject.SLALOM_WHITE, trust_geometry=not p.derived) # synthetic, don't trust geometry
+            
+            red_obj = self._promote_candidate(p.red, SemanticObject.SLALOM_RED, trust_geometry=not p.derived)
+
             red_to_gate_dist = np.linalg.norm(p.red_pos - left_gate)
-
-            w1_obj = self._promote_candidate(p.white1, SemanticObject.SLALOM_WHITE)
-            red_obj = self._promote_candidate(p.red, SemanticObject.SLALOM_RED)
-
-            w2_candidate = SlalomCandidate(kind=CandidateKind.SLALOM_WHITE, pose=p.white2_pos, known=False)
-            w2_obj = self._promote_candidate(w2_candidate, SemanticObject.SLALOM_WHITE)
-
             slalom_rows.append((red_to_gate_dist, [w1_obj, w2_obj], red_obj))  # sort key is arbitrary now, see below
 
         if (not slalom_rows):
@@ -733,6 +760,83 @@ class SemanticMapManager(Node):
         # add to semantic map
         self.semantic_map.add_meta_slalom(slalom_rows)
 
+    def _find_full_triplets(self, all_candidates: List[SlalomCandidate]) -> List[SlalomRowProposal]:
+        """
+        Find all valid slalom row triplets (white-red-white) from the given candidates.
+        Returns a list of SlalomRowProposal objects.
+        """
+        proposals: List[SlalomRowProposal] = []
+
+        for i in range(len(all_candidates)):
+            for j in range(i + 1, len(all_candidates)):
+                a, b = all_candidates[i], all_candidates[j]
+
+                if a.kind == CandidateKind.SLALOM_RED and b.kind == CandidateKind.SLALOM_RED:
+                    continue  # red-red pairs cannot form a gate
+
+                span = b.pose - a.pose
+                span_len = np.linalg.norm(span)
+                span_unit = span / span_len
+
+                if abs(span_len - self.slalom_white_to_white_width) > self.slalom_width_tolerance:
+                    continue  # not a valid width
+
+                best_mid, best_perp = None, None
+                for k in range(len(all_candidates)):
+                    if k == i or k == j:
+                        continue
+                    mid = all_candidates[k]
+                    if mid.kind == CandidateKind.SLALOM_WHITE:
+                        continue  # white-white-white triplets are not valid
+
+                    # Check if at least one of the point is known or there is a locked row to compare against for later
+                    # Avoid creating a triplet from 3 unknown points when there are no existing locked rows, as this can lead to false positives and incorrect row formation.
+                    # TODO: Add a flag that can be triggered by autonomy to allow for unknown-unknown-unknown triplet formation in the event there is no yolo
+                    if not (mid.known or a.known or b.known) and not (self.semantic_map.semantic_map.meta_slalom.meta_slalom_rows):
+                        continue
+
+                    mid_vec = mid.pose - a.pose
+                    mid_proj = np.dot(mid_vec, span_unit)
+                    perp_vec = mid_vec - (mid_proj * span_unit)
+                    perp_dist = np.linalg.norm(perp_vec)
+
+                    if (0 <= mid_proj <= span_len) and perp_dist <= self.slalom_row_tolerance:
+                        if best_mid is None or perp_dist < best_perp:
+                            best_mid, best_perp = mid, perp_dist
+                
+                if best_mid is None:
+                    continue
+
+                width_err = abs(span_len - self.slalom_white_to_white_width)
+                mid_proj = np.dot(best_mid.pose - a.pose, span_unit)
+                mid_err = abs(mid_proj - (span_len / 2))
+                score = self._triplet_score(width_err=width_err, mid_err=mid_err, perp_err=best_perp)
+
+                # Exactly one outer point being a known red is a mislabel signal -- flag it.
+                suspected = None
+                if a.known and a.kind == CandidateKind.SLALOM_RED:
+                    suspected = a
+                elif b.known and b.kind == CandidateKind.SLALOM_RED:
+                    suspected = b
+
+                proposals.append(SlalomRowProposal(
+                    red_pos=best_mid.pose,
+                    line_unit_vec=span_unit,
+                    white1=a,
+                    red=best_mid,
+                    white2=b,          # <-- now a real candidate, not a computed position
+                    score=score,
+                    derived=False,
+                    suspected_mislabel=suspected,
+                ))
+
+        return proposals
+    
+    def _triplet_score(self, width_err: float, mid_err: float, perp_err: float, row_align_err: float = 0.0) -> float:
+        """Higher is better. row_align_err folds in cross-row spacing/parallelism, added later."""
+        w_width, w_mid, w_perp, w_align = 1.0, 1.0, 1.5, 1.0
+        return -(w_width * width_err + w_mid * mid_err + w_perp * perp_err + w_align * row_align_err)
+
     def _classify_unknown_pair(self, p1: SlalomCandidate, p2: SlalomCandidate,
                                 locked_row: SemanticMetaSlalomRow,
                                 ref_line: np.ndarray) -> Optional[tuple[SlalomCandidate, SlalomCandidate]]:
@@ -757,16 +861,23 @@ class SemanticMapManager(Node):
             # both inside (near-zero     row deviation — genuinely ambiguous) or both outside (bad pair)
             return None
 
+    def _same_row(self, p: SlalomRowProposal, k: SlalomRowProposal) -> bool:
+        """Two proposals describe the same physical row if their line directions
+        are parallel and their reds have ~zero perpendicular offset from each
+        other's line -- regardless of how far apart they are along that line."""
+        k_perp_unit = np.array([-k.line_unit_vec[1], k.line_unit_vec[0]])
+        perp_offset = abs(np.dot(p.red_pos - k.red_pos, k_perp_unit))
+        return perp_offset <= self.slalom_row_tolerance
+    
     def _dedupe_row_proposals(self, proposals: List[SlalomRowProposal]) -> List[SlalomRowProposal]:
-        dedup_tolerance = self.slalom_dup_tolerance
         kept: List[SlalomRowProposal] = []
 
         for p in proposals:
             is_dup = False
             for k in kept:
-                if np.linalg.norm(p.red_pos - k.red_pos) < dedup_tolerance:
+                if self._same_row(p, k):
                     is_dup = True
-                    if (p.red.known + p.white1.known) > (k.red.known + k.white1.known):
+                    if p.score > k.score:
                         kept.remove(k)
                         kept.append(p)
                     break
@@ -804,26 +915,42 @@ class SemanticMapManager(Node):
             perp_dist = abs(np.dot(offset, perp_unit))
             along_dist = abs(np.dot(offset, ref_line))
 
+            nearest_n = round(perp_dist / self.slalom_row_width)
+            spacing_err = abs(perp_dist - nearest_n * self.slalom_row_width)
+
             # perpendicular spacing must be ~0 (same row) or a multiple of row width (adjacent rows)
-            spacing_ok = any(
-                abs(perp_dist - n * self.slalom_row_width) <= self.slalom_row_tolerance
-                for n in (0, 1, 2)
-            )
+            spacing_ok = spacing_err <= self.slalom_row_tolerance
             # rows shouldn't be far offset along their own line direction from one another
             along_ok = along_dist <= self.slalom_row_deviation
 
-            if spacing_ok and along_ok:
-                validated.append(p)
+            if not (spacing_ok and along_ok):
+                continue  # hard gate stays for gross outliers
+
+            # graded penalty added on top of the internal-geometry score
+            p.score += -1.0 * spacing_err   # reuses w_align weight informally; adjust as needed
+            validated.append(p)
 
         return validated
 
-    def _promote_candidate(self, candidate: SlalomCandidate, object_type: int) -> SemanticObject:
+    def _promote_candidate(self, candidate: SlalomCandidate, object_type: int, trust_geometry: bool) -> SemanticObject:
         """
         Return the backing SemanticObject for a known candidate, or build+fuse a new
         one from an unknown candidate's position (geometry-confirmed, camera-unconfirmed).
         """
         if candidate.known:
             return candidate.obj
+
+        if trust_geometry:
+            wrong_type = (SemanticObject.SLALOM_RED if object_type == SemanticObject.SLALOM_WHITE
+                        else SemanticObject.SLALOM_WHITE)
+            reclassified = self._reclassify_or_promote(
+                position=candidate.pose,
+                correct_type=object_type,
+                wrong_type=wrong_type,
+                tolerance=self.slalom_dup_tolerance,
+            )
+            if reclassified is not None:
+                return reclassified
 
         now = self.get_clock().now().to_msg()
 
@@ -842,6 +969,31 @@ class SemanticMapManager(Node):
 
         self.semantic_map.add(obj)
         return obj
+
+    def _reclassify_or_promote(self, position: np.ndarray, correct_type: int,
+                                wrong_type: int, tolerance: float) -> Optional[SemanticObject]:
+        """
+        If a SemanticObject of wrong_type already sits near `position`, it's likely a
+        YOLO misclassification of the same physical pole -- flip its type in place,
+        preserving its position/confidence/detection history, rather than creating a
+        duplicate or leaving stale wrong-typed data in the map.
+        """
+        wrong_list = self.semantic_map.objects.get(wrong_type)
+        if not wrong_list:
+            return None
+
+        for obj in wrong_list:
+            obj_pos = self._pose_to_vec2(obj.pose.pose)
+            if np.linalg.norm(obj_pos - position) <= tolerance:
+                wrong_list.remove(obj)
+                obj.object_type = correct_type
+                self.semantic_map.objects[correct_type].append(obj)
+                self.get_logger().warn(
+                    f"Reclassified object at ({obj_pos[0]:.2f},{obj_pos[1]:.2f}) "
+                    f"from type {wrong_type} to {correct_type} based on slalom geometry"
+                )
+                return obj
+        return None
 
     def _clear_around_meta_object(self, meta_obj: SemanticObject):
 
