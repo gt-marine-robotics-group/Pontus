@@ -44,7 +44,7 @@ add_executable(sonoptix_driver_node
 
 # Check the ROS distro and set a macro
 if("$ENV{ROS_DISTRO}" STREQUAL "humble")
-    target_compile_definitions(sonoptix_driver_node PRIVATE USE_CV_BRIGE_H)
+    target_compile_definitions(sonoptix_driver_node PRIVATE USE_CV_BRIDGE_H)
 endif()
 
 target_include_directories(sonoptix_driver_node PRIVATE
