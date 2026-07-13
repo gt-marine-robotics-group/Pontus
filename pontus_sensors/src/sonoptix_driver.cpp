@@ -7,10 +7,12 @@
 #include <geometry_msgs/msg/transform_stamped.hpp>
 
 // --- Humble ---
+#ifdef USE_CV_BRIDGE_H
 #include <cv_bridge/cv_bridge.h>
-
+#else
 // --- Jazzy ---
-// #include <cv_bridge/cv_bridge.hpp>
+#include <cv_bridge/cv_bridge.hpp>
+#endif
 
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>

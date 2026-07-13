@@ -42,6 +42,11 @@ add_executable(sonoptix_driver_node
   src/sonoptix_driver.cpp
 )
 
+# Check the ROS distro and set a macro
+if("$ENV{ROS_DISTRO}" STREQUAL "humble")
+    target_compile_definitions(sonoptix_driver_node PRIVATE USE_CV_BRIGE_H)
+endif()
+
 target_include_directories(sonoptix_driver_node PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/colormaps
