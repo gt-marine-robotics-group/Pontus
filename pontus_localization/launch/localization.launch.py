@@ -34,13 +34,13 @@ def generate_launch_description():
                 ("/odometry/filtered", "/pontus/odometry"),
             ]
         ),
-        Node(
-            package='pontus_localization',
-            executable='odom_correction_node',
-            name='odom_correction_node',
-            parameters=[
-                {'imu_correction': imu_correction_config},
-                {'depth_correction': depth_correction_config}
-            ]
-        )
+        # Node(
+        #     package='pontus_localization',
+        #     executable='odom_correction_node',
+        #     name='odom_correction_node',
+        #     parameters=[
+        #         {'imu_correction': imu_correction_config},
+        #         {'depth_correction': depth_correction_config}
+        #     ]
+        # )
     ])
