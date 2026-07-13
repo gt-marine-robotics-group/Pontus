@@ -17,6 +17,12 @@ from pontus_msgs.message_enums import CommandModeEnum
 from pontus_msgs.action import GoToPose
 from rcl_interfaces.msg import SetParametersResult
 
+from tf2_ros import TransformException
+from tf2_ros.buffer import Buffer
+from tf2_geometry_msgs import do_transform_pose_stamped
+from geometry_msgs.msg import TransformStamped
+from tf2_ros.transform_listener import TransformListener
+
 from pontus_controller.PID import PID
 
 class PositionControllerState(Enum):
@@ -38,6 +44,9 @@ class PositionController(Node):
     def __init__(self):
         super().__init__('position_controller')
         self.state = PositionControllerState.Stopped
+
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
 
         param_list = (
             ('default_command_mode', CommandMode.ESTOP),
@@ -90,6 +99,13 @@ class PositionController(Node):
             self.rviz_pose_callback,
             10
         )
+        self.foxglove_pose_sub = self.create_subscription(
+            PoseStamped,
+            '/move_base_simple/goal',
+            self.rviz_pose_callback,
+            10
+        )
+
         self.cmd_vel_manual_sub = self.create_subscription(
           Twist,
           '/cmd_vel',
@@ -271,8 +287,34 @@ class PositionController(Node):
         self.debug_pose_pub.publish(debug_msg)
 
     def rviz_pose_callback(self, msg: PoseStamped):
-        # TODO: technically the command may not be in map frame,
-        #       consider transforming the pose
+        if (msg.header.frame_id == "map"):
+            msg.pose.position.z = self.cmd_pos_linear[2]
+        else:
+            try:
+                t: TransformStamped = self.tf_buffer.lookup_transform(
+                    "map",
+                    msg.header.frame_id,
+                    rclpy.time.Time() # Empty time gets most recent tf
+                )
+
+                msg = do_transform_pose_stamped(msg, t)
+                msg_euler = Rotation.from_quat([
+                    msg.pose.orientation.x,
+                    msg.pose.orientation.y,
+                    msg.pose.orientation.z,
+                    msg.pose.orientation.w,
+                ]).as_euler("xyz")
+
+                yaw_quat = Rotation.from_euler("xyz", [0, 0, msg_euler[2]]).as_quat()
+                msg.pose.orientation.x = yaw_quat[0]
+                msg.pose.orientation.y = yaw_quat[1]
+                msg.pose.orientation.z = yaw_quat[2]
+                msg.pose.orientation.w = yaw_quat[3]
+            except TransformException as ex:
+                self.get_logger().info(f"Failed to transform target point: {ex}")
+                return
+
+        self.get_logger().info(f"cmd callback, mode: {self.command_mode}, state: {self.state}")
         self.cmd_pos_callback(msg.pose, header=msg.header)
 
     def state_debugger(self) -> None:
