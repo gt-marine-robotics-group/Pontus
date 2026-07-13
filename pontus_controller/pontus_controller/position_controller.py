@@ -314,7 +314,6 @@ class PositionController(Node):
                 self.get_logger().info(f"Failed to transform target point: {ex}")
                 return
 
-        self.get_logger().info(f"cmd callback, mode: {self.command_mode}, state: {self.state}")
         self.cmd_pos_callback(msg.pose, header=msg.header)
 
     def state_debugger(self) -> None:
