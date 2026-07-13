@@ -19,6 +19,19 @@ def generate_launch_description() -> LaunchDescription:
         ]),
     )
 
+    model_path_arg = DeclareLaunchArgument(
+        'model_path',
+        default_value='',
+        description='Override path to YOLO model (.pt or .engine). '
+                    'If empty, falls back to the package default.',
+    )
+
+    force_compressed_arg = DeclareLaunchArgument(
+        'force_compressed',
+        default_value='false',
+        description='Subscribe directly to compressed image topics, skipping raw.',
+    )
+
     # ------  Set whether sim or read hardware ------
     auv_config_str: Optional[str] = 'auv'
     for arg in sys.argv:
@@ -35,6 +48,8 @@ def generate_launch_description() -> LaunchDescription:
             ParameterFile(LaunchConfiguration('topics_config'), allow_substs=True),
             {
                 'auv': auv_config_str,
+                'model_path': LaunchConfiguration('model_path'),
+                'force_compressed': LaunchConfiguration('force_compressed'),
             },
         ],
     )
@@ -44,6 +59,8 @@ def generate_launch_description() -> LaunchDescription:
     ]
 
     return LaunchDescription([
-    topics_config_arg,
-    *launch_description
-])
+        topics_config_arg,
+        model_path_arg,
+        force_compressed_arg,
+        *launch_description
+    ])

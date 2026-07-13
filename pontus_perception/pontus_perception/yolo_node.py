@@ -17,13 +17,14 @@ batch=N engine batches up to N images in a single call.
 import os
 import time
 import traceback
+import threading
 from typing import Dict, List, Optional, Union
 
 import torch
 import numpy as np
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, QoSPresetProfiles
 from rclpy.subscription import Subscription
 from rclpy.publisher import Publisher
 
@@ -112,9 +113,11 @@ class MultiCamYoloNode(Node):
         self.declare_parameter('model_path', '')
         self.declare_parameter('threshold', 0.6)
         self.declare_parameter('auv', 'auv')
+        self.declare_parameter('force_compressed', False)
         auv: str = str(self.get_parameter('auv').value)
         model_path_param: str = str(self.get_parameter('model_path').value)
         self.threshold: float = float(self.get_parameter('threshold').value)
+        self.force_compressed: bool = bool(self.get_parameter('force_compressed').value)
 
         resolved_model = self._resolve_model_path(model_path_param, auv)
         have_cuda = torch.cuda.is_available()
@@ -178,21 +181,23 @@ class MultiCamYoloNode(Node):
     # ------ Model Resolution ------
 
     def _resolve_model_path(self, param_value: str, auv: str) -> str:
-        """Return model path with priority: engine -> param override -> .pt fallback.
+        """Return model path with priority: param override -> engine -> .pt fallback.
 
-        TensorRT engines are preferred for inference speed on the Jetson.
-        A user-provided model_path param is used if no engine exists.
-        Falls back to the default .pt model as a last resort.
+        An explicit model_path param always wins, allowing easy model swapping
+        at launch time.  If none is provided, TensorRT engines are preferred
+        for inference speed on the Jetson.  Falls back to the default .pt
+        model as a last resort.
         """
         pkg_share = get_package_share_directory('pontus_perception')
         engine_path = os.path.join(pkg_share, 'yolo', auv, 'model.engine')
         pt_path = os.path.join(pkg_share, 'yolo', auv, 'model.pt')
 
+        if param_value and os.path.exists(param_value):
+            self.get_logger().info(f'Using override model: {param_value}')
+            return param_value
+
         if os.path.exists(engine_path):
             return engine_path
-
-        if param_value and os.path.exists(param_value):
-            return param_value
 
         self.get_logger().warn(
             f'Engine not found. Falling back to {pt_path}')
@@ -247,12 +252,23 @@ class MultiCamYoloNode(Node):
         cs.overlay_pub = self.create_publisher(
             Image, overlay_topic, self.img_qos)
 
-        # Start with raw image subscription
-        cs.raw_sub = self.create_subscription(
-            Image, image_topic,
-            self._make_image_cb(cs, compressed=False),
-            self.img_qos,
-        )
+        # Start with raw image subscription, unless force_compressed is set
+        if self.force_compressed:
+            compressed_topic = image_topic + "/compressed"
+            cs.compressed_sub = self.create_subscription(
+                CompressedImage, compressed_topic,
+                self._make_image_cb(cs, compressed=True),
+                self.img_qos,
+            )
+            self.get_logger().info(
+                f"  Camera '{cam_name}': force_compressed=True, "
+                f"subscribing directly to {compressed_topic}")
+        else:
+            cs.raw_sub = self.create_subscription(
+                Image, image_topic,
+                self._make_image_cb(cs, compressed=False),
+                self.img_qos,
+            )
 
         self.cam_states[cam_name] = cs
         self.get_logger().info(
@@ -380,7 +396,10 @@ class MultiCamYoloNode(Node):
                 batch_imgs.append(img)
             except Exception as e:
                 self.get_logger().warn(
-                    f"[{cs.name}] decode failed: {e}")
+                    f"[{cs.name}] decode failed: {e}\n"
+                    f"  is_compressed={cs.is_compressed}, "
+                    f"  msg_type={type(cs.latest_msg).__name__}"
+                )
 
         if not batch_imgs:
             return
@@ -388,6 +407,17 @@ class MultiCamYoloNode(Node):
         self.processing = True
         self.proc_calls += 1
 
+        # Run inference in a background thread so the ROS executor stays responsive
+        threading.Thread(
+            target=self._infer_and_publish,
+            args=(batch_cams, batch_imgs),
+            daemon=True,
+        ).start()
+
+    def _infer_and_publish(
+        self, batch_cams: List['_CamState'], batch_imgs: List[np.ndarray]
+    ) -> None:
+        """Run inference and publish results (called from a background thread)."""
         try:
             t0 = time.time()
 
@@ -404,7 +434,7 @@ class MultiCamYoloNode(Node):
             for chunk in chunks:
                 res = self.model(
                     chunk, device=self.device,
-                    verbose=False, conf=self.threshold, half=True)
+                    verbose=False, conf=self.threshold, half=False)
                 results.extend(res)
 
             self.last_infer_ms = (time.time() - t0) * 1000.0
