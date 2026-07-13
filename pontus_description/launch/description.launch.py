@@ -103,16 +103,16 @@ def generate_launch_description():
 
     urdf_nodes = OpaqueFunction(function=create_urdf_nodes)
 
-    odom_to_map_tf = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='static_transform_publisher',
-        arguments = ["--x", "0", "--y", "0", "--z", "0", "--roll", "0", "--pitch", "0", "--yaw", "0.0", "--frame-id", "map", "--child-frame-id", "odom"]
-    )
+    # odom_to_map_tf = Node(
+    #     package='tf2_ros',
+    #     executable='static_transform_publisher',
+    #     name='static_transform_publisher',
+    #     arguments = ["--x", "0", "--y", "0", "--z", "0", "--roll", "0", "--pitch", "0", "--yaw", "0.0", "--frame-id", "map", "--child-frame-id", "odom"]
+    # )
 
     return LaunchDescription([
         sim_arg,
         static_arg,
         urdf_nodes,
-        odom_to_map_tf
+        # odom_to_map_tf
     ])

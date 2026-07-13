@@ -33,6 +33,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'odom_correction_node = pontus_localization.odom_correction_node:main'
         ],
     },
 )

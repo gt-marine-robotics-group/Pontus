@@ -52,7 +52,8 @@ class VelocityNode(Node):
             ('angular_drag_gain', 0.2),
             ('buoyancy_feedforward_gain', 1.19),
             ('direct_mode_linear_gain', 12.0),
-            ('direct_mode_angular_gain', 0.35)
+            ('direct_mode_angular_gain', 0.35),
+            ('pitch_drag_ff_gain', 2.0)
         )
 
         self.add_on_set_parameters_callback(self.param_callback)
@@ -276,6 +277,9 @@ class VelocityNode(Node):
 
         # Compute hacky pitch FF term to counteract drag on the bottom of the vehicle
         # angular_ff[1] = -0.2 * self.cmd_linear[0]
+
+        # Janky pitch feed forward term to counteract drag on the bottom of the sub
+        angular_ff[1] += -self.pitch_drag_ff_gain * self.cmd_linear[0]
 
         return linear_ff, angular_ff
 
