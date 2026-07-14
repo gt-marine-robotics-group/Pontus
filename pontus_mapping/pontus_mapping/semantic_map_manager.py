@@ -651,7 +651,7 @@ class SemanticMapManager(Node):
         ref_line: Optional[np.ndarray] = None
         perp_unit: Optional[np.ndarray] = None
         if locked_rows:
-            ref_pos, ref_line = self._row_line_from_semantic(locked_rows[0])
+            ref_pos, ref_line = self._row_line_from_semantic(locked_rows[-1])
             perp_unit = np.array([-ref_line[1], ref_line[0]])
 
         proposals: List[SlalomRowProposal] = []
@@ -691,7 +691,7 @@ class SemanticMapManager(Node):
                         continue
 
                     result = self._classify_unknown_pair(
-                        p1, p2, locked_rows[0], ref_line)
+                        p1, p2, locked_rows[-1], ref_line)
                     if result is None:
                         continue
                     white1, red = result
