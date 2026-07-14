@@ -352,6 +352,7 @@ class SemanticMapManager(Node):
             PointCloud2,
             '/pontus/unlabeled_candidate_tracks',
             self.update_candidate_tracks,
+            10
         )
 
         map_visual_period = 1.0
