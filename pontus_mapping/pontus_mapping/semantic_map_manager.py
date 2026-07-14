@@ -268,7 +268,7 @@ class SlalomCandidate:
         candidates = []
         for track in sonar_tracks:
             candidates.append(SlalomCandidate(
-                kind=CandidateKind.UNKNOWN_TRACK, pose=track, known=False))
+                kind=CandidateKind.UNKNOWN_TRACK, pose=track, known=False, obj=None))
         return candidates
 
 
@@ -456,8 +456,10 @@ class SemanticMapManager(Node):
         This method is called whenever a new unlabeled candidate track message is received.
         """
         # List of candidate tracks
-        tracks: List[np.ndarray] = list(pc2.read_points(
-            msg, field_names=("x", "y"), skip_nans=True))
+        tracks: List[np.ndarray] = [
+            np.array([t[0], t[1]], dtype=float)
+            for t in pc2.read_points(msg, field_names=("x", "y"), skip_nans=True)
+        ]
 
         # Convert to SlalomCandidate objects with unknown kind
         self.sonar_tracks = SlalomCandidate.build_slalom_candidates_from_sonar_tracks(
@@ -674,6 +676,9 @@ class SemanticMapManager(Node):
                 point_diff = abs(point_width - self.slalom_white_to_red_width)
                 # skip current point pairs if distances are not around 1.5m
                 if (not point_diff <= self.slalom_width_tolerance):
+                    self.get_logger().info(
+                        f"Invalid point pair: {point_diff} width diff of type {p1.kind} and {p2.kind} not within tolerance"
+                    )
                     continue
 
                 self.get_logger().info(
@@ -702,8 +707,7 @@ class SemanticMapManager(Node):
                     white1, red = (
                         p2, p1) if p2.kind == CandidateKind.SLALOM_WHITE else (p1, p2)
 
-                row_line_unit_vec = (red.pose - white1.pose) / \
-                    np.linalg.norm(red.pose - white1.pose)
+                row_line_unit_vec = (red.pose - white1.pose) / np.linalg.norm(red.pose - white1.pose)
 
                 # Create a synthetic white2 position based on the red position and the row line unit vector
                 w2_pos = red.pose + (row_line_unit_vec *
@@ -945,11 +949,11 @@ class SemanticMapManager(Node):
 
         for p in proposals:
             is_dup = False
-            for k in kept:
-                if self._same_row(p, k):
+            for k in range(len(kept)):
+                if self._same_row(p, kept[k]):
                     is_dup = True
-                    if p.score > k.score:
-                        kept.remove(k)
+                    if p.score > kept[k].score:
+                        del kept[k]
                         kept.append(p)
                     break
             if not is_dup:
