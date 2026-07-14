@@ -776,10 +776,9 @@ class SemanticMapManager(Node):
 
                 span = b.pose - a.pose
                 span_len = np.linalg.norm(span)
-                span_unit = span / span_len
-
                 if abs(span_len - self.slalom_white_to_white_width) > self.slalom_width_tolerance:
                     continue  # not a valid width
+                span_unit = span / span_len
 
                 best_mid, best_perp = None, None
                 for k in range(len(all_candidates)):
