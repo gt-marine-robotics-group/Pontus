@@ -1136,17 +1136,17 @@ class SemanticMapManager(Node):
             )
             return None
 
-        if trust_geometry:
-            wrong_type = (SemanticObject.SLALOM_RED if object_type == SemanticObject.SLALOM_WHITE
-                          else SemanticObject.SLALOM_WHITE)
-            reclassified = self._reclassify_or_promote(
-                position=candidate.pose,
-                correct_type=object_type,
-                wrong_type=wrong_type,
-                tolerance=self.slalom_dup_tolerance,
-            )
-            if reclassified is not None:
-                return reclassified
+        # if trust_geometry:
+        #     wrong_type = (SemanticObject.SLALOM_RED if object_type == SemanticObject.SLALOM_WHITE
+        #                   else SemanticObject.SLALOM_WHITE)
+        #     reclassified = self._reclassify_or_promote(
+        #         position=candidate.pose,
+        #         correct_type=object_type,
+        #         wrong_type=wrong_type,
+        #         tolerance=self.slalom_dup_tolerance,
+        #     )
+        #     if reclassified is not None:
+        #         return reclassified
 
         now = self.get_clock().now().to_msg()
 
