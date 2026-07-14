@@ -69,7 +69,7 @@ class PositionController(Node):
             ('p_kp', 3.0),
             ('p_ki', 0.0),
             ('p_kd', 0.4),
-            ('yaw_kp', 1.0),
+            ('yaw_kp', 0.2),
             ('yaw_ki', 0.0),
             ('yaw_kd', 0.0),
         )
