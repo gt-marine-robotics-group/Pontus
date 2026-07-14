@@ -16,6 +16,9 @@ import sys
 from enum import Enum
 import sensor_msgs_py.point_cloud2 as pc2
 
+#import qos
+from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy
+
 import rclpy
 from rclpy.node import Node
 from rclpy.time import Time
@@ -24,7 +27,7 @@ from rclpy.duration import Duration
 import tf2_ros
 import tf2_geometry_msgs
 
-from std_msgs.msg import Header, String
+from std_msgs.msg import Header, String, ColorRGBA
 from geometry_msgs.msg import Pose, PoseWithCovariance, Point, Quaternion, PoseStamped
 from visualization_msgs.msg import Marker, MarkerArray
 from sensor_msgs.msg import PointCloud2
@@ -347,6 +350,12 @@ class SemanticMapManager(Node):
             10
         )
 
+        self.slalom_debug_marker_pub = self.create_publisher(
+            MarkerArray,
+            '/pontus/slalom_debug_markers',
+            10
+        )
+
         # Subscriptions
         self.create_subscription(
             PointCloud2,
@@ -368,8 +377,6 @@ class SemanticMapManager(Node):
 
         # TODO: put semantic_map publisher on a timer
         self.create_timer(1.0, self.publish_semantic_map)
-
-        self.create_timer(1.0, self._update_meta_slalom)
 
     def add_semantic_object_callback(self,
                                      request: AddSemanticObject.Request,
@@ -462,6 +469,8 @@ class SemanticMapManager(Node):
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = "map"
         self.semantic_map_pub.publish(msg)
+
+        self._update_meta_slalom()
 
     def publish_semantic_map_visual(self) -> None:
         marker_array = MarkerArray()
@@ -584,9 +593,9 @@ class SemanticMapManager(Node):
         """
 
         # TODO: implement behaviour for gate not detected or don't rely on distance to gate for ordering at all
-        if self.semantic_map.semantic_map.meta_gate.header.frame_id == "":
-            # self.get_logger().info("no gate detected")
-            return
+        # if self.semantic_map.semantic_map.meta_gate.header.frame_id == "":
+        #     # self.get_logger().info("no gate detected")
+        #     return
 
         # If all 3 slalom rows are already fully formed (2 white + 1 red), keep them locked.
         existing_rows = self.semantic_map.semantic_map.meta_slalom.meta_slalom_rows
@@ -601,6 +610,8 @@ class SemanticMapManager(Node):
         red_list: list[SemanticObject] = self.semantic_map.semantic_map.slalom_red
         white_list: list[SemanticObject] = self.semantic_map.semantic_map.slalom_white
 
+        self.get_logger().info(f"Red slalom count: {len(red_list)}, White slalom count: {len(white_list)}")
+
         red_candidates = SlalomCandidate.build_slalom_candidates_from_semantic_objects(red_list)
         white_candidates = SlalomCandidate.build_slalom_candidates_from_semantic_objects(white_list)
 
@@ -609,9 +620,12 @@ class SemanticMapManager(Node):
         all_candidates.extend(white_candidates)
 
         if len(all_candidates) < 1:
+            self.get_logger().info("No slalom candidates found")
             return
 
         all_candidates.extend(self.sonar_tracks)
+
+        self.get_logger().info(f"Total slalom candidates (including sonar tracks): {len(all_candidates)}")
 
         locked_rows = self.semantic_map.semantic_map.meta_slalom.meta_slalom_rows
         ref_pos: Optional[np.ndarray] = None
@@ -623,7 +637,11 @@ class SemanticMapManager(Node):
 
         proposals: List[SlalomRowProposal] = []
 
+        self.get_logger().info(f"Locked rows: {len(locked_rows)}")
+
         proposals = self._find_full_triplets(all_candidates)
+
+        self.get_logger().info(f"Found {len(proposals)} slalom row proposals")
 
         flag = False
         for i in range(len(all_candidates)):
@@ -688,14 +706,24 @@ class SemanticMapManager(Node):
         
         if not proposals:
             return
+        
+        raw_proposals = list(proposals)  # snapshot before dedupe/validate mutate the working list
 
         proposals = self._dedupe_row_proposals(proposals)
         proposals = self._validate_row_proposals(proposals, ref_pos, ref_line, perp_unit)
 
+        self._publish_slalom_debug(all_candidates, raw_proposals, proposals)
+
         if not proposals:
             return
 
-        left_gate = self._pose_to_vec2(self.semantic_map.semantic_map.meta_gate.left_gate.pose.pose)
+        # Get first left gate
+        left_gate = self._pose_to_vec2(self.semantic_map.semantic_map.gate_left[0].pose.pose) if self.semantic_map.semantic_map.gate_left else None
+
+        if left_gate is None:
+            self.get_logger().warn("No left gate found, cannot update meta slalom")
+            return
+
         slalom_rows = []
         for p in proposals:
             if p.suspected_mislabel is not None:
@@ -1177,6 +1205,118 @@ class SemanticMapManager(Node):
             self.get_logger().warn(f"exception: {e}")
             return pose_stamped.pose
 
+    def _publish_slalom_debug(self, all_candidates: List[SlalomCandidate],
+                            raw_proposals: List[SlalomRowProposal],
+                            kept_proposals: List[SlalomRowProposal]) -> None:
+        """
+        Publishes a rich debug MarkerArray showing the internal state of the slalom
+        pipeline: raw candidates, every triplet proposal considered (colored by score),
+        and which proposals survived dedupe/validation.
+        """
+        marker_array = MarkerArray()
+        now = self.get_clock().now().to_msg()
+        mid = 0
+
+        def next_id():
+            nonlocal mid
+            mid += 1
+            return mid
+
+        # Clear previous markers each cycle -- DELETEALL avoids stale ghosts from prior ticks.
+        clear = Marker()
+        clear.header.frame_id = 'map'
+        clear.header.stamp = now
+        clear.action = Marker.DELETEALL
+        marker_array.markers.append(clear)
+
+        # ---- Layer 1: raw candidates ----
+        for c in all_candidates:
+            m = Marker()
+            m.header.frame_id = 'map'
+            m.header.stamp = now
+            m.ns = 'candidates'
+            m.id = next_id()
+            m.type = Marker.SPHERE
+            m.action = Marker.ADD
+            m.pose.position.x = float(c.pose[0])
+            m.pose.position.y = float(c.pose[1])
+            m.pose.position.z = 0.1
+            m.pose.orientation.w = 1.0
+            m.scale.x = m.scale.y = m.scale.z = 0.15
+            m.lifetime = Duration(seconds=1.5).to_msg()
+
+            if c.kind == CandidateKind.SLALOM_RED:
+                m.color = ColorRGBA(r=1.0, g=0.0, b=0.0, a=0.9 if c.known else 0.4)
+            elif c.kind == CandidateKind.SLALOM_WHITE:
+                m.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=0.9 if c.known else 0.4)
+            else:
+                m.color = ColorRGBA(r=0.5, g=0.5, b=0.5, a=0.5)  # unknown sonar track
+
+            marker_array.markers.append(m)
+
+        # ---- Layer 2 & 3: proposals (raw = all considered, kept = survivors) ----
+        kept_ids = {id(p) for p in kept_proposals}
+
+        for p in raw_proposals:
+            is_kept = id(p) in kept_ids
+            ns = 'triplets_kept' if is_kept else 'triplets_raw'
+
+            line = Marker()
+            line.header.frame_id = 'map'
+            line.header.stamp = now
+            line.ns = ns
+            line.id = next_id()
+            line.type = Marker.LINE_STRIP
+            line.action = Marker.ADD
+            line.pose.orientation.w = 1.0
+            line.scale.x = 0.06 if is_kept else 0.02
+            line.lifetime = Duration(seconds=1.5).to_msg()
+
+            w1 = p.white1.pose
+            w2 = p.white2.pose
+            red = p.red_pos
+            line.points = [
+                Point(x=float(w1[0]), y=float(w1[1]), z=0.05),
+                Point(x=float(red[0]), y=float(red[1]), z=0.05),
+                Point(x=float(w2[0]), y=float(w2[1]), z=0.05),
+            ]
+
+            # Color by score: green = good, red = bad, gray = derived (score=-inf)
+            if p.score == float('-inf'):
+                line.color = ColorRGBA(r=0.6, g=0.6, b=1.0, a=0.5 if is_kept else 0.2)  # blue-ish for derived
+            else:
+                norm_score = max(0.0, min(1.0, 1.0 + p.score / 2.0))  # rough normalization, tune to your score range
+                line.color = ColorRGBA(r=1.0 - norm_score, g=norm_score, b=0.0, a=0.9 if is_kept else 0.25)
+
+            marker_array.markers.append(line)
+
+            # Text label with score/flags -- only for kept, to avoid clutter
+            if is_kept:
+                text = Marker()
+                text.header.frame_id = 'map'
+                text.header.stamp = now
+                text.ns = 'triplet_labels'
+                text.id = next_id()
+                text.type = Marker.TEXT_VIEW_FACING
+                text.action = Marker.ADD
+                text.pose.position.x = float(red[0])
+                text.pose.position.y = float(red[1])
+                text.pose.position.z = 0.5
+                text.pose.orientation.w = 1.0
+                text.scale.z = 0.25
+                text.color = ColorRGBA(r=1.0, g=1.0, b=0.0, a=1.0)
+                text.lifetime = Duration(seconds=1.5).to_msg()
+
+                flags = []
+                if p.derived:
+                    flags.append("derived")
+                if p.suspected_mislabel is not None:
+                    flags.append("MISLABEL?")
+                score_str = "n/a" if p.score == float('-inf') else f"{p.score:.2f}"
+                text.text = f"score={score_str} {' '.join(flags)}"
+                marker_array.markers.append(text)
+
+        self.slalom_debug_marker_pub.publish(marker_array)
 
 def main(args=None):
     rclpy.init(args=args)
