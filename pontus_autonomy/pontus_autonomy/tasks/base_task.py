@@ -11,6 +11,7 @@ class BaseTask(Node):
         self.name = f"{name}_{str(seconds)[-4:]}"
         super().__init__(self.name)
 
+        self.waypoints = []
         self.task_future = rclpy.task.Future()
 
     def wait_for_task(self) -> None:

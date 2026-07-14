@@ -22,6 +22,7 @@ class BaseRun(Node):
                  handle_command_mode: bool = True,
                  start_run_wait_time_s: int = 8):
         super().__init__(name)
+        self.waypoints = []
 
         self.get_logger().info(f"Starting {name}")
 
@@ -78,7 +79,7 @@ class BaseRun(Node):
 
         waypoints = None
         if hasattr(self.current_task, "waypoints"):
-            waypoints = self.current_task.waypoints
+            waypoints = self.current_task.waypoints.copy()
 
         self.cleanup_task()
 
