@@ -674,6 +674,9 @@ class SemanticMapManager(Node):
                 point_diff = abs(point_width - self.slalom_white_to_red_width)
                 # skip current point pairs if distances are not around 1.5m
                 if (not point_diff <= self.slalom_width_tolerance):
+                    self.get_logger().info(
+                        f"Invalid point pair: {point_diff} width diff of type {p1.kind} and {p2.kind} not within tolerance"
+                    )
                     continue
 
                 self.get_logger().info(
@@ -702,8 +705,7 @@ class SemanticMapManager(Node):
                     white1, red = (
                         p2, p1) if p2.kind == CandidateKind.SLALOM_WHITE else (p1, p2)
 
-                row_line_unit_vec = (red.pose - white1.pose) / \
-                    np.linalg.norm(red.pose - white1.pose)
+                row_line_unit_vec = (red.pose - white1.pose) / np.linalg.norm(red.pose - white1.pose)
 
                 # Create a synthetic white2 position based on the red position and the row line unit vector
                 w2_pos = red.pose + (row_line_unit_vec *
