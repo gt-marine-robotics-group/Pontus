@@ -15,6 +15,8 @@ from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 from scipy.spatial.transform import Rotation as R
 
+from geometry_msgs.msg import PoseStamped
+
 """
 Robot localization expects the position from odom to already be in the odom frame.
 Since our DVL is not in the correct frame, this republisher will convert odom into the
@@ -27,7 +29,7 @@ class DvlRepub(Node):
     def __init__(self):
         super().__init__('dvl_repub')
 
-        self.declare_parameter('imu_correction', False)
+        self.declare_parameter('imu_correction', True)
         self.declare_parameter('depth_correction', False)
 
         self.imu_correction = self.get_parameter('imu_correction').get_parameter_value().bool_value
@@ -48,7 +50,8 @@ class DvlRepub(Node):
         if self.imu_correction:
             self.imu_sub = self.create_subscription(
                 Imu,
-                '/pontus/imu_0',
+                # '/pontus/imu_0',
+                '/imu/data',
                 self.imu_callback,
                 qos_profile=qos_profile
             )
@@ -56,6 +59,12 @@ class DvlRepub(Node):
         self.dvl_pub = self.create_publisher(
             Odometry,
             '/pontus/dvl',
+            10
+        )
+
+        self.debug_pose_pub = self.create_publisher(
+            PoseStamped,
+            '/debug_IMU_POSE',
             10
         )
 
@@ -175,8 +184,18 @@ class DvlRepub(Node):
             self.imu_msg.orientation.z,
             self.imu_msg.orientation.w,
         ])
+        euler_imu_orientation = r_imu_orientation.as_euler("xyz")
 
-        r_vehicle_real_orientation = r_imu_mount_offset * r_imu_orientation
+        r_imu_remapped = R.from_euler("xyz", [
+            euler_imu_orientation[1],
+            -euler_imu_orientation[0],
+            euler_imu_orientation[2],
+        ])
+
+
+        r_vehicle_real_orientation = r_imu_mount_offset * r_imu_remapped
+
+        # self.debug_pub(r_vehicle_real_orientation)
 
         # Odom to map frame transform to correct for odometry zeroing its
         # axes not level to the world
@@ -193,11 +212,13 @@ class DvlRepub(Node):
         final_quat = r_final.as_quat()
         self.dvl_inialization_offset = r_final
 
-        # self.get_logger().info(f"odom orientation: {r_odometry_reported_orientation.as_euler("xyz")}")
-        # self.get_logger().info(f"imu base data: {euler_imu_data}")
-        # self.get_logger().info(f"vehicle real orientation: {r_vehicle_real_orientation.as_euler("xyz")}")
-        # self.get_logger().info(f"Correction: {r_correction.as_euler("xyz")}")
-        self.get_logger().info(f"Setting DVL Initialization offset to {r_final.as_euler("xyz")}")
+        # self.get_logger().info(f"imu mount offset: {r_imu_mount_offset.as_euler('xyz')}")
+        # self.get_logger().info(f"imu base data: {r_imu_orientation.as_euler('xyz')}")
+        # self.get_logger().info(f"imu remapped data: {r_imu_remapped.as_euler('xyz')}")
+        # self.get_logger().info(f"vehicle real orientation: {r_vehicle_real_orientation.as_euler('xyz')}")
+        # self.get_logger().info(f"odom orientation: {r_odometry_reported_orientation.as_euler('xyz')}")
+        # self.get_logger().info(f"Correction: {r_correction.as_euler('xyz')}")
+        self.get_logger().info(f"Setting DVL Initialization offset to {r_final.as_euler('xyz')}")
         return True
 
     def rotate_dvl_msg(self, msg: Odometry):
@@ -242,6 +263,21 @@ class DvlRepub(Node):
         corrected_msg.twist.twist.linear.z = vec_corrected_velocity[2]
 
         return corrected_msg
+
+    def debug_pub(self, rot):
+        msg = PoseStamped()
+        msg.header.frame_id = "map"
+
+
+        quat = rot.as_quat()
+        msg.pose.orientation.x = quat[0]
+        msg.pose.orientation.y = quat[1]
+        msg.pose.orientation.z = quat[2]
+        msg.pose.orientation.w = quat[3]
+
+        self.debug_pose_pub.publish(msg)
+
+
 
 def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
