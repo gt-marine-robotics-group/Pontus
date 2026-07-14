@@ -310,6 +310,7 @@ class SemanticMapManager(Node):
                 ("slalom_row_deviation", 1.2),
                 # max deviation along row direction between rows
                 ("slalom_row_deviation_deg", 20.0),
+                ("gate_exclusion_radius_m", 0.8)
             ]
         )
 
@@ -333,6 +334,8 @@ class SemanticMapManager(Node):
             self.get_parameter("slalom_row_deviation").value)
         self.slalom_row_deviation_deg = float(
             self.get_parameter("slalom_row_deviation_deg").value)
+        self.gate_exclusion_radius_m = float(
+            self.get_parameter("gate_exclusion_radius_m").value)
 
         self.sonar_tracks: List[SlalomCandidate] = []
         self.row_candidates = []
@@ -610,9 +613,9 @@ class SemanticMapManager(Node):
         """
 
         # TODO: implement behaviour for gate not detected or don't rely on distance to gate for ordering at all
-        # if self.semantic_map.semantic_map.meta_gate.header.frame_id == "":
-        #     # self.get_logger().info("no gate detected")
-        #     return
+        if self.semantic_map.semantic_map.meta_gate.header.frame_id == "":
+            # self.get_logger().info("no gate detected")
+            return
 
         # If all 3 slalom rows are already fully formed (2 white + 1 red), keep them locked.
         existing_rows = self.semantic_map.semantic_map.meta_slalom.meta_slalom_rows
@@ -644,6 +647,15 @@ class SemanticMapManager(Node):
             return
 
         all_candidates.extend(self.sonar_tracks)
+
+        before_filter = len(all_candidates)
+        all_candidates = [
+            c for c in all_candidates
+            if not self._near_known_gate(c.pose, self.gate_exclusion_radius_m)
+        ]
+        excluded = before_filter - len(all_candidates)
+        if excluded:
+            self.get_logger().info(f"Excluded {excluded} slalom candidates near known gate poles")
 
         self.get_logger().info(
             f"Total slalom candidates (including sonar tracks): {len(all_candidates)}")
@@ -789,6 +801,11 @@ class SemanticMapManager(Node):
 
             red_obj = self._promote_candidate(
                 p.red, SemanticObject.SLALOM_RED, trust_geometry=not p.derived)
+            
+            if red_obj is None or w1_obj is None or w2_obj is None:
+                self.get_logger().warn(
+                    "Failed to promote candidates to semantic objects, skipping this proposal")
+                continue
 
             red_to_gate_dist = np.linalg.norm(p.red_pos - left_gate)
             # sort key is arbitrary now, see below
@@ -832,6 +849,16 @@ class SemanticMapManager(Node):
             self.get_logger().info(log_message)
         # add to semantic map
         self.semantic_map.add_meta_slalom(slalom_rows)
+
+    def _near_known_gate(self, point_xy: np.ndarray, tolerance: float) -> bool:
+        """True if point_xy is close to any already-detected gate pole (locked or not)."""
+        for obj in self.semantic_map.semantic_map.gate_left:
+            if np.linalg.norm(self._pose_to_vec2(obj.pose.pose) - point_xy) <= tolerance:
+                return True
+        for obj in self.semantic_map.semantic_map.gate_right:
+            if np.linalg.norm(self._pose_to_vec2(obj.pose.pose) - point_xy) <= tolerance:
+                return True
+        return False
 
     def _find_full_triplets(self, all_candidates: List[SlalomCandidate]) -> List[SlalomRowProposal]:
         """
@@ -1031,6 +1058,13 @@ class SemanticMapManager(Node):
                 f"\n\nAlredy known candidate of type: {object_type} with [{trust_geometry}] trusted geometry."
             )
             return candidate.obj
+
+        if self._near_known_gate(candidate.pose, self.gate_exclusion_radius_m):
+            self.get_logger().warn(
+                f"Refusing to promote slalom candidate at ({candidate.pose[0]:.2f},"
+                f"{candidate.pose[1]:.2f}) -- too close to a known gate pole"
+            )
+            return None
 
         if trust_geometry:
             wrong_type = (SemanticObject.SLALOM_RED if object_type == SemanticObject.SLALOM_WHITE
