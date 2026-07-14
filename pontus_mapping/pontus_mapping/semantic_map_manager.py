@@ -614,7 +614,7 @@ class SemanticMapManager(Node):
 
         # TODO: implement behaviour for gate not detected or don't rely on distance to gate for ordering at all
         if self.semantic_map.semantic_map.meta_gate.header.frame_id == "":
-            # self.get_logger().info("no gate detected")
+            self.get_logger().info("no gate detected")
             return
 
         # If all 3 slalom rows are already fully formed (2 white + 1 red), keep them locked.
