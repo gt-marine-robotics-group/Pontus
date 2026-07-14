@@ -309,7 +309,7 @@ class SemanticMapManager(Node):
                 # max deviation along row direction between rows
                 ("slalom_row_deviation", 1.2),
                 # max deviation along row direction between rows
-                ("slalom_row_deviation_deg", 15.0),
+                ("slalom_row_deviation_deg", 20.0),
             ]
         )
 
