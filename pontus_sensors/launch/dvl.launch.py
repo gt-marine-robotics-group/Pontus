@@ -2,7 +2,7 @@ import os
 import ament_index_python
 from launch import LaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.actions import IncludeLaunchDescription, ExecuteProcess
+from launch.actions import IncludeLaunchDescription, ExecuteProcess, DeclareLaunchArgument
 from launch_ros.actions import Node, SetRemap
 from launch.substitutions import LaunchConfiguration
 
@@ -17,7 +17,11 @@ _PONTUS_DVL_PARAMS_FILE = os.path.join(
 )
 
 def generate_launch_description():
+    imu_correction_arg = DeclareLaunchArgument('imu_correction', default_value = 'false')
+    imu_correction_config = LaunchConfiguration('imu_correction')
+
     return LaunchDescription([
+        imu_correction_arg,
         Node(
             package='dvl_a50',
             executable='dvl_a50_sensor',
@@ -29,6 +33,9 @@ def generate_launch_description():
             package='pontus_sensors',
             executable='dvl_republish.py',
             name='dvl_republish',
+            parameters=[
+                {'imu_correction': imu_correction_config},
+            ],
             output='screen',
         )
     ])
