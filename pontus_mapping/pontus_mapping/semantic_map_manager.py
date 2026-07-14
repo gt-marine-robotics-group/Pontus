@@ -311,7 +311,8 @@ class SemanticMapManager(Node):
                 ("slalom_row_deviation", 1.2),
                 # max deviation along row direction between rows
                 ("slalom_row_deviation_deg", 20.0),
-                ("gate_exclusion_radius_m", 0.8)
+                ("gate_exclusion_radius_m", 0.8),
+                ("gate_row_max_angle_deg", 35.0),
             ]
         )
 
@@ -337,6 +338,8 @@ class SemanticMapManager(Node):
             self.get_parameter("slalom_row_deviation_deg").value)
         self.gate_exclusion_radius_m = float(
             self.get_parameter("gate_exclusion_radius_m").value)
+        self.gate_row_max_angle_deg = float(
+            self.get_parameter("gate_row_max_angle_deg").value)
 
         self.sonar_tracks: List[SlalomCandidate] = []
         self.row_candidates = []
@@ -768,9 +771,26 @@ class SemanticMapManager(Node):
         # snapshot before dedupe/validate mutate the working list
         raw_proposals = list(proposals)
 
+        # Get first left gate
+        left_gate = self._pose_to_vec2(
+            self.semantic_map.semantic_map.meta_gate.left_gate.pose.pose) if self.semantic_map.semantic_map.meta_gate else None
+        
+        right_gate = self._pose_to_vec2(
+            self.semantic_map.semantic_map.meta_gate.right_gate.pose.pose) if self.semantic_map.semantic_map.meta_gate else None
+
+        if left_gate is None or right_gate is None:
+            self.get_logger().warn("No left gate found, cannot update meta slalom")
+            return
+        
+        gate_line_unit: Optional[np.ndarray] = None
+        gate_vec = right_gate - left_gate
+        gate_norm = np.linalg.norm(gate_vec)
+        if gate_norm > 1e-6 and np.isfinite(gate_norm):
+            gate_line_unit = gate_vec / gate_norm
+
         proposals = self._dedupe_row_proposals(proposals)
         proposals = self._validate_row_proposals(
-            proposals, ref_pos, ref_line, perp_unit)
+            proposals, ref_pos, ref_line, perp_unit, gate_line_unit)
 
         self._publish_slalom_debug(
             all_candidates,
@@ -782,14 +802,6 @@ class SemanticMapManager(Node):
         )
 
         if not proposals:
-            return
-
-        # Get first left gate
-        left_gate = self._pose_to_vec2(
-            self.semantic_map.semantic_map.gate_left[0].pose.pose) if self.semantic_map.semantic_map.gate_left else None
-
-        if left_gate is None:
-            self.get_logger().warn("No left gate found, cannot update meta slalom")
             return
 
         slalom_rows = []
@@ -1020,7 +1032,8 @@ class SemanticMapManager(Node):
     def _validate_row_proposals(self, proposals: List[SlalomRowProposal],
                                 ref_pos: Optional[np.ndarray],
                                 ref_line: Optional[np.ndarray],
-                                perp_unit: Optional[np.ndarray]) -> List[SlalomRowProposal]:
+                                perp_unit: Optional[np.ndarray],
+                                gate_line_unit: Optional[np.ndarray]) -> List[SlalomRowProposal]:
         self.get_logger().info(
             f"Validating {len(proposals)} proposals"
         )
@@ -1033,14 +1046,27 @@ class SemanticMapManager(Node):
             ref_pos, ref_line = proposals[0].red_pos, proposals[0].line_unit_vec
             perp_unit = np.array([-ref_line[1], ref_line[0]])
 
+        gate_cos_min = math.cos(math.radians(self.gate_row_max_angle_deg))
+
         validated = []
         for p in proposals:
+            # --- Gate-relative check: row should be roughly parallel to the gate line ---
+            if gate_line_unit is not None:
+                gate_cos_angle = abs(np.dot(p.line_unit_vec, gate_line_unit))
+                if gate_cos_angle < gate_cos_min:
+                    self.get_logger().info(
+                        f"Deleting row because of gate angle deviation: "
+                        f"{math.degrees(math.acos(gate_cos_angle)):.2f} degrees"
+                    )
+                    p.reject_reason = "GATE_ANGLE"
+                    continue
+
             # parallelism: line directions should align or be exactly opposite (row poles can be walked either way)
             cos_angle = abs(np.dot(p.line_unit_vec, ref_line))
             # tune as needed
             if cos_angle < math.cos(math.radians(self.slalom_row_deviation_deg)):
                 self.get_logger().info(
-                    f"Deleting row because of high angle deviation: {math.degrees(math.acos(cos_angle)):.2f} degrees"
+                    f"Deleting row because of high row-row angle deviation: {math.degrees(math.acos(cos_angle)):.2f} degrees"
                 )
                 p.reject_reason = "ANGLE"
                 continue
@@ -1065,8 +1091,9 @@ class SemanticMapManager(Node):
                 )
                 continue
 
-            nearest_n = round(perp_dist / self.slalom_row_width)
-            spacing_err = abs(perp_dist - nearest_n * self.slalom_row_width)
+            # nearest_n = round(perp_dist / self.slalom_row_width)
+
+            spacing_err = abs(perp_dist - self.slalom_row_width)
 
             # perpendicular spacing must be ~0 (same row) or a multiple of row width (adjacent rows)
             spacing_ok = spacing_err <= self.slalom_row_tolerance
