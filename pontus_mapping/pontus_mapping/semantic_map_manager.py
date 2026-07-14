@@ -268,7 +268,7 @@ class SlalomCandidate:
         candidates = []
         for track in sonar_tracks:
             candidates.append(SlalomCandidate(
-                kind=CandidateKind.UNKNOWN_TRACK, pose=track, known=False))
+                kind=CandidateKind.UNKNOWN_TRACK, pose=track, known=False, obj=None))
         return candidates
 
 
@@ -456,8 +456,10 @@ class SemanticMapManager(Node):
         This method is called whenever a new unlabeled candidate track message is received.
         """
         # List of candidate tracks
-        tracks: List[np.ndarray] = list(pc2.read_points(
-            msg, field_names=("x", "y"), skip_nans=True))
+        tracks: List[np.ndarray] = [
+            np.array([t[0], t[1]], dtype=float)
+            for t in pc2.read_points(msg, field_names=("x", "y"), skip_nans=True)
+        ]
 
         # Convert to SlalomCandidate objects with unknown kind
         self.sonar_tracks = SlalomCandidate.build_slalom_candidates_from_sonar_tracks(
