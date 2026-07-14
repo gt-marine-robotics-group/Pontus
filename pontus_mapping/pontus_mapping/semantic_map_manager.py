@@ -949,11 +949,11 @@ class SemanticMapManager(Node):
 
         for p in proposals:
             is_dup = False
-            for k in kept:
-                if self._same_row(p, k):
+            for k in range(len(kept)):
+                if self._same_row(p, kept[k]):
                     is_dup = True
-                    if p.score > k.score:
-                        kept.remove(k)
+                    if p.score > kept[k].score:
+                        del kept[k]
                         kept.append(p)
                     break
             if not is_dup:
