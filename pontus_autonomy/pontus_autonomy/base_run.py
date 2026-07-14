@@ -6,6 +6,7 @@ from pontus_autonomy.tasks.base_task import BaseTask
 class BaseRun(Node):
     def __init__(self, name: str):
         super().__init__(name)
+        self.waypoints = []
 
     def run_task(self, task: BaseTask, args=None) -> bool:
         """
@@ -20,12 +21,9 @@ class BaseRun(Node):
         bool: the result of the task
 
         """
-        if args == None:
-            task = task()
-        else:
-            task = task(args)
         rclpy.spin_until_future_complete(task, task.wait_for_task())
         result = task.task_future.result()
+        waypoints = task.waypoints.copy()
         task.destroy_node()
 
-        return result
+        return result, waypoints

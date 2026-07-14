@@ -7,7 +7,8 @@ from rclpy.duration import Duration
 
 from geometry_msgs.msg import Pose
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
-from std_msgs.msg import Float64MultiArray
+from sensor_msgs.msg import PointCloud2
+from sensor_msgs_py import point_cloud2 as pc2
 
 from pontus_autonomy.tasks.base_task import BaseTask
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
@@ -15,7 +16,6 @@ from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
 from pontus_msgs.msg import SemanticMap
 from pontus_msgs.srv import AddSemanticObject
 
-from pontus_mapping.cluster_coord import CandidateTrack
 from nav_msgs.msg import Odometry
 
 
@@ -91,7 +91,7 @@ class ScanTask(BaseTask):
         )
         
         self.unlabeled_candidate_tracks_sub = self.create_subscription(
-            Float64MultiArray,
+            PointCloud2,
             '/pontus/unlabeled_candidate_tracks',
             self.unlabeled_tracks_callback,
             10
@@ -134,41 +134,104 @@ class ScanTask(BaseTask):
             #self.get_logger().info(f"Saved Pose: {self.saved_pose}")
         
      
-    def unlabeled_tracks_callback(self, msg: Float64MultiArray) -> None:
+    def unlabeled_tracks_callback(self, msg: PointCloud2) -> None:
+        """Load a snapshot of confirmed unlabeled tracks from the fusion node.
+
+        The fusion node publishes the tracks as XYZ points in a PointCloud2.
+        Only x and y are used by the search task. The generated angles are
+        absolute map-frame yaw commands because ``turn_command`` expects an
+        absolute yaw.
         """
-        Calculate the necessary rotations to face the cluster points
-        
-        args:
-            msg [Float64MultiArray] : A msg with a flattened positions of the unrevealed clusters
-        
-        Returns:
-            N/A
-        """
-        # Only take new cluster points if we have finished our current search
-        if len(self.cluster_angles) == 0:
-            self.get_logger().info(f"Current Cluster Iterations: {self.cur_cluster_iteration}")       
-            if self.cur_cluster_iteration >= self.max_cluster_iterations:
-                self.complete(False)
-            cluster_positions = np.array(msg.data).reshape(-1, 3)
-            for position in cluster_positions:
-                # transformed_cluster_pos = self.transform_cluster_positions(position)
-                # if transformed_cluster_pos is None:
-                #     continue
-                transformed_cluster_pos = position.copy()
-                
-                cluster_angle = math.atan2(transformed_cluster_pos[1], transformed_cluster_pos[0]) #radians
-                self.cluster_angles = np.append(self.cluster_angles, cluster_angle)
-            self.cur_cluster_iteration += 1
-            self.cluster_angles = np.sort(self.cluster_angles)
-            
-            index = 0
-            while(index < len(self.cluster_angles) - 1):
-                if abs(math.degrees(self.cluster_angles[index]) - math.degrees(self.cluster_angles[index + 1])) <= self.angle_merge_threshold:
-                    self.cluster_angles = np.delete(self.cluster_angles, index + 1)
-                else:
-                    index += 1
-                    
-                
+        # Finish the current group before accepting a newer snapshot.
+        if len(self.cluster_angles) != 0:
+            return
+
+        if self.saved_pose is None:
+            self.get_logger().warn(
+                "Ignoring unlabeled tracks until odometry is initialized"
+            )
+            return
+
+        if self.cur_cluster_iteration >= self.max_cluster_iterations:
+            self.complete(False)
+            return
+
+        if msg.header.frame_id and msg.header.frame_id != "map":
+            self.get_logger().warn(
+                "Expected unlabeled tracks in the map frame, but received "
+                f"'{msg.header.frame_id}'"
+            )
+            return
+
+        points = pc2.read_points_numpy(
+            msg,
+            field_names=("x", "y", "z"),
+            skip_nans=True,
+        )
+        cluster_positions = np.asarray(points, dtype=float)
+
+        # The V2 fusion node publishes empty snapshots when no confirmed
+        # unlabeled tracks exist. Do not count those as search iterations.
+        if cluster_positions.size == 0:
+            return
+
+        cluster_positions = cluster_positions.reshape((-1, 3))
+        cluster_positions = cluster_positions[
+            np.all(np.isfinite(cluster_positions), axis=1)
+        ]
+        if len(cluster_positions) == 0:
+            return
+
+        self.get_logger().info(
+            f"Current Cluster Iterations: {self.cur_cluster_iteration}"
+        )
+
+        robot_x = float(self.saved_pose.position.x)
+        robot_y = float(self.saved_pose.position.y)
+        angles = []
+
+        for position_map in cluster_positions:
+            delta_x = float(position_map[0]) - robot_x
+            delta_y = float(position_map[1]) - robot_y
+
+            # Ignore a degenerate point directly at the robot position.
+            if math.hypot(delta_x, delta_y) < 1e-6:
+                continue
+
+            # The track cloud and odometry pose are both expected in map, so
+            # this is the absolute yaw that faces the candidate track.
+            angles.append(math.atan2(delta_y, delta_x))
+
+        if not angles:
+            return
+
+        self.cur_cluster_iteration += 1
+        self.cluster_angles = np.sort(np.asarray(angles, dtype=float))
+
+        # Merge directions that would cause nearly identical search turns.
+        index = 0
+        while index < len(self.cluster_angles) - 1:
+            angle_difference_deg = abs(
+                math.degrees(
+                    math.atan2(
+                        math.sin(
+                            self.cluster_angles[index + 1]
+                            - self.cluster_angles[index]
+                        ),
+                        math.cos(
+                            self.cluster_angles[index + 1]
+                            - self.cluster_angles[index]
+                        ),
+                    )
+                )
+            )
+            if angle_difference_deg <= self.angle_merge_threshold:
+                self.cluster_angles = np.delete(
+                    self.cluster_angles, index + 1
+                )
+            else:
+                index += 1
+
 
     def semantic_map_callback(self, msg: SemanticMap) -> None:
         """
@@ -249,7 +312,7 @@ class ScanTask(BaseTask):
             self.finished_turn = False
 
             
-            target_angle = self.search_angles[self.search_index] + self.convert_quaternion_to_euler(self.saved_pose.orientation)[1]
+            target_angle = self.search_angles[self.search_index] + self.convert_quaternion_to_euler(self.saved_pose.orientation)[2]
 
             self.get_logger().info(
                 f"Base Turn Turning {'right' if target_angle > 0 else 'left'} "

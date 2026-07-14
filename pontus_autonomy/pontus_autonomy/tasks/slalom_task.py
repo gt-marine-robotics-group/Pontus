@@ -56,6 +56,8 @@ class SlalomTask(BaseTask):
         # Need this to prevent deadlock issues
         self.service_callback_group = MutuallyExclusiveCallbackGroup()
 
+        self.depth_m = 0.5
+
         self.height_from_bottom_m: float = float(
             self.get_parameter('height_from_bottom').value)
         self.slalom_side: SlalomSide = SlalomSide(
@@ -194,9 +196,14 @@ class SlalomTask(BaseTask):
                 self.detected_slalom_rows[self.rows_passed:])
 
             if path:
-                self.path = path
                 self.execute_path = True
                 self.execute_turn = False
+
+                self.path = [waypoint.copy() for waypoint in path]
+
+                self.waypoints.extend(
+                    waypoint.copy() for waypoint in path
+                )
             else:
                 self.execute_turn = True
 
@@ -302,9 +309,14 @@ class SlalomTask(BaseTask):
             wp2_dist = np.linalg.norm(waypoint_2 - robot_xy)
 
             if wp1_dist < wp2_dist:
-                path.extend([waypoint_1, waypoint_2])
+                ordered_waypoints = [waypoint_1, waypoint_2]
             else:
-                path.extend([waypoint_2, waypoint_1])
+                ordered_waypoints = [waypoint_2, waypoint_1]
+
+            path.extend(ordered_waypoints)
+
+            # The next row should be ordered relative to this row's exit.
+            robot_xy = ordered_waypoints[-1]
 
         return path
 
@@ -338,7 +350,7 @@ class SlalomTask(BaseTask):
 
         cmd_pose.position.x = target_pos_xy[0]
         cmd_pose.position.y = target_pos_xy[1]
-        cmd_pose.position.z = -self.pool_depth + self.height_from_bottom_m
+        cmd_pose.position.z = -self.depth_m
 
         self.curr_waypoint = cmd_pose
 
