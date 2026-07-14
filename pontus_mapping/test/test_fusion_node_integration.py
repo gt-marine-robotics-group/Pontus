@@ -179,7 +179,7 @@ def test_async_two_camera_fusion_end_to_end(
         }
         unlabeled_subscription = io_node.create_subscription(
             PointCloud2,
-            "/pontus/unlabled_candidate_tracks",
+            "/pontus/unlabeled_candidate_tracks",
             unlabeled_messages.append,
             10,
         )

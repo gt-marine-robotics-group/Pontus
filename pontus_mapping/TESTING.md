@@ -143,7 +143,7 @@ colcon test-result --verbose
 The integration test starts its own fake semantic-object service and uses unique `/fusion_test/...` input topics. It still uses the production unlabeled output topic:
 
 ```text
-/pontus/unlabled_candidate_tracks
+/pontus/unlabeled_candidate_tracks
 ```
 
 Do not run a second instance of the production fusion node in the same ROS domain while executing this test.
