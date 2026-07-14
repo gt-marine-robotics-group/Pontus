@@ -15,8 +15,10 @@ from pontus_autonomy.tasks.return_home_replay import ReturnHomeReplayTask
 
 from pontus_autonomy.tasks.slalom_task import SlalomSide
 from pontus_autonomy.tasks.gate_task import GateSide
+from pontus_autonomy.tasks.search_task import ScanTask, SearchConditions
 
 import numpy as np
+import math
 
 
 class FullNavRun(BaseRun):
@@ -52,6 +54,14 @@ class FullNavRun(BaseRun):
 
         if not result:
             raise RuntimeError("Submerge task failed")
+
+        # Scan Task
+        self.get_logger().info("Starting Scan")
+
+        scan_task = ScanTask(
+            args=[math.radians(-45), math.radians(45), SearchConditions.GATE])
+        result, _ = self.run_task(scan_task)
+        self.get_logger().info(f"Scan Task: {result}")
 
         # Gate Task
         self.get_logger().info("Starting Gate Task")
@@ -139,17 +149,15 @@ class FullNavRun(BaseRun):
 #     def __init__(self):
 #         super().__init__("slalom_run")
 
-        
 
 #         # ------- Run Parameters ----------
 #         gate_slalom_side_is_right = False
 #         default_depth = 0.5
 
 #         do_octagon = False
-        
+
 #         return_home_path_preflip = []
 
-        
 
 #         # -------- Start Run -------------``
 #         self.get_logger().info("Starting Slalom Run")
@@ -173,7 +181,7 @@ class FullNavRun(BaseRun):
 
 #         result, gate_waypoints  = self.run_task(gate_task)
 #         return_home_path_preflip += gate_waypoints
-        
+
 #         self.get_logger().info(f"Prequal Gate Task: {result}")
 
 #         # Slalom Task
@@ -207,7 +215,6 @@ class FullNavRun(BaseRun):
 #         result, _ = self.run_task(return_home_task)
 
 #         self.get_logger().info(f"Return Home Task: {result}")
-
 
 
 def main(args: Optional[List[str]] = None) -> None:
