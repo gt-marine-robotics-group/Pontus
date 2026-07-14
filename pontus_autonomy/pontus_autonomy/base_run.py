@@ -46,7 +46,7 @@ class BaseRun(Node):
         if self.handle_autonomy_switch:
             self.autonomy_switch_sub = self.create_subscription(
                 Bool,
-                '/auto_enable',
+                '/pontus/autonomy_switch',
                 self.autonomy_switch_callback,
                 1,
                 callback_group=self.run_callback_group
