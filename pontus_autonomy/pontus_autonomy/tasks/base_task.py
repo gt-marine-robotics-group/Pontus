@@ -1,13 +1,15 @@
 import rclpy
 from rclpy.node import Node
-
+import time
 
 class BaseTask(Node):
     debug_string = ""
     overlay_image = None
 
     def __init__(self, name: str):
-        super().__init__(name)
+        seconds = round(time.time())
+        self.name = f"{name}_{str(seconds)[-4:]}"
+        super().__init__(self.name)
 
         self.task_future = rclpy.task.Future()
 

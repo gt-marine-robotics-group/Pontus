@@ -3,6 +3,7 @@ import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu
+from std_srvs.srv import Empty
 from dvl_msgs.msg import DVLDR
 import tf_transformations
 from rclpy.qos import QoSProfile, ReliabilityPolicy
@@ -67,6 +68,7 @@ class DvlRepub(Node):
             '/debug_IMU_POSE',
             10
         )
+        self.reset_service = self.create_service(Empty, "/reset_dvl_republisher", self.reset)
 
         self.dvl_msg = None
         self.imu_msg = None
@@ -76,6 +78,11 @@ class DvlRepub(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
+    def reset(self, request, response) -> None:
+        self.get_logger().info("Resetting DVL Republisher")
+        self.dvl_msg = None
+        self.imu_msg = None
+        self.dvl_inialization_offset = None
 
     def dvl_callback(self, msg: Odometry) -> None:
         """
