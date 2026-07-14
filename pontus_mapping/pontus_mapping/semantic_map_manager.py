@@ -719,6 +719,13 @@ class SemanticMapManager(Node):
                 else:
                     white1, red = (
                         p2, p1) if p2.kind == CandidateKind.SLALOM_WHITE else (p1, p2)
+                
+                delta = red.pose - white1.pose
+                norm = np.linalg.norm(delta)
+
+                if norm < 1e-6:
+                    # Reject this proposal; the poles are coincident.
+                    continue
 
                 row_line_unit_vec = (red.pose - white1.pose) / np.linalg.norm(red.pose - white1.pose)
 
