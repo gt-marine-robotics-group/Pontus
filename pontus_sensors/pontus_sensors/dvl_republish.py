@@ -30,7 +30,7 @@ class DvlRepub(Node):
     def __init__(self):
         super().__init__('dvl_repub')
 
-        self.declare_parameter('imu_correction', True)
+        self.declare_parameter('imu_correction', False)
         self.declare_parameter('depth_correction', False)
 
         self.imu_correction = self.get_parameter('imu_correction').get_parameter_value().bool_value

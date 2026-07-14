@@ -40,7 +40,8 @@ class BaseRun(Node):
         self.current_task = None
 
         # Allows the autonomy switch callback to externally trigger the run
-        self.run_trigger = self.create_timer(0.01, self.start_run, autostart=False)
+        self.run_trigger = self.create_timer(0.01, self.start_run)
+        self.run_trigger.cancel()
 
         if self.handle_autonomy_switch:
             self.autonomy_switch_sub = self.create_subscription(

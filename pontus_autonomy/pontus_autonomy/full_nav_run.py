@@ -15,7 +15,7 @@ from pontus_autonomy.tasks.return_home_replay import ReturnHomeReplayTask
 
 from pontus_autonomy.tasks.slalom_task import SlalomSide
 from pontus_autonomy.tasks.gate_task import GateSide
-from pontus_autonomy.tasks.search_task import ScanTask, SearchConditions
+# from pontus_autonomy.tasks.search_task import ScanTask, SearchConditions
 
 import numpy as np
 import math
@@ -25,12 +25,12 @@ class FullNavRun(BaseRun):
 
     def __init__(self):
         super().__init__("full_nav_run", 
-                            handle_autonomy_switch = True,
+                            handle_autonomy_switch = False,
                             handle_resetting_all_nodes = True,
                             handle_command_mode = True,
-                            start_run_wait_time_s = 8
+                            start_run_wait_time_s = 2
                          )
-        pass
+        self.run_function()
 
     def run_function(self):
         # ------- Run Parameters ----------
@@ -56,12 +56,12 @@ class FullNavRun(BaseRun):
             raise RuntimeError("Submerge task failed")
 
         # Scan Task
-        self.get_logger().info("Starting Scan")
+        #self.get_logger().info("Starting Scan")
 
-        scan_task = ScanTask(
-            args=[math.radians(-45), math.radians(45), SearchConditions.GATE])
-        result, _ = self.run_task(scan_task)
-        self.get_logger().info(f"Scan Task: {result}")
+        #scan_task = ScanTask(
+        #    args=[math.radians(-45), math.radians(45), SearchConditions.GATE])
+        #result, _ = self.run_task(scan_task)
+        #self.get_logger().info(f"Scan Task: {result}")
 
         # Gate Task
         self.get_logger().info("Starting Gate Task")
