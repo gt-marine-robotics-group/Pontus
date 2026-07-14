@@ -283,6 +283,7 @@ class SlalomRowProposal:
     derived: bool  # whether this proposal was derived from a known row or not
     # a known-red candidate suspected to actually be white
     suspected_mislabel: Optional[SlalomCandidate] = None
+    reject_reason: str = ""
 
 # ------- Node ------
 
@@ -759,7 +760,14 @@ class SemanticMapManager(Node):
         proposals = self._validate_row_proposals(
             proposals, ref_pos, ref_line, perp_unit)
 
-        self._publish_slalom_debug(all_candidates, raw_proposals, proposals)
+        self._publish_slalom_debug(
+            all_candidates,
+            raw_proposals,
+            proposals,
+            ref_pos,
+            ref_line,
+            perp_unit
+        )
 
         if not proposals:
             return
@@ -1017,8 +1025,9 @@ class SemanticMapManager(Node):
             # tune as needed
             if cos_angle < math.cos(math.radians(self.slalom_row_deviation_deg)):
                 self.get_logger().info(
-                    f"Deleting row because of high angle deviation"
+                    f"Deleting row because of high angle deviation: {math.degrees(math.acos(cos_angle)):.2f} degrees"
                 )
+                p.reject_reason = "ANGLE"
                 continue
 
             offset = p.red_pos - ref_pos
@@ -1036,6 +1045,10 @@ class SemanticMapManager(Node):
 
             if not (spacing_ok and along_ok):
                 self.get_logger().info(f"Invalid due to spacingOK: [{spacing_ok}] or alongOK: [{along_ok}]")
+                if not spacing_ok:
+                    p.reject_reason += "SPACING"
+                if not along_ok:
+                    p.reject_reason += "ALONG"
                 continue  # hard gate stays for gross outliers
 
             # graded penalty added on top of the internal-geometry score
@@ -1308,7 +1321,10 @@ class SemanticMapManager(Node):
 
     def _publish_slalom_debug(self, all_candidates: List[SlalomCandidate],
                               raw_proposals: List[SlalomRowProposal],
-                              kept_proposals: List[SlalomRowProposal]) -> None:
+                              kept_proposals: List[SlalomRowProposal],
+                              ref_pos: Optional[np.ndarray],
+                              ref_line: Optional[np.ndarray],
+                              perp_unit: Optional[np.ndarray]) -> None:
         """
         Publishes a rich debug MarkerArray showing the internal state of the slalom
         pipeline: raw candidates, every triplet proposal considered (colored by score),
@@ -1324,6 +1340,54 @@ class SemanticMapManager(Node):
             return mid
 
         # Clear previous markers each cycle -- DELETEALL avoids stale ghosts from prior ticks.
+
+        if ref_pos is not None and ref_line is not None:
+
+            LENGTH = 8.0
+
+            ref = Marker()
+            ref.header.frame_id = "map"
+            ref.header.stamp = now
+            ref.ns = "reference_row"
+            ref.id = next_id()
+            ref.type = Marker.LINE_STRIP
+            ref.action = Marker.ADD
+            ref.scale.x = 0.10
+            ref.color = ColorRGBA(r=0.0, g=1.0, b=1.0, a=1.0)
+            ref.lifetime = Duration(seconds=1.5).to_msg()
+
+            p0 = ref_pos - ref_line * LENGTH
+            p1 = ref_pos + ref_line * LENGTH
+
+            ref.points = [
+                Point(x=float(p0[0]), y=float(p0[1]), z=0.02),
+                Point(x=float(p1[0]), y=float(p1[1]), z=0.02),
+            ]
+
+            marker_array.markers.append(ref)
+
+            # perpendicular axis
+
+            perp = Marker()
+            perp.header = ref.header
+            perp.ns = "reference_perp"
+            perp.id = next_id()
+            perp.type = Marker.LINE_STRIP
+            perp.action = Marker.ADD
+            perp.scale.x = 0.05
+            perp.color = ColorRGBA(r=0.0, g=1.0, b=1.0, a=0.6)
+            perp.lifetime = ref.lifetime
+
+            p0 = ref_pos - perp_unit * 4.0
+            p1 = ref_pos + perp_unit * 4.0
+
+            perp.points = [
+                Point(x=float(p0[0]), y=float(p0[1]), z=0.02),
+                Point(x=float(p1[0]), y=float(p1[1]), z=0.02),
+            ]
+
+            marker_array.markers.append(perp)
+
         clear = Marker()
         clear.header.frame_id = 'map'
         clear.header.stamp = now
@@ -1362,6 +1426,60 @@ class SemanticMapManager(Node):
         kept_ids = {id(p) for p in kept_proposals}
 
         for p in raw_proposals:
+            if ref_pos is not None:
+
+                offset = p.red_pos - ref_pos
+
+                along = np.dot(offset, ref_line)
+
+                projected = ref_pos + along * ref_line
+
+                spacing = Marker()
+                spacing.header.frame_id = "map"
+                spacing.header.stamp = now
+                spacing.ns = "row_spacing"
+                spacing.id = next_id()
+                spacing.type = Marker.LINE_STRIP
+                spacing.action = Marker.ADD
+                spacing.scale.x = 0.03
+                spacing.lifetime = Duration(seconds=1.5).to_msg()
+
+                spacing.points = [
+                    Point(
+                        x=float(projected[0]),
+                        y=float(projected[1]),
+                        z=0.04,
+                    ),
+                    Point(
+                        x=float(p.red_pos[0]),
+                        y=float(p.red_pos[1]),
+                        z=0.04,
+                    )
+                ]
+
+                perp_dist = abs(np.dot(offset, perp_unit))
+                nearest = round(perp_dist / self.slalom_row_width)
+                spacing_err = abs(
+                    perp_dist - nearest * self.slalom_row_width
+                )
+
+                if spacing_err <= self.slalom_row_tolerance:
+                    spacing.color = ColorRGBA(
+                        r=0.0,
+                        g=1.0,
+                        b=0.0,
+                        a=0.7
+                    )
+                else:
+                    spacing.color = ColorRGBA(
+                        r=1.0,
+                        g=0.0,
+                        b=0.0,
+                        a=0.7
+                    )
+
+                marker_array.markers.append(spacing)
+
             is_kept = id(p) in kept_ids
             ns = 'triplets_kept' if is_kept else 'triplets_raw'
 
@@ -1397,6 +1515,38 @@ class SemanticMapManager(Node):
                     r=1.0 - norm_score, g=norm_score, b=0.0, a=0.9 if is_kept else 0.25)
 
             marker_array.markers.append(line)
+
+            # Rejections
+            if id(p) not in kept_ids:
+
+                text = Marker()
+                text.header.frame_id = "map"
+                text.header.stamp = now
+                text.ns = "rejections"
+                text.id = next_id()
+                text.type = Marker.TEXT_VIEW_FACING
+                text.action = Marker.ADD
+
+                text.pose.position.x = float(p.red_pos[0])
+                text.pose.position.y = float(p.red_pos[1])
+                text.pose.position.z = 0.45
+
+                text.pose.orientation.w = 1.0
+
+                text.scale.z = 0.20
+
+                text.color = ColorRGBA(
+                    r=1.0,
+                    g=0.4,
+                    b=0.4,
+                    a=1.0,
+                )
+
+                text.text = p.reject_reason
+
+                text.lifetime = Duration(seconds=1.5).to_msg()
+
+                marker_array.markers.append(text)
 
             # Text label with score/flags -- only for kept, to avoid clutter
             if is_kept:
