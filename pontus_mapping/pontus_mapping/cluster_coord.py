@@ -1119,7 +1119,7 @@ class ImageCoordinator(Node):
 
         self.unlabeled_tracks_publisher = self.create_publisher(
             PointCloud2,
-            "/pontus/unlabled_candidate_tracks",
+            "/pontus/unlabeled_candidate_tracks",
             10,
         )
 
@@ -1186,7 +1186,7 @@ class ImageCoordinator(Node):
         )
         self.get_logger().info(
             "Unlabeled confirmed tracks publish as PointCloud2 on "
-            "'/pontus/unlabled_candidate_tracks'."
+            "'/pontus/unlabeled_candidate_tracks'."
         )
 
         self.get_logger().info("Starting up Sonar / Image coordination 12")

@@ -90,10 +90,10 @@ class ScanTask(BaseTask):
             10
         )
         
-        self.unlabled_candidate_tracks_sub = self.create_subscription(
+        self.unlabeled_candidate_tracks_sub = self.create_subscription(
             Float64MultiArray,
-            '/pontus/unlabled_candidate_tracks',
-            self.unlabled_tracks_callback,
+            '/pontus/unlabeled_candidate_tracks',
+            self.unlabeled_tracks_callback,
             10
         )
         
@@ -134,7 +134,7 @@ class ScanTask(BaseTask):
             #self.get_logger().info(f"Saved Pose: {self.saved_pose}")
         
      
-    def unlabled_tracks_callback(self, msg: Float64MultiArray) -> None:
+    def unlabeled_tracks_callback(self, msg: Float64MultiArray) -> None:
         """
         Calculate the necessary rotations to face the cluster points
         
@@ -225,7 +225,7 @@ class ScanTask(BaseTask):
                 self.cluster_angles = np.delete(self.cluster_angles, 0)
             
             self.get_logger().info(
-                f"Cluster Unlabled Turning {'right' if target_angle > 0 else 'left'} "
+                f"Cluster Unlabeled Turning {'right' if target_angle > 0 else 'left'} "
                 f"{math.degrees(abs(target_angle))} degrees"
             )
             self.turn_command(target_angle) 
