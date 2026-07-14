@@ -52,8 +52,6 @@ class BaseRun(Node):
             )
             self.autonomy_switch_state = False
             self.autonomy_switch_debounce_counter = 0
-
-        if self.handle_autonomy_switch:
             self.get_logger().info("Waiting for Autonomy Switch")
 
     def run_task(self, task: BaseTask, args=None) -> bool:
@@ -69,6 +67,7 @@ class BaseRun(Node):
         bool: the result of the task
 
         """
+        self.get_logger().info(f"RUNNING TASK: {task.name}")
         self.current_task = task
 
         rclpy.spin_until_future_complete(

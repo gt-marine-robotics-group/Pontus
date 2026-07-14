@@ -1,4 +1,5 @@
 import rclpy
+from rclpy.executors import MultiThreadedExecutor
 
 from typing import Optional, List
 
@@ -21,8 +22,15 @@ import numpy as np
 class FullNavRun(BaseRun):
 
     def __init__(self):
-        super().__init__("full_nav_run")
+        super().__init__("full_nav_run", 
+                            handle_autonomy_switch = True,
+                            handle_resetting_all_nodes = True,
+                            handle_command_mode = True,
+                            start_run_wait_time_s = 8
+                         )
+        pass
 
+    def run_function(self):
         # ------- Run Parameters ----------
         gate_slalom_side_is_right = True
         default_depth = 0.65
@@ -205,6 +213,15 @@ class FullNavRun(BaseRun):
 def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
     node = FullNavRun()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+
+    run_executor = MultiThreadedExecutor()
+    run_executor.add_node(node)
+
+    try:
+        run_executor.spin()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        run_executor.shutdown()
+        rclpy.shutdown()

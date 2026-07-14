@@ -502,6 +502,7 @@ class SemanticMapManager(Node):
 
     def reset_semantic_map_callback(self, request, response) -> None:
         self.semantic_map = SemanticMapDC()
+        return response
 
     def publish_semantic_map_visual(self) -> None:
         marker_array = MarkerArray()
