@@ -1042,6 +1042,21 @@ class SemanticMapManager(Node):
             perp_dist = abs(np.dot(offset, perp_unit))
             along_dist = abs(np.dot(offset, ref_line))
 
+            if (
+                not np.isfinite(perp_dist)
+                or not np.isfinite(self.slalom_row_width)
+            ):
+                self.get_logger().error(
+                    f"Invalid spacing computation:\n"
+                    f"  perp_dist={perp_dist}\n"
+                    f"  row_width={self.slalom_row_width}\n"
+                    f"  offset={offset}\n"
+                    f"  perp_unit={perp_unit}\n"
+                    f"  ref_pos={ref_pos}\n"
+                    f"  p.red_pos={p.red_pos}"
+                )
+                continue
+
             nearest_n = round(perp_dist / self.slalom_row_width)
             spacing_err = abs(perp_dist - nearest_n * self.slalom_row_width)
 
