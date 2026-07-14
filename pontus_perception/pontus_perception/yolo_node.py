@@ -188,8 +188,8 @@ class MultiCamYoloNode(Node):
         engine_path = os.path.join(pkg_share, 'yolo', auv, 'model.engine')
         pt_path = os.path.join(pkg_share, 'yolo', auv, 'model.pt')
 
-        if os.path.exists(engine_path):
-            return engine_path
+#        if os.path.exists(engine_path):
+#            return engine_path
 
         if param_value and os.path.exists(param_value):
             return param_value

@@ -34,14 +34,14 @@ class PrequalificationRun(BaseRun):
 
         self.get_logger().info("Starting Prequalification Run, waiting for autonomy switch")
 
-        result = self.run_task(WaitForEnable)
-        self.get_logger().info(f"Autonomy switch enable: {result}")
+        # result = self.run_task(WaitForEnable)
+        # self.get_logger().info(f"Autonomy switch enable: {result}")
 
         # ['ros2', 'launch', 'pontus_sensors', 'dvl.launch.py'])
-        self.process = subprocess.Popen(
-            ['ros2', 'launch', 'pontus_localization', 'localization.launch.py', 'auv:=auv'])
-        time.sleep(8)
-        self.get_logger().info("Started")
+        # self.process = subprocess.Popen(
+        #     ['ros2', 'launch', 'pontus_localization', 'localization.launch.py', 'auv:=auv'])
+        # time.sleep(8)
+        # self.get_logger().info("Started")
 
         # Enable position controller autonomy
         self.get_logger().info("Start run commandmode")
@@ -70,14 +70,14 @@ class PrequalificationRun(BaseRun):
         result = self.run_task(PrequalGateTask)
         self.get_logger().info(f"Prequal Gate Task: {result}")
 
-        # Marker Task Prequal
-        self.get_logger().info(f"Prequal Vertical Marker Searching")
-        result = self.run_task(ScanTask, (-np.pi / 3, np.pi/3, 5))
-        self.get_logger().info(f"Search: {result}")
+        # # Marker Task Prequal
+        # self.get_logger().info(f"Prequal Vertical Marker Searching")
+        # result = self.run_task(ScanTask, (-np.pi / 3, np.pi/3, 5))
+        # self.get_logger().info(f"Search: {result}")
 
-        self.get_logger().info("Starting Vertical Marker Execution")
-        result = self.run_task(PrequalVerticalMarkerTask)
-        self.get_logger().info(f"Prequal Vertical Marker Task: {result}")
+        # self.get_logger().info("Starting Vertical Marker Execution")
+        # result = self.run_task(PrequalVerticalMarkerTask)
+        # self.get_logger().info(f"Prequal Vertical Marker Task: {result}")
 
         self.get_logger().info("Ending run")
         cmd_mode.command_mode = 0

@@ -114,5 +114,5 @@ def generate_launch_description():
         sim_arg,
         static_arg,
         urdf_nodes,
-        # odom_to_map_tf
+        odom_to_map_tf
     ])

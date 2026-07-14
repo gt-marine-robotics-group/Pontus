@@ -33,11 +33,13 @@ def generate_launch_description():
         )
 
         cam_settings = [
-            "white_balance_automatic=0",
-            "white_balance_temperature=4600",
+            "white_balance_automatic=1",
+            # "white_balance_temperature=5500",
             "brightness=50",
             "saturation=100",
             "hue=-15",
+            "gamma=0",
+            "gain=0"
         ]
         cam_setting_string = "--set-ctrl="
         for setting in cam_settings:
