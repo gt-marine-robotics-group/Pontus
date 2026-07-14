@@ -33,6 +33,7 @@ setup(
     },
     scripts = [
         'scripts/record_all_topics.sh',
-        'scripts/teensy_reboot.sh'
+        'scripts/teensy_reboot.sh',
+        'scripts/foxglove.sh'
     ],
 )
