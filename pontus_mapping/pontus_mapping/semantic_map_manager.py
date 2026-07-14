@@ -16,7 +16,7 @@ import sys
 from enum import Enum
 import sensor_msgs_py.point_cloud2 as pc2
 
-#import qos
+# import qos
 from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy
 
 import rclpy
@@ -155,7 +155,7 @@ class SemanticMapDC:
 
         self.meta_slalom = slalom
         self.semantic_map.meta_slalom = self.meta_slalom
-    
+
     def should_add_vertical_marker(self, obj):
         if self.meta_gate is None:
             return
@@ -192,11 +192,13 @@ class SemanticMapDC:
         parallel = np.dot(marker_gate_vec, gate_unit_vec) * gate_unit_vec
         # perp = marker_gate_vec - parallel
         # dist = float(np.linalg.norm(perp))
-        angle = np.arcsin(np.dot(perp_vec, marker_gate_vec) / (np.linalg.norm(perp_vec) * np.linalg.norm(marker_gate_vec)))
+        angle = np.arcsin(np.dot(perp_vec, marker_gate_vec) /
+                          (np.linalg.norm(perp_vec) * np.linalg.norm(marker_gate_vec)))
 
         dist_from_gate = np.linalg.norm(marker_gate_vec)
 
-        print(f"considering {angle} radians, {dist_from_gate} m", file=sys.stderr)
+        print(
+            f"considering {angle} radians, {dist_from_gate} m", file=sys.stderr)
 
         return abs(angle) <= np.pi/6 and abs(dist_from_gate) >= 4.0
 
@@ -228,10 +230,12 @@ class SemanticMapDC:
             for obj in obj_list:
                 yield obj
 
+
 class CandidateKind(Enum):
     SLALOM_RED = 1
     SLALOM_WHITE = 2
     UNKNOWN_TRACK = 3
+
 
 @dataclass
 class SlalomCandidate:
@@ -255,28 +259,34 @@ class SlalomCandidate:
                 semantic_obj.pose.pose.position.y
             ], dtype=float)
 
-            candidates.append(SlalomCandidate(kind=type, pose=pose, known=True, obj=semantic_obj))
+            candidates.append(SlalomCandidate(
+                kind=type, pose=pose, known=True, obj=semantic_obj))
 
         return candidates
-    
+
     def build_slalom_candidates_from_sonar_tracks(sonar_tracks: List[np.ndarray]) -> List['SlalomCandidate']:
         candidates = []
         for track in sonar_tracks:
-            candidates.append(SlalomCandidate(kind=CandidateKind.UNKNOWN_TRACK, pose=track, known=False))
+            candidates.append(SlalomCandidate(
+                kind=CandidateKind.UNKNOWN_TRACK, pose=track, known=False))
         return candidates
-    
+
+
 @dataclass
 class SlalomRowProposal:
     red_pos: np.ndarray
     line_unit_vec: np.ndarray
     white1: SlalomCandidate
     red: SlalomCandidate
-    white2: SlalomCandidate # synthetic sometimes
+    white2: SlalomCandidate  # synthetic sometimes
     score: float
-    derived: bool # whether this proposal was derived from a known row or not
-    suspected_mislabel: Optional[SlalomCandidate] = None  # a known-red candidate suspected to actually be white
+    derived: bool  # whether this proposal was derived from a known row or not
+    # a known-red candidate suspected to actually be white
+    suspected_mislabel: Optional[SlalomCandidate] = None
 
 # ------- Node ------
+
+
 class SemanticMapManager(Node):
 
     def __init__(self):
@@ -296,8 +306,10 @@ class SemanticMapManager(Node):
                 ("slalom_row_width", 2.0),
                 ("slalom_row_tolerance", 0.7),
                 ("slalom_dup_tolerance", 0.7),
-                ("slalom_row_deviation", 1.2), # max deviation along row direction between rows
-                ("slalom_row_deviation_deg", 15.0), # max deviation along row direction between rows
+                # max deviation along row direction between rows
+                ("slalom_row_deviation", 1.2),
+                # max deviation along row direction between rows
+                ("slalom_row_deviation_deg", 15.0),
             ]
         )
 
@@ -311,7 +323,8 @@ class SemanticMapManager(Node):
             self.get_parameter('slalom_white_to_red_width').value)
         self.slalom_width_tolerance = float(
             self.get_parameter("slalom_width_tolerance").value)
-        self.slalom_row_width = float(self.get_parameter("slalom_row_width").value)
+        self.slalom_row_width = float(
+            self.get_parameter("slalom_row_width").value)
         self.slalom_row_tolerance = float(
             self.get_parameter("slalom_row_tolerance").value)
         self.slalom_dup_tolerance = float(
@@ -320,7 +333,7 @@ class SemanticMapManager(Node):
             self.get_parameter("slalom_row_deviation").value)
         self.slalom_row_deviation_deg = float(
             self.get_parameter("slalom_row_deviation_deg").value)
-        
+
         self.sonar_tracks: List[SlalomCandidate] = []
         self.row_candidates = []
 
@@ -443,10 +456,12 @@ class SemanticMapManager(Node):
         This method is called whenever a new unlabeled candidate track message is received.
         """
         # List of candidate tracks
-        tracks: List[np.ndarray] = list(pc2.read_points(msg, field_names=("x", "y"), skip_nans=True))
+        tracks: List[np.ndarray] = list(pc2.read_points(
+            msg, field_names=("x", "y"), skip_nans=True))
 
         # Convert to SlalomCandidate objects with unknown kind
-        self.sonar_tracks = SlalomCandidate.build_slalom_candidates_from_sonar_tracks(tracks)
+        self.sonar_tracks = SlalomCandidate.build_slalom_candidates_from_sonar_tracks(
+            tracks)
 
     def add_meta_gate_callback(self,
                                request: AddMetaGate.Request,
@@ -610,10 +625,13 @@ class SemanticMapManager(Node):
         red_list: list[SemanticObject] = self.semantic_map.semantic_map.slalom_red
         white_list: list[SemanticObject] = self.semantic_map.semantic_map.slalom_white
 
-        self.get_logger().info(f"Red slalom count: {len(red_list)}, White slalom count: {len(white_list)}")
+        self.get_logger().info(
+            f"Red slalom count: {len(red_list)}, White slalom count: {len(white_list)}")
 
-        red_candidates = SlalomCandidate.build_slalom_candidates_from_semantic_objects(red_list)
-        white_candidates = SlalomCandidate.build_slalom_candidates_from_semantic_objects(white_list)
+        red_candidates = SlalomCandidate.build_slalom_candidates_from_semantic_objects(
+            red_list)
+        white_candidates = SlalomCandidate.build_slalom_candidates_from_semantic_objects(
+            white_list)
 
         all_candidates: list[SlalomCandidate] = []
         all_candidates.extend(red_candidates)
@@ -625,14 +643,15 @@ class SemanticMapManager(Node):
 
         all_candidates.extend(self.sonar_tracks)
 
-        self.get_logger().info(f"Total slalom candidates (including sonar tracks): {len(all_candidates)}")
+        self.get_logger().info(
+            f"Total slalom candidates (including sonar tracks): {len(all_candidates)}")
 
         locked_rows = self.semantic_map.semantic_map.meta_slalom.meta_slalom_rows
         ref_pos: Optional[np.ndarray] = None
         ref_line: Optional[np.ndarray] = None
         perp_unit: Optional[np.ndarray] = None
         if locked_rows:
-            ref_pos, ref_line = self._row_line_from_semantic(locked_rows[0])
+            ref_pos, ref_line = self._row_line_from_semantic(locked_rows[-1])
             perp_unit = np.array([-ref_line[1], ref_line[0]])
 
         proposals: List[SlalomRowProposal] = []
@@ -656,33 +675,41 @@ class SemanticMapManager(Node):
                 # skip current point pairs if distances are not around 1.5m
                 if (not point_diff <= self.slalom_width_tolerance):
                     continue
-                
-                self.get_logger().info(f"Valid point pair: {point_diff} width diff")
+
+                self.get_logger().info(
+                    f"Valid point pair: {point_diff} width diff")
 
                 # Slaloms are in sets of white-red-white so points have to be opposite kind
-                if p1.kind == p2.kind: # Remove both unknown pairs. Use kind to still allow for known-known pairs
+                if p1.kind == p2.kind:  # Remove both unknown pairs. Use kind to still allow for known-known pairs
                     # TODO: Add logic to handle unknown-unknown pairs as potential new rows
                     if p1.kind != CandidateKind.UNKNOWN_TRACK:
-                        self.get_logger().warn(f"Invalid point pair: {p1.kind} and {p2.kind} are the same kind")
+                        self.get_logger().warn(
+                            f"Invalid point pair: {p1.kind} and {p2.kind} are the same kind")
                         continue
 
                     if ref_pos is None:
                         continue
 
-                    result = self._classify_unknown_pair(p1, p2, locked_rows[0], ref_line)
+                    result = self._classify_unknown_pair(
+                        p1, p2, locked_rows[-1], ref_line)
                     if result is None:
                         continue
                     white1, red = result
-                elif p1.known: # Find one known and assign the other unknown to be the other color
-                    white1, red = (p1, p2) if p1.kind == CandidateKind.SLALOM_WHITE else (p2, p1)
+                elif p1.known:  # Find one known and assign the other unknown to be the other color
+                    white1, red = (
+                        p1, p2) if p1.kind == CandidateKind.SLALOM_WHITE else (p2, p1)
                 else:
-                    white1, red = (p2, p1) if p2.kind == CandidateKind.SLALOM_WHITE else (p1, p2)
+                    white1, red = (
+                        p2, p1) if p2.kind == CandidateKind.SLALOM_WHITE else (p1, p2)
 
-                row_line_unit_vec = (red.pose - white1.pose) / np.linalg.norm(red.pose - white1.pose)
+                row_line_unit_vec = (red.pose - white1.pose) / \
+                    np.linalg.norm(red.pose - white1.pose)
 
                 # Create a synthetic white2 position based on the red position and the row line unit vector
-                w2_pos = red.pose + (row_line_unit_vec * self.slalom_white_to_red_width)
-                w2_candidate = SlalomCandidate(kind=CandidateKind.SLALOM_WHITE, pose=w2_pos, known=False)
+                w2_pos = red.pose + (row_line_unit_vec *
+                                     self.slalom_white_to_red_width)
+                w2_candidate = SlalomCandidate(
+                    kind=CandidateKind.SLALOM_WHITE, pose=w2_pos, known=False)
 
                 # TODO: Check if the synthetic white2 position is too close to any existing candidates
 
@@ -692,10 +719,12 @@ class SemanticMapManager(Node):
                     line_unit_vec=row_line_unit_vec,
                     white1=white1,
                     red=red,
-                    white2=w2_candidate, # synthetic
-                    score=float('-inf'), # never wins dedup against a real triplet
+                    white2=w2_candidate,  # synthetic
+                    # never wins dedup against a real triplet
+                    score=float('-inf'),
                     derived=True,
-                    suspected_mislabel=None # synthetic position, check at promotion time instead (see below)
+                    # synthetic position, check at promotion time instead (see below)
+                    suspected_mislabel=None
                 ))
 
                 if flag:
@@ -703,14 +732,16 @@ class SemanticMapManager(Node):
             if flag:
                 flag = False
                 continue
-        
+
         if not proposals:
             return
-        
-        raw_proposals = list(proposals)  # snapshot before dedupe/validate mutate the working list
+
+        # snapshot before dedupe/validate mutate the working list
+        raw_proposals = list(proposals)
 
         proposals = self._dedupe_row_proposals(proposals)
-        proposals = self._validate_row_proposals(proposals, ref_pos, ref_line, perp_unit)
+        proposals = self._validate_row_proposals(
+            proposals, ref_pos, ref_line, perp_unit)
 
         self._publish_slalom_debug(all_candidates, raw_proposals, proposals)
 
@@ -718,7 +749,8 @@ class SemanticMapManager(Node):
             return
 
         # Get first left gate
-        left_gate = self._pose_to_vec2(self.semantic_map.semantic_map.gate_left[0].pose.pose) if self.semantic_map.semantic_map.gate_left else None
+        left_gate = self._pose_to_vec2(
+            self.semantic_map.semantic_map.gate_left[0].pose.pose) if self.semantic_map.semantic_map.gate_left else None
 
         if left_gate is None:
             self.get_logger().warn("No left gate found, cannot update meta slalom")
@@ -734,21 +766,29 @@ class SemanticMapManager(Node):
                 if obj in red_list:
                     red_list.remove(obj)
                     obj.object_type = SemanticObject.SLALOM_WHITE
-                    self.semantic_map.objects[SemanticObject.SLALOM_WHITE].append(obj)
+                    self.semantic_map.objects[SemanticObject.SLALOM_WHITE].append(
+                        obj)
                     self.get_logger().warn(
                         f"Reclassified suspected mislabel at ({obj.pose.pose.position.x:.2f},"
                         f"{obj.pose.pose.position.y:.2f}) from RED to WHITE"
                     )
-                w1_obj = obj if p.white1 is p.suspected_mislabel else self._promote_candidate(p.white1, SemanticObject.SLALOM_WHITE, trust_geometry=not p.derived)
-                w2_obj = obj if p.white2 is p.suspected_mislabel else self._promote_candidate(p.white2, SemanticObject.SLALOM_WHITE, trust_geometry=not p.derived)
+                w1_obj = obj if p.white1 is p.suspected_mislabel else self._promote_candidate(
+                    p.white1, SemanticObject.SLALOM_WHITE, trust_geometry=not p.derived)
+                w2_obj = obj if p.white2 is p.suspected_mislabel else self._promote_candidate(
+                    p.white2, SemanticObject.SLALOM_WHITE, trust_geometry=not p.derived)
             else:
-                w1_obj = self._promote_candidate(p.white1, SemanticObject.SLALOM_WHITE, trust_geometry=not p.derived)
-                w2_obj = self._promote_candidate(p.white2, SemanticObject.SLALOM_WHITE, trust_geometry=not p.derived) # synthetic, don't trust geometry
-            
-            red_obj = self._promote_candidate(p.red, SemanticObject.SLALOM_RED, trust_geometry=not p.derived)
+                w1_obj = self._promote_candidate(
+                    p.white1, SemanticObject.SLALOM_WHITE, trust_geometry=not p.derived)
+                # synthetic, don't trust geometry
+                w2_obj = self._promote_candidate(
+                    p.white2, SemanticObject.SLALOM_WHITE, trust_geometry=not p.derived)
+
+            red_obj = self._promote_candidate(
+                p.red, SemanticObject.SLALOM_RED, trust_geometry=not p.derived)
 
             red_to_gate_dist = np.linalg.norm(p.red_pos - left_gate)
-            slalom_rows.append((red_to_gate_dist, [w1_obj, w2_obj], red_obj))  # sort key is arbitrary now, see below
+            # sort key is arbitrary now, see below
+            slalom_rows.append((red_to_gate_dist, [w1_obj, w2_obj], red_obj))
 
         if (not slalom_rows):
             return
@@ -831,14 +871,15 @@ class SemanticMapManager(Node):
                     if (0 <= mid_proj <= span_len) and perp_dist <= self.slalom_row_tolerance:
                         if best_mid is None or perp_dist < best_perp:
                             best_mid, best_perp = mid, perp_dist
-                
+
                 if best_mid is None:
                     continue
 
                 width_err = abs(span_len - self.slalom_white_to_white_width)
                 mid_proj = np.dot(best_mid.pose - a.pose, span_unit)
                 mid_err = abs(mid_proj - (span_len / 2))
-                score = self._triplet_score(width_err=width_err, mid_err=mid_err, perp_err=best_perp)
+                score = self._triplet_score(
+                    width_err=width_err, mid_err=mid_err, perp_err=best_perp)
 
                 # Exactly one outer point being a known red is a mislabel signal -- flag it.
                 suspected = None
@@ -859,19 +900,21 @@ class SemanticMapManager(Node):
                 ))
 
         return proposals
-    
+
     def _triplet_score(self, width_err: float, mid_err: float, perp_err: float, row_align_err: float = 0.0) -> float:
         """Higher is better. row_align_err folds in cross-row spacing/parallelism, added later."""
         w_width, w_mid, w_perp, w_align = 1.0, 1.0, 1.5, 1.0
         return -(w_width * width_err + w_mid * mid_err + w_perp * perp_err + w_align * row_align_err)
 
     def _classify_unknown_pair(self, p1: SlalomCandidate, p2: SlalomCandidate,
-                                locked_row: SemanticMetaSlalomRow,
-                                ref_line: np.ndarray) -> Optional[tuple[SlalomCandidate, SlalomCandidate]]:
+                               locked_row: SemanticMetaSlalomRow,
+                               ref_line: np.ndarray) -> Optional[tuple[SlalomCandidate, SlalomCandidate]]:
         """Returns (white1, red) for an unknown-unknown pair, using a locked row as a template. None if ambiguous/invalid."""
         red_locked = self._pose_to_vec2(locked_row.slalom_red.pose.pose)
-        whites_locked = [self._pose_to_vec2(w.pose.pose) for w in locked_row.slaloms_white]
-        white_projs = sorted(np.dot(w - red_locked, ref_line) for w in whites_locked)
+        whites_locked = [self._pose_to_vec2(
+            w.pose.pose) for w in locked_row.slaloms_white]
+        white_projs = sorted(np.dot(w - red_locked, ref_line)
+                             for w in whites_locked)
         lo, hi = white_projs[0], white_projs[1]
         tol = self.slalom_white_to_red_width - self.slalom_row_deviation
 
@@ -896,7 +939,7 @@ class SemanticMapManager(Node):
         k_perp_unit = np.array([-k.line_unit_vec[1], k.line_unit_vec[0]])
         perp_offset = abs(np.dot(p.red_pos - k.red_pos, k_perp_unit))
         return perp_offset <= self.slalom_row_tolerance
-    
+
     def _dedupe_row_proposals(self, proposals: List[SlalomRowProposal]) -> List[SlalomRowProposal]:
         kept: List[SlalomRowProposal] = []
 
@@ -913,7 +956,7 @@ class SemanticMapManager(Node):
                 kept.append(p)
 
         return kept
-    
+
     def _row_line_from_semantic(self, row: SemanticMetaSlalomRow) -> tuple[np.ndarray, np.ndarray]:
         red_pos = self._pose_to_vec2(row.slalom_red.pose.pose)
         white_pos = self._pose_to_vec2(row.slaloms_white[0].pose.pose)
@@ -924,6 +967,10 @@ class SemanticMapManager(Node):
                                 ref_pos: Optional[np.ndarray],
                                 ref_line: Optional[np.ndarray],
                                 perp_unit: Optional[np.ndarray]) -> List[SlalomRowProposal]:
+        self.get_logger().info(
+            f"Validating {len(proposals)} proposals"
+        )
+        
         if ref_pos is None:
             if len(proposals) <= 1:
                 # Bootstrap case, nothing to compare against — accept as-is.
@@ -936,10 +983,15 @@ class SemanticMapManager(Node):
         for p in proposals:
             # parallelism: line directions should align or be exactly opposite (row poles can be walked either way)
             cos_angle = abs(np.dot(p.line_unit_vec, ref_line))
-            if cos_angle < math.cos(math.radians(self.slalom_row_deviation_deg)):  # tune as needed
+            # tune as needed
+            if cos_angle < math.cos(math.radians(self.slalom_row_deviation_deg)):
+                self.get_logger().info(
+                    f"Deleting row because of high angle deviation"
+                )
                 continue
 
             offset = p.red_pos - ref_pos
+            self.get_logger().info(f"Validation: Row offset = {offset}")
             perp_dist = abs(np.dot(offset, perp_unit))
             along_dist = abs(np.dot(offset, ref_line))
 
@@ -952,12 +1004,17 @@ class SemanticMapManager(Node):
             along_ok = along_dist <= self.slalom_row_deviation
 
             if not (spacing_ok and along_ok):
+                self.get_logger().info(f"Invalid due to spacingOK: [{spacing_ok}] or alongOK: [{along_ok}]")
                 continue  # hard gate stays for gross outliers
 
             # graded penalty added on top of the internal-geometry score
             p.score += -1.0 * spacing_err   # reuses w_align weight informally; adjust as needed
             validated.append(p)
 
+        self.get_logger().info(
+            f"Returning {len(validated)} validated rows"
+        )
+        
         return validated
 
     def _promote_candidate(self, candidate: SlalomCandidate, object_type: int, trust_geometry: bool) -> SemanticObject:
@@ -966,11 +1023,14 @@ class SemanticMapManager(Node):
         one from an unknown candidate's position (geometry-confirmed, camera-unconfirmed).
         """
         if candidate.known:
+            self.get_logger().info(
+                f"\n\nAlredy known candidate of type: {object_type} with [{trust_geometry}] trusted geometry."
+            )
             return candidate.obj
 
         if trust_geometry:
             wrong_type = (SemanticObject.SLALOM_RED if object_type == SemanticObject.SLALOM_WHITE
-                        else SemanticObject.SLALOM_WHITE)
+                          else SemanticObject.SLALOM_WHITE)
             reclassified = self._reclassify_or_promote(
                 position=candidate.pose,
                 correct_type=object_type,
@@ -987,7 +1047,8 @@ class SemanticMapManager(Node):
         obj.object_type = object_type
 
         obj.pose = PoseWithCovariance()
-        obj.pose.pose.position = Point(x=float(candidate.pose[0]), y=float(candidate.pose[1]), z=0.0)
+        obj.pose.pose.position = Point(
+            x=float(candidate.pose[0]), y=float(candidate.pose[1]), z=0.0)
         obj.pose.pose.orientation = Quaternion(w=1.0)
 
         obj.num_detections = 1
@@ -995,11 +1056,13 @@ class SemanticMapManager(Node):
         obj.last_updated = now
         obj.duplicant_tolerance_m = 0.3
 
+        self.get_logger().info(
+            f"\n\nPromoting candidate type {object_type} based on slalom geometry\n\n")
         self.semantic_map.add(obj)
         return obj
 
     def _reclassify_or_promote(self, position: np.ndarray, correct_type: int,
-                                wrong_type: int, tolerance: float) -> Optional[SemanticObject]:
+                               wrong_type: int, tolerance: float) -> Optional[SemanticObject]:
         """
         If a SemanticObject of wrong_type already sits near `position`, it's likely a
         YOLO misclassification of the same physical pole -- flip its type in place,
@@ -1206,8 +1269,8 @@ class SemanticMapManager(Node):
             return pose_stamped.pose
 
     def _publish_slalom_debug(self, all_candidates: List[SlalomCandidate],
-                            raw_proposals: List[SlalomRowProposal],
-                            kept_proposals: List[SlalomRowProposal]) -> None:
+                              raw_proposals: List[SlalomRowProposal],
+                              kept_proposals: List[SlalomRowProposal]) -> None:
         """
         Publishes a rich debug MarkerArray showing the internal state of the slalom
         pipeline: raw candidates, every triplet proposal considered (colored by score),
@@ -1246,11 +1309,14 @@ class SemanticMapManager(Node):
             m.lifetime = Duration(seconds=1.5).to_msg()
 
             if c.kind == CandidateKind.SLALOM_RED:
-                m.color = ColorRGBA(r=1.0, g=0.0, b=0.0, a=0.9 if c.known else 0.4)
+                m.color = ColorRGBA(r=1.0, g=0.0, b=0.0,
+                                    a=0.9 if c.known else 0.4)
             elif c.kind == CandidateKind.SLALOM_WHITE:
-                m.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=0.9 if c.known else 0.4)
+                m.color = ColorRGBA(r=1.0, g=1.0, b=1.0,
+                                    a=0.9 if c.known else 0.4)
             else:
-                m.color = ColorRGBA(r=0.5, g=0.5, b=0.5, a=0.5)  # unknown sonar track
+                # unknown sonar track
+                m.color = ColorRGBA(r=0.5, g=0.5, b=0.5, a=0.5)
 
             marker_array.markers.append(m)
 
@@ -1283,10 +1349,14 @@ class SemanticMapManager(Node):
 
             # Color by score: green = good, red = bad, gray = derived (score=-inf)
             if p.score == float('-inf'):
-                line.color = ColorRGBA(r=0.6, g=0.6, b=1.0, a=0.5 if is_kept else 0.2)  # blue-ish for derived
+                # blue-ish for derived
+                line.color = ColorRGBA(
+                    r=0.6, g=0.6, b=1.0, a=0.5 if is_kept else 0.2)
             else:
-                norm_score = max(0.0, min(1.0, 1.0 + p.score / 2.0))  # rough normalization, tune to your score range
-                line.color = ColorRGBA(r=1.0 - norm_score, g=norm_score, b=0.0, a=0.9 if is_kept else 0.25)
+                # rough normalization, tune to your score range
+                norm_score = max(0.0, min(1.0, 1.0 + p.score / 2.0))
+                line.color = ColorRGBA(
+                    r=1.0 - norm_score, g=norm_score, b=0.0, a=0.9 if is_kept else 0.25)
 
             marker_array.markers.append(line)
 
@@ -1312,11 +1382,13 @@ class SemanticMapManager(Node):
                     flags.append("derived")
                 if p.suspected_mislabel is not None:
                     flags.append("MISLABEL?")
-                score_str = "n/a" if p.score == float('-inf') else f"{p.score:.2f}"
+                score_str = "n/a" if p.score == float(
+                    '-inf') else f"{p.score:.2f}"
                 text.text = f"score={score_str} {' '.join(flags)}"
                 marker_array.markers.append(text)
 
         self.slalom_debug_marker_pub.publish(marker_array)
+
 
 def main(args=None):
     rclpy.init(args=args)
