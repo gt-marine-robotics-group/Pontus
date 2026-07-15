@@ -53,7 +53,7 @@ class VelocityNode(Node):
             ('buoyancy_feedforward_gain', 1.19),
             ('direct_mode_linear_gain', 12.0),
             ('direct_mode_angular_gain', 0.35),
-            ('pitch_drag_ff_gain', 1.0)
+            ('pitch_drag_ff_gain', 0.8)
         )
 
         self.add_on_set_parameters_callback(self.param_callback)

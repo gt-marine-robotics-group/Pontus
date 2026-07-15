@@ -51,8 +51,8 @@ class PositionController(Node):
         param_list = (
             ('default_command_mode', CommandMode.ESTOP),
             ('x_vmax', 0.5), # m/s
-            ('y_vmax', 0.8), # m/s
-            ('yaw_vmax', 0.20), # radians/s
+            ('y_vmax', 0.3), # m/s
+            ('yaw_vmax', 1.0), # radians/s
             ('lookahead_distance', 1.0), # m
             ('x_kp', 0.8),
             ('x_ki', 0.0),
@@ -69,7 +69,7 @@ class PositionController(Node):
             ('p_kp', 3.0),
             ('p_ki', 0.0),
             ('p_kd', 0.4),
-            ('yaw_kp', 0.2),
+            ('yaw_kp', 0.4),
             ('yaw_ki', 0.0),
             ('yaw_kd', 0.0),
         )
@@ -127,6 +127,11 @@ class PositionController(Node):
             '/debug/pose_command',
             10
         )
+        self.debug_command_mode_pub = self.create_publisher(
+            CommandMode,
+            '/debug/controller_command_mode',
+            10
+        )
 
         self.prev_time = self.get_clock().now()
 
@@ -146,6 +151,7 @@ class PositionController(Node):
         ]
 
         self.command_mode = self.default_command_mode
+        self.debug_command_mode_pub.publish(self.command_mode)
         if (self.command_mode != CommandMode.ESTOP):
             self.state = PositionControllerState.MaintainPosition
 
@@ -165,7 +171,7 @@ class PositionController(Node):
         # Acceptable error for each dof
         self.linear_thresholds = 0.5 # m
         self.depth_threshold = 0.2 # m
-        self.angular_thresholds = np.array([0.1, 0.1, 0.1]) # r, p, y
+        self.angular_thresholds = np.array([0.25, 0.25, 0.1]) # r, p, y
         self.velocity_thresholds = np.array([0.1, 0.3]) # linear, angular
 
         self.skip_orientation = False
@@ -175,6 +181,7 @@ class PositionController(Node):
             return
 
         self.get_logger().info(f"Changing Command Mode: {CommandModeEnum(msg.command_mode).name}")
+        self.debug_command_mode_pub.publish(self.command_mode)
 
         self.command_mode = msg.command_mode
         self.skip_orientation = False
@@ -473,7 +480,8 @@ class PositionController(Node):
         angle_to_target_point = np.array([0, 0, self.calculate_angle_to_target(self.cmd_pos_linear, pose_array[0:3])])
         face_target_angular_err = self.calculate_angular_error(angle_to_target_point, pose_array[3:6])
 
-        if abs(face_target_angular_err[2]) > self.angular_thresholds[2] \
+        # This is only for while we are actively driving forward so relax the yaw requirement a bit
+        if abs(face_target_angular_err[2]) > 1.5 * self.angular_thresholds[2] \
             or abs(angular_vel[2]) > 0.1:
 
             return PositionControllerState.FaceTargetPoint
