@@ -1043,7 +1043,8 @@ class SemanticMapManager(Node):
                 derived=False,
             )
             locked_placeholders.append(placeholder)
-            kept.append(placeholder)
+        
+        kept.extend(locked_placeholders)
 
         for p in proposals:
             is_dup = False
