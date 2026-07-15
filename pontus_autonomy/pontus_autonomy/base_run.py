@@ -72,25 +72,28 @@ class BaseRun(Node):
         self.current_task = task
         future = self.current_task.wait_for_task()
 
+        has_waypoints = hasattr(self.current_task, "waypoints")
+        waypoints = None
+
         while not future.done():
             if not self.running:
-                has_waypoints = hasattr(self.current_task, "waypoints")
+                if has_waypoints:
+                    waypoints = self.current_task.waypoints.copy()
                 self.cleanup_task()
                 if has_waypoints:
-                    return None, None
-                return None
+                    return False, waypoints
+                return False
 
             rclpy.spin_once(self.current_task)
 
         result = self.current_task.task_future.result()
 
-        waypoints = None
-        if hasattr(self.current_task, "waypoints"):
+        if has_waypoints:
             waypoints = self.current_task.waypoints.copy()
 
         self.cleanup_task()
 
-        if waypoints is not None:
+        if has_waypoints:
             return result, waypoints
         return result
 

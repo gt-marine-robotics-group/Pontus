@@ -6,7 +6,7 @@ from pontus_autonomy.tasks.base_task import BaseTask
 
 
 class Submerge(BaseTask):
-    def __init__(self):
+    def __init__(self, timeout=10):
         super().__init__('submerge')
 
         # Hyperparameters
@@ -21,6 +21,9 @@ class Submerge(BaseTask):
 
         self.timer = self.create_timer(
             0.2, self.submerge
+        )
+        self.create_timer(
+            timeout, self.timeout
         )
         self.cmd_sent = False
 
@@ -49,3 +52,6 @@ class Submerge(BaseTask):
             self.cmd_sent = True
         if self.go_to_pose_client.at_pose():
             self.complete(True)
+
+    def timeout(self) -> None:
+        self.complete(True) # This may be a lie but we will manually stop the submerge if it failed

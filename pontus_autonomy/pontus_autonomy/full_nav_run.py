@@ -51,7 +51,7 @@ class FullNavRun(BaseRun):
         submerge_task = Submerge()
         submerge_task.desired_depth = -default_depth
 
-        result, _ = self.run_task(submerge_task)
+        result, _ = self.run_task(submerge_task, timeout = 10)
         self.get_logger().info(f"Submerge: {result}")
 
         if not result:
@@ -79,25 +79,31 @@ class FullNavRun(BaseRun):
         self.get_logger().info(f"Gate Task: {result}")
 
         if not result:
-            raise RuntimeError("Gate task failed")
+            self.get_logger().warn("FAILED GATE TASK ENDING")
+            return
 
         if gate_waypoints:
             outbound_waypoints.extend(
                 waypoint.copy() for waypoint in gate_waypoints
             )
 
-
         # Scan Task
-        self.get_logger().info("Starting Scan Gate")
+        self.get_logger().info("Starting Scan Slalom")
 
-        scan_task = SearchWrapper(math.radians(-45), math.radians(45), SearchConditions.SLALOM)
+        scan_task = SearchWrapper(
+            math.radians(-45),
+            math.radians(45),
+            SearchConditions.SLALOM,
+            timeout=None
+        )
+
         result, _ = self.run_task(scan_task)
         self.get_logger().info(f"Scan Task: {result}")
 
         # Slalom Task
         self.get_logger().info("Starting Slaloms")
 
-        slalom_task = SlalomTask()
+        slalom_task = SlalomTask(timeout=300)
         slalom_task.depth_m = default_depth
         slalom_task.slalom_side = (
             SlalomSide.RIGHT
@@ -107,9 +113,6 @@ class FullNavRun(BaseRun):
 
         result, slalom_waypoints = self.run_task(slalom_task)
         self.get_logger().info(f"Slalom Navigation Task: {result}")
-
-        if not result:
-            raise RuntimeError("Slalom task failed")
 
         if slalom_waypoints:
             outbound_waypoints.extend(
