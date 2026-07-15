@@ -17,7 +17,7 @@ _PONTUS_DVL_PARAMS_FILE = os.path.join(
 )
 
 def generate_launch_description():
-    imu_correction_arg = DeclareLaunchArgument('imu_correction', default_value = 'true')
+    imu_correction_arg = DeclareLaunchArgument('imu_correction', default_value = 'false')
     imu_correction_config = LaunchConfiguration('imu_correction')
 
     return LaunchDescription([

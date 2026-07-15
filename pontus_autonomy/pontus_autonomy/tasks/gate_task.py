@@ -29,7 +29,7 @@ class GatePair:
 
 class GateTask(BaseTask):
 
-    def __init__(self, timeout = None, slalom_look_point = [1.75, 2.0], waypoint_dist_from_gate = 0.6, slalom_look_dist = 0.6):
+    def __init__(self, timeout = None, slalom_look_point = [1.75, 0.0], waypoint_dist_from_gate = 0.6, slalom_look_dist = 0.6):
         super().__init__("prequal_gate_task")
 
         self.service_callback_group = MutuallyExclusiveCallbackGroup()
