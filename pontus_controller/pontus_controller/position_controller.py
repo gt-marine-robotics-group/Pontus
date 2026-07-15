@@ -499,7 +499,7 @@ class PositionController(Node):
 
         goal_linear_err = self.calculate_linear_error(self.cmd_pos_linear, pose_array[0:3])
 
-        if goal_linear_err[2] > self.depth_threshold:
+        if abs(goal_linear_err[2]) > self.depth_threshold:
             return PositionControllerState.ZCorrection
 
         # Close enough to strafe directly to target
