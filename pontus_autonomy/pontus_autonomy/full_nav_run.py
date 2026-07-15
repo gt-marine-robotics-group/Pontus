@@ -15,7 +15,8 @@ from pontus_autonomy.tasks.return_home_replay import ReturnHomeReplayTask
 
 from pontus_autonomy.tasks.slalom_task import SlalomSide
 from pontus_autonomy.tasks.gate_task import GateSide
-from pontus_autonomy.tasks.search_task import ScanTask, SearchConditions
+# from pontus_autonomy.tasks.search_task import ScanTask, SearchConditions
+from pontus_autonomy.tasks.search_wrapper_task import SearchWrapper, SearchConditions
 
 import numpy as np
 import math
@@ -58,8 +59,7 @@ class FullNavRun(BaseRun):
         # Scan Task
         self.get_logger().info("Starting Scan Gate")
 
-        scan_task = ScanTask(
-            args=[math.radians(-45), math.radians(45), SearchConditions.GATE])
+        scan_task = SearchWrapper(math.radians(-45), math.radians(45), SearchConditions.GATE)
         result, _ = self.run_task(scan_task)
         self.get_logger().info(f"Scan Task: {result}")
 
@@ -89,8 +89,7 @@ class FullNavRun(BaseRun):
         # Scan Task
         self.get_logger().info("Starting Scan Gate")
 
-        scan_task = ScanTask(
-            args=[math.radians(-45), math.radians(45), SearchConditions.SLALOM])
+        scan_task = SearchWrapper(math.radians(-45), math.radians(45), SearchConditions.SLALOM)
         result, _ = self.run_task(scan_task)
         self.get_logger().info(f"Scan Task: {result}")
 
