@@ -688,7 +688,7 @@ class SemanticMapManager(Node):
 
                 point_diff = abs(point_width - self.slalom_white_to_red_width)
                 # skip current point pairs if distances are not around 1.5m
-                if (not point_diff <= self.slalom_width_tolerance):
+                if not (point_diff <= self.slalom_width_tolerance):
                     self.get_logger().info(
                         f"Invalid point pair: {point_diff} width diff of type {p1.kind} and {p2.kind} not within tolerance"
                     )
@@ -728,6 +728,11 @@ class SemanticMapManager(Node):
                     continue
 
                 row_line_unit_vec = (red.pose - white1.pose) / np.linalg.norm(red.pose - white1.pose)
+
+                if not np.isfinite(row_line_unit_vec).all():
+                    self.get_logger().warn(
+                        f"Invalid row line unit vector: {row_line_unit_vec}")
+                    continue
 
                 # Create a synthetic white2 position based on the red position and the row line unit vector
                 w2_pos = red.pose + (row_line_unit_vec *
@@ -982,6 +987,9 @@ class SemanticMapManager(Node):
         """Two proposals describe the same physical row if their line directions
         are parallel and their reds have ~zero perpendicular offset from each
         other's line -- regardless of how far apart they are along that line."""
+        if (p.red_pos == k.red_pos).all():
+            return True
+
         k_perp_unit = np.array([-k.line_unit_vec[1], k.line_unit_vec[0]])
         perp_offset = abs(np.dot(p.red_pos - k.red_pos, k_perp_unit))
         return perp_offset <= self.slalom_row_tolerance
