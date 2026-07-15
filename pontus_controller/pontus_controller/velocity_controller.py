@@ -36,10 +36,10 @@ class VelocityNode(Node):
             ('r_kp', 0.1),
             ('r_ki', 0.0),
             ('r_kd', 0.01),
-            ('p_kp', 3.0),
+            ('p_kp', 2.0),
             ('p_ki', 0.0),
             ('p_kd', 0.0),
-            ('yaw_kp', 2.0),
+            ('yaw_kp', 0.3),
             ('yaw_ki', 0.0),
             ('yaw_kd', 0.05),
             ('x_C', 0.82),
@@ -50,10 +50,10 @@ class VelocityNode(Node):
             ('yaw_C', 4.0),
             ('linear_drag_gain', 1.0),
             ('angular_drag_gain', 0.2),
-            ('buoyancy_feedforward_gain', 1.00),
+            ('buoyancy_feedforward_gain', 1.19),
             ('direct_mode_linear_gain', 12.0),
             ('direct_mode_angular_gain', 0.35),
-            ('pitch_drag_ff_gain', 2.0)
+            ('pitch_drag_ff_gain', 1.0)
         )
 
         self.add_on_set_parameters_callback(self.param_callback)

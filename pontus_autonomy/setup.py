@@ -26,9 +26,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'prequal_run = pontus_autonomy.prequalification_run_localization:main',
             'prequal_run_sim = pontus_autonomy.prequal_run_sim:main',
-            'semi_run = pontus_autonomy.semi_run_localization:main',
             'search_region_test = pontus_autonomy.helpers.SearchRegionClient:main',
             'waypointing_run = pontus_autonomy.waypoint_run:main',
             'semantic_map_seeder = pontus_autonomy.helpers.semantic_map_seeder:main',
@@ -38,6 +36,7 @@ setup(
             'path_planning_test = pontus_autonomy.path_planning_test_run:main',
             'octagon_surface_test = pontus_autonomy.octagon_surface_test_run:main',
             'full_nav_run = pontus_autonomy.full_nav_run:main',
+            'semifinal_run = pontus_autonomy.semifinal_run:main',
         ],
     },
 )
