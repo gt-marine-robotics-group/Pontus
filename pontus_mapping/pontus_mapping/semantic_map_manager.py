@@ -1091,9 +1091,16 @@ class SemanticMapManager(Node):
                 )
                 continue
 
-            # nearest_n = round(perp_dist / self.slalom_row_width)
+            nearest_n = round(perp_dist / self.slalom_row_width)
 
-            spacing_err = abs(perp_dist - self.slalom_row_width)
+            if nearest_n < 0 or nearest_n > 2:
+                self.get_logger().info(
+                    f"Deleting row because of invalid nearest_n={nearest_n} for perp_dist={perp_dist:.2f} and row_width={self.slalom_row_width:.2f}"
+                )
+                p.reject_reason = "SPACING_N"
+                continue
+
+            spacing_err = abs(perp_dist - nearest_n * self.slalom_row_width)
 
             # perpendicular spacing must be ~0 (same row) or a multiple of row width (adjacent rows)
             spacing_ok = spacing_err <= self.slalom_row_tolerance
