@@ -38,10 +38,10 @@ class BaseRun(Node):
         self.map_client = MapClient(self)
 
         self.current_task = None
+        self.running = False
 
         # Allows the autonomy switch callback to externally trigger the run
-        self.run_trigger = self.create_timer(0.01, self.start_run)
-        self.run_trigger.cancel()
+        self.run_trigger = self.create_timer(0.1, self.start_run)
 
         if self.handle_autonomy_switch:
             self.autonomy_switch_sub = self.create_subscription(
@@ -70,11 +70,18 @@ class BaseRun(Node):
         """
         self.get_logger().info(f"RUNNING TASK: {task.name}")
         self.current_task = task
+        future = self.current_task.wait_for_task()
 
-        rclpy.spin_until_future_complete(
-            self.current_task,
-            self.current_task.wait_for_task()
-        )
+        while not future.done():
+            if not self.running:
+                has_waypoints = hasattr(self.current_task, "waypoints")
+                self.cleanup_task()
+                if has_waypoints:
+                    return None, None
+                return None
+
+            rclpy.spin_once(self.current_task)
+
         result = self.current_task.task_future.result()
 
         waypoints = None
@@ -103,6 +110,10 @@ class BaseRun(Node):
             time.sleep(0.02)
 
     def start_run(self):
+        # if shouldn't be running or we are already running tasks
+        if not self.running or self.current_task != None:
+            return
+
         if self.handle_resetting_all_nodes:
             self.get_logger().info("Resetting system nodes")
             self.reset_all()
@@ -121,7 +132,7 @@ class BaseRun(Node):
     def stop_run(self):
         self.get_logger().info("Stopping Run, setting Software Estop")
 
-        self.run_trigger.cancel()
+        self.running = False
         self.cleanup_task()
 
         if self.handle_command_mode:
@@ -148,7 +159,7 @@ class BaseRun(Node):
                     print(f"\r\033[K\033[32mSafety Delay Complete\033[0m", flush=True)
 
                 self.get_logger().info("Running:")
-                self.run_trigger.reset()
+                self.running = True
             else:
                 self.get_logger().info("Autonomy switch Disabled:")
                 self.stop_run()

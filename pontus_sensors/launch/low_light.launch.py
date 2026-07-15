@@ -14,8 +14,8 @@ def generate_launch_description():
     camera_names = [
         "left",
         "right",
-        "facing_down",
-        "tilted_down"
+        # "facing_down",
+        # "tilted_down"
     ]
 
     for name in camera_names:
