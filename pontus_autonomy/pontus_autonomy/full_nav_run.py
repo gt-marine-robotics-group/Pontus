@@ -48,7 +48,7 @@ class FullNavRun(BaseRun):
             raise RuntimeError("Submerge task failed")
 
         # Scan Task
-        self.get_logger().info("Starting Scan")
+        self.get_logger().info("Starting Scan Gate")
 
         scan_task = ScanTask(
             args=[math.radians(-45), math.radians(45), SearchConditions.GATE])
@@ -76,6 +76,15 @@ class FullNavRun(BaseRun):
             outbound_waypoints.extend(
                 waypoint.copy() for waypoint in gate_waypoints
             )
+
+            
+        # Scan Task
+        self.get_logger().info("Starting Scan Gate")
+
+        scan_task = ScanTask(
+            args=[math.radians(-45), math.radians(45), SearchConditions.SLALOM])
+        result, _ = self.run_task(scan_task)
+        self.get_logger().info(f"Scan Task: {result}")
 
         # Slalom Task
         self.get_logger().info("Starting Slaloms")
