@@ -1048,7 +1048,9 @@ class SemanticMapManager(Node):
 
         # Strip the locked-row placeholders back out before returning --
         # they exist purely to block duplicate re-detections, not to be re-promoted.
-        return [p for p in kept if p not in locked_placeholders]
+        locked_ids = {id(p) for p in locked_placeholders}
+
+        return [p for p in kept if id(p) not in locked_ids]
 
     def _row_line_from_semantic(self, row: SemanticMetaSlalomRow) -> tuple[np.ndarray, np.ndarray]:
         red_pos = self._pose_to_vec2(row.slalom_red.pose.pose)
