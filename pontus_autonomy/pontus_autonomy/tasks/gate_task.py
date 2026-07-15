@@ -47,6 +47,8 @@ class GateTask(BaseTask):
             ]
         )
 
+        self.depth_m = 0.5
+
         self.height_from_bottom_m: float = float(
             self.get_parameter('height_from_bottom').value)
         self.gate_side: GateSide = GateSide(
@@ -135,8 +137,10 @@ class GateTask(BaseTask):
 
             if path is not None:
                 self.waypoints_are_created = True
-                self.path = path
                 self.execute_path = True
+
+                self.path = [waypoint.copy() for waypoint in path]
+                self.waypoints = [waypoint.copy() for waypoint in path]
 
     def generate_waypoints(self, gate_pair: GatePair) -> list[np.ndarray]:
         """
@@ -225,7 +229,7 @@ class GateTask(BaseTask):
 
         cmd_pose.position.x = target_pos_xy[0]
         cmd_pose.position.y = target_pos_xy[1]
-        cmd_pose.position.z = -self.pool_depth + self.height_from_bottom_m
+        cmd_pose.position.z = -self.depth_m
 
         self.curr_waypoint = cmd_pose
 
