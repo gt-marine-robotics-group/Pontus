@@ -31,6 +31,7 @@ from std_msgs.msg import Header, String, ColorRGBA
 from geometry_msgs.msg import Pose, PoseWithCovariance, Point, Quaternion, PoseStamped
 from visualization_msgs.msg import Marker, MarkerArray
 from sensor_msgs.msg import PointCloud2
+from std_srvs.srv import Empty
 
 from pontus_msgs.msg import SemanticObject, SemanticMap, SemanticMetaGate, SemanticMetaSlalomRow, SemanticMetaSlalom
 from pontus_msgs.srv import AddSemanticObject, AddMetaGate
@@ -351,6 +352,12 @@ class SemanticMapManager(Node):
             self.add_semantic_object_callback,
         )
 
+        self.reset_semantic_map_srv = self.create_service(
+            Empty,
+            '/pontus/reset_semantic_map',
+            self.reset_semantic_map_callback,
+        )
+
         # Publishers
         self.semantic_map_pub = self.create_publisher(
             SemanticMap,
@@ -495,6 +502,10 @@ class SemanticMapManager(Node):
         self.semantic_map_pub.publish(msg)
 
         self._update_meta_slalom()
+
+    def reset_semantic_map_callback(self, request, response) -> None:
+        self.semantic_map = SemanticMapDC()
+        return response
 
     def publish_semantic_map_visual(self) -> None:
         marker_array = MarkerArray()
