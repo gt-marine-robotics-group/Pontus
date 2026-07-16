@@ -309,7 +309,7 @@ class SemanticMapManager(Node):
                 ("slalom_row_tolerance", 0.7),
                 ("slalom_dup_tolerance", 0.7),
                 # max deviation along row direction between rows
-                ("slalom_row_deviation", 1.5),
+                ("slalom_row_deviation", 1.2),
                 # max deviation along row direction between rows
                 ("slalom_row_deviation_deg", 20.0),
                 ("gate_exclusion_radius_m", 0.8),
@@ -1043,12 +1043,8 @@ class SemanticMapManager(Node):
                 derived=False,
             )
             locked_placeholders.append(placeholder)
-<<<<<<< HEAD
         
         kept.extend(locked_placeholders)
-=======
-            kept.append(placeholder)
->>>>>>> 84185ead72af183fe0e442564a28c690f03903ce
 
         for p in proposals:
             is_dup = False
@@ -1064,13 +1060,9 @@ class SemanticMapManager(Node):
 
         # Strip the locked-row placeholders back out before returning --
         # they exist purely to block duplicate re-detections, not to be re-promoted.
-<<<<<<< HEAD
         locked_ids = {id(p) for p in locked_placeholders}
 
         return [p for p in kept if id(p) not in locked_ids]
-=======
-        return [p for p in kept if p not in locked_placeholders]
->>>>>>> 84185ead72af183fe0e442564a28c690f03903ce
 
     def _row_line_from_semantic(self, row: SemanticMetaSlalomRow) -> tuple[np.ndarray, np.ndarray]:
         red_pos = self._pose_to_vec2(row.slalom_red.pose.pose)
