@@ -26,12 +26,13 @@ class FullNavRun(BaseRun):
 
     def __init__(self):
         super().__init__("full_nav_run", 
-                            handle_autonomy_switch = False,
+                            handle_autonomy_switch = True,
                             handle_resetting_all_nodes = True,
                             handle_command_mode = True,
-                            start_run_wait_time_s = 2
+                            start_run_wait_time_s = 5
                          )
-        self.run_function()
+        # self.run_function()
+        pass
 
     def run_function(self):
         # ------- Run Parameters ----------

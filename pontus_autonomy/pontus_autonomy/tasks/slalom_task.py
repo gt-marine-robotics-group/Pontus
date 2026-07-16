@@ -16,7 +16,9 @@ from rclpy.time import Time
 
 from pontus_autonomy.tasks.base_task import BaseTask
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
+from pontus_autonomy.helpers.search_helper import SearchHelper, SearchConditions
 from pontus_msgs.msg import SemanticObject, SemanticMap, SemanticMetaGate, SemanticMetaSlalomRow, SemanticMetaSlalom
+
 import tf_transformations
 
 
@@ -121,6 +123,9 @@ class SlalomTask(BaseTask):
 
         self.num_waypoints_passed = 0
 
+        self.searcher = None
+        self.searching = False
+
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
@@ -189,6 +194,11 @@ class SlalomTask(BaseTask):
                     pole_right=pole_right
                 )
             )
+
+        
+        if self.searcher and len(self.detected_slalom_rows) > self.rows_passed:
+            self.searcher.stop_searching()
+            self.searcher = None
 
         # Generate new waypoints only when we don't currently have a path to execute
         if self.latest_odom is not None and not self.path and not self.execute_path:
@@ -263,6 +273,10 @@ class SlalomTask(BaseTask):
                 self.get_logger().info(
                     f"incremented num_rows: {self.rows_passed}")
                 self.turned_once = False  # reset per-row behavior
+
+                if len(self.detected_slalom_rows) <= self.rows_passed:
+                    self.searcher = SearchHelper(self, terminating_condition=SearchConditions.SLALOM, num_slalom_rows_required=self.rows_passed+1)
+                    self.searcher.start_searching()
 
             if not self.path:
                 if self.rows_passed >= 3:

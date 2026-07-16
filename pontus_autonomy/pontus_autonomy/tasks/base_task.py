@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.task import Future
 import time
 
 class BaseTask(Node):
@@ -14,7 +15,7 @@ class BaseTask(Node):
         self.waypoints = []
         self.task_future = rclpy.task.Future()
 
-    def wait_for_task(self) -> None:
+    def wait_for_task(self) -> Future:
         """
         Return task future.
 
