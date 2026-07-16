@@ -633,7 +633,7 @@ class SemanticMapManager(Node):
             return
 
         # If all 3 slalom rows are already fully formed (2 white + 1 red), keep them locked.
-        existing_rows = self.semantic_map.semantic_map.meta_slalom.meta_slalom_rows
+        existing_rows: list[SemanticMetaSlalomRow] = self.semantic_map.semantic_map.meta_slalom.meta_slalom_rows
         rows_fully_formed = all(
             len(row.slaloms_white) == 2
             and row.slalom_red.object_type == SemanticObject.SLALOM_RED
@@ -675,7 +675,7 @@ class SemanticMapManager(Node):
         self.get_logger().info(
             f"Total slalom candidates (including sonar tracks): {len(all_candidates)}")
 
-        locked_rows = self.semantic_map.semantic_map.meta_slalom.meta_slalom_rows
+        locked_rows: list[SemanticMetaSlalomRow] = list(self.semantic_map.semantic_map.meta_slalom.meta_slalom_rows)
         ref_pos: Optional[np.ndarray] = None
         ref_line: Optional[np.ndarray] = None
         perp_unit: Optional[np.ndarray] = None
@@ -799,7 +799,7 @@ class SemanticMapManager(Node):
         if gate_norm > 1e-6 and np.isfinite(gate_norm):
             gate_line_unit = gate_vec / gate_norm
 
-        proposals = self._dedupe_row_proposals(proposals)
+        proposals = self._dedupe_row_proposals(proposals, locked_rows)
         proposals = self._validate_row_proposals(
             proposals, ref_pos, ref_line, perp_unit, gate_line_unit)
 
@@ -857,10 +857,22 @@ class SemanticMapManager(Node):
         if (not slalom_rows):
             return
 
-        if (len(slalom_rows) > 3):
+        
+        for row in locked_rows:
+            red: SemanticObject = row.slalom_red
+            whites: List[SemanticObject] = [row.slaloms_white[0], row.slaloms_white[1]]
+
+            red_to_gate_dist = np.linalg.norm(
+                np.array([red.pose.pose.position.x, red.pose.pose.position.y]) - left_gate
+            )
+
+            slalom_rows.append((red_to_gate_dist, whites, red))
+
+        # There are only 3 slalom rows in the field
+        if len(slalom_rows) > 3:
             self.get_logger().error("PANIC: Detecting more than 3 slalom rows")
             return
-
+        
         # order slaloms by distance to the gate
         slalom_rows = sorted(slalom_rows, key=lambda obj: obj[0])
 
@@ -1010,15 +1022,29 @@ class SemanticMapManager(Node):
         """Two proposals describe the same physical row if their line directions
         are parallel and their reds have ~zero perpendicular offset from each
         other's line -- regardless of how far apart they are along that line."""
-        if (p.red_pos == k.red_pos).all():
+        diff = np.linalg.norm(p.red_pos - k.red_pos)
+        if diff < self.slalom_row_tolerance:  # Using a small epsilon for floating-point comparison
             return True
 
         k_perp_unit = np.array([-k.line_unit_vec[1], k.line_unit_vec[0]])
         perp_offset = abs(np.dot(p.red_pos - k.red_pos, k_perp_unit))
         return perp_offset <= self.slalom_row_tolerance
 
-    def _dedupe_row_proposals(self, proposals: List[SlalomRowProposal]) -> List[SlalomRowProposal]:
+    def _dedupe_row_proposals(self, proposals: List[SlalomRowProposal], locked_rows: List[SemanticMetaSlalomRow]) -> List[SlalomRowProposal]:
         kept: List[SlalomRowProposal] = []
+        locked_placeholders: List[SlalomRowProposal] = []
+        for row in locked_rows:
+            red_pos, line_unit = self._row_line_from_semantic(row)
+            placeholder = SlalomRowProposal(
+                red_pos=red_pos,
+                line_unit_vec=line_unit,
+                white1=None, red=None, white2=None,   # not used for comparison
+                score=float('inf'),                    # locked rows always win over new proposals
+                derived=False,
+            )
+            locked_placeholders.append(placeholder)
+        
+        kept.extend(locked_placeholders)
 
         for p in proposals:
             is_dup = False
@@ -1032,7 +1058,11 @@ class SemanticMapManager(Node):
             if not is_dup:
                 kept.append(p)
 
-        return kept
+        # Strip the locked-row placeholders back out before returning --
+        # they exist purely to block duplicate re-detections, not to be re-promoted.
+        locked_ids = {id(p) for p in locked_placeholders}
+
+        return [p for p in kept if id(p) not in locked_ids]
 
     def _row_line_from_semantic(self, row: SemanticMetaSlalomRow) -> tuple[np.ndarray, np.ndarray]:
         red_pos = self._pose_to_vec2(row.slalom_red.pose.pose)
@@ -1102,9 +1132,16 @@ class SemanticMapManager(Node):
                 )
                 continue
 
-            # nearest_n = round(perp_dist / self.slalom_row_width)
+            nearest_n = round(perp_dist / self.slalom_row_width)
 
-            spacing_err = abs(perp_dist - self.slalom_row_width)
+            if nearest_n < 0 or nearest_n > 2:
+                self.get_logger().info(
+                    f"Deleting row because of invalid nearest_n={nearest_n} for perp_dist={perp_dist:.2f} and row_width={self.slalom_row_width:.2f}"
+                )
+                p.reject_reason = "SPACING_N"
+                continue
+
+            spacing_err = abs(perp_dist - nearest_n * self.slalom_row_width)
 
             # perpendicular spacing must be ~0 (same row) or a multiple of row width (adjacent rows)
             spacing_ok = spacing_err <= self.slalom_row_tolerance
