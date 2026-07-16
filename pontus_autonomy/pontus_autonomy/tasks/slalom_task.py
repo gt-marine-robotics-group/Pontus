@@ -35,7 +35,7 @@ class SlalomRow:
 
 
 class SlalomTask(BaseTask):
-    def __init__(self):
+    def __init__(self, timeout = 300):
         super().__init__("slalom_task")
 
         # TODO: Functionality to perform slalom from reverse side.
@@ -102,6 +102,8 @@ class SlalomTask(BaseTask):
             self.follow_path,
             self.service_callback_group
         )
+
+        self.create_timer(timeout, self.timeout)
 
         self.path = []
 
@@ -423,3 +425,6 @@ class SlalomTask(BaseTask):
             self.get_logger().warn(f"exception: {e}")
             '''
             return pose_stamped.pose
+
+    def timeout(self):
+        self.complete(False)

@@ -29,7 +29,7 @@ class GatePair:
 
 class GateTask(BaseTask):
 
-    def __init__(self, slalom_look_point = [1.75, 2.0], waypoint_dist_from_gate = 0.6, slalom_look_dist = 0.6):
+    def __init__(self, timeout = None, slalom_look_point = [1.75, 2.0], waypoint_dist_from_gate = 0.6, slalom_look_dist = 0.6):
         super().__init__("prequal_gate_task")
 
         self.service_callback_group = MutuallyExclusiveCallbackGroup()
@@ -101,6 +101,9 @@ class GateTask(BaseTask):
             self.follow_path,
             self.service_callback_group
         )
+
+        if timeout is not None:
+            self.create_timer(timeout, self.timeout)
 
     def odom_callback(self, msg: Odometry) -> None:
         """
@@ -289,3 +292,6 @@ class GateTask(BaseTask):
             msg.position.y],
             dtype=float
         )
+
+    def timeout(self):
+        self.complete(False)

@@ -8,6 +8,8 @@ from nav_msgs.msg import Odometry, Path
 from pontus_autonomy.tasks.base_task import BaseTask
 from pontus_autonomy.helpers.GoToPoseClient import GoToPoseClient, PoseObj
 
+from pontus_autonomy.helpers.StyleHelper import StyleHelper
+
 
 class ReturnHomeReplayTask(BaseTask):
 
@@ -17,7 +19,6 @@ class ReturnHomeReplayTask(BaseTask):
         self.service_callback_group = MutuallyExclusiveCallbackGroup()
 
         # ------ Parameters ------
-
 
         self.follow_path_period = 0.25
 
@@ -54,6 +55,8 @@ class ReturnHomeReplayTask(BaseTask):
         )
 
         self.goal_pose = None
+
+        self.style_helper = StyleHelper(self)
 
     def set_path(self, path: list[np.ndarray]) -> None:
         """
@@ -97,11 +100,23 @@ class ReturnHomeReplayTask(BaseTask):
             return
 
         if self.curr_waypoint is None or self.go_to_pose_client.at_pose():
+
             if not self.path:
                 self.complete(True)
                 return
 
+            if len(self.path) == 2 and not self.style_helper.enabled:
+                self.style_helper.run_style()
+
+            if self.style_helper.enabled:
+                if self.style_helper.completed:
+                    self.style_helper.stop_style()
+                else:
+                    return
+
+
             target_pos_xy = self.path.pop(0)
+
 
             self.get_logger().info(f"Going to: {target_pos_xy}")
             self._send_waypoint_command(target_pos_xy)
