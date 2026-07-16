@@ -48,11 +48,40 @@ class PositionController(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
+        # Real Params
+        # param_list = (
+        #     ('default_command_mode', CommandMode.ESTOP),
+        #     ('x_vmax', 0.5), # m/s
+        #     ('y_vmax', 0.3), # m/s
+        #     ('yaw_vmax', 1.0), # radians/s
+        #     ('lookahead_distance', 1.0), # m
+        #     ('x_kp', 0.8),
+        #     ('x_ki', 0.0),
+        #     ('x_kd', 0.0),
+        #     ('y_kp', 0.275),
+        #     ('y_ki', 0.0),
+        #     ('y_kd', 0.0),
+        #     ('z_kp', 0.5),
+        #     ('z_ki', 0.0),
+        #     ('z_kd', 0.0),
+        #     ('r_kp', 0.8),
+        #     ('r_ki', 0.0),
+        #     ('r_kd', 0.0),
+        #     ('p_kp', 3.0),
+        #     ('p_ki', 0.0),
+        #     ('p_kd', 0.4),
+        #     ('yaw_kp', 0.4),
+        #     ('yaw_ki', 0.0),
+        #     ('yaw_kd', 0.0),
+        # )
+
+
+        # Simulation Params
         param_list = (
             ('default_command_mode', CommandMode.ESTOP),
             ('x_vmax', 0.5), # m/s
-            ('y_vmax', 0.3), # m/s
-            ('yaw_vmax', 1.0), # radians/s
+            ('y_vmax', 0.2), # m/s
+            ('yaw_vmax', 0.20), # radians/s
             ('lookahead_distance', 1.0), # m
             ('x_kp', 0.8),
             ('x_ki', 0.0),
@@ -66,10 +95,10 @@ class PositionController(Node):
             ('r_kp', 0.8),
             ('r_ki', 0.0),
             ('r_kd', 0.0),
-            ('p_kp', 3.0),
+            ('p_kp', 5.0),
             ('p_ki', 0.0),
             ('p_kd', 0.4),
-            ('yaw_kp', 0.4),
+            ('yaw_kp', 0.5),
             ('yaw_ki', 0.0),
             ('yaw_kd', 0.0),
         )
@@ -151,7 +180,10 @@ class PositionController(Node):
         ]
 
         self.command_mode = self.default_command_mode
-        self.debug_command_mode_pub.publish(self.command_mode)
+
+        debug_msg = CommandMode()
+        debug_msg.command_mode = self.command_mode
+        self.debug_command_mode_pub.publish(debug_msg)
         if (self.command_mode != CommandMode.ESTOP):
             self.state = PositionControllerState.MaintainPosition
 
@@ -181,7 +213,9 @@ class PositionController(Node):
             return
 
         self.get_logger().info(f"Changing Command Mode: {CommandModeEnum(msg.command_mode).name}")
-        self.debug_command_mode_pub.publish(self.command_mode)
+        debug_msg = CommandMode()
+        debug_msg.command_mode = self.command_mode
+        self.debug_command_mode_pub.publish(debug_msg)
 
         self.command_mode = msg.command_mode
         self.skip_orientation = False

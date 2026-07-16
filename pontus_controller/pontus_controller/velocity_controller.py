@@ -22,6 +22,42 @@ class VelocityNode(Node):
 
         self.prev_time = self.get_clock().now()
 
+        # Real Params
+        # param_list = (
+        #     ('default_command_mode', CommandMode.ESTOP),
+        #     ('x_kp', 12.0),
+        #     ('x_ki', 0.0),
+        #     ('x_kd', 0.0),
+        #     ('y_kp', 10.0),
+        #     ('y_ki', 0.0),
+        #     ('y_kd', 0.0),
+        #     ('z_kp', 10.0),
+        #     ('z_ki', 0.0),
+        #     ('z_kd', 0.0),
+        #     ('r_kp', 0.1),
+        #     ('r_ki', 0.0),
+        #     ('r_kd', 0.01),
+        #     ('p_kp', 2.0),
+        #     ('p_ki', 0.0),
+        #     ('p_kd', 0.0),
+        #     ('yaw_kp', 0.3),
+        #     ('yaw_ki', 0.0),
+        #     ('yaw_kd', 0.05),
+        #     ('x_C', 0.82),
+        #     ('y_C', 1.2),
+        #     ('z_C', 1.2),
+        #     ('r_C', 0.0),
+        #     ('p_C', 0.0),
+        #     ('yaw_C', 4.0),
+        #     ('linear_drag_gain', 1.0),
+        #     ('angular_drag_gain', 0.2),
+        #     ('buoyancy_feedforward_gain', 1.19),
+        #     ('direct_mode_linear_gain', 12.0),
+        #     ('direct_mode_angular_gain', 0.35),
+        #     ('pitch_drag_ff_gain', 0.8)
+        # )
+
+        # Simulation Params
         param_list = (
             ('default_command_mode', CommandMode.ESTOP),
             ('x_kp', 12.0),
@@ -36,10 +72,10 @@ class VelocityNode(Node):
             ('r_kp', 0.1),
             ('r_ki', 0.0),
             ('r_kd', 0.01),
-            ('p_kp', 2.0),
+            ('p_kp', 3.0),
             ('p_ki', 0.0),
             ('p_kd', 0.0),
-            ('yaw_kp', 0.3),
+            ('yaw_kp', 2.0),
             ('yaw_ki', 0.0),
             ('yaw_kd', 0.05),
             ('x_C', 0.82),
@@ -50,11 +86,12 @@ class VelocityNode(Node):
             ('yaw_C', 4.0),
             ('linear_drag_gain', 1.0),
             ('angular_drag_gain', 0.2),
-            ('buoyancy_feedforward_gain', 1.19),
+            ('buoyancy_feedforward_gain', 1.00),
             ('direct_mode_linear_gain', 12.0),
             ('direct_mode_angular_gain', 0.35),
-            ('pitch_drag_ff_gain', 0.8)
+            ('pitch_drag_ff_gain', 2.0)
         )
+
 
         self.add_on_set_parameters_callback(self.param_callback)
         self.declare_parameters(namespace="", parameters=param_list)

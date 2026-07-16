@@ -29,7 +29,7 @@ class GatePair:
 
 class GateTask(BaseTask):
 
-    def __init__(self):
+    def __init__(self, slalom_look_point = [1.75, 2.0], waypoint_dist_from_gate = 0.6, slalom_look_dist = 0.6):
         super().__init__("prequal_gate_task")
 
         self.service_callback_group = MutuallyExclusiveCallbackGroup()
@@ -53,8 +53,11 @@ class GateTask(BaseTask):
             self.get_parameter('height_from_bottom').value)
         self.gate_side: GateSide = GateSide(
             self.get_parameter('gate_side').value)
-        self.waypoint_dist_from_gate_m: float = float(
-            self.get_parameter('waypoint_dist_from_gate').value)
+        # self.waypoint_dist_from_gate_m: float = float(
+        #     self.get_parameter('waypoint_dist_from_gate').value)
+
+        self.waypoint_dist_from_gate_m = waypoint_dist_from_gate
+
         self.follow_path_period: float = float(
             self.get_parameter('follow_path_period').value)
         self.pool_depth: float = float(self.get_parameter('pool_depth').value)
@@ -70,6 +73,9 @@ class GateTask(BaseTask):
         self.detected_gate_pair: GatePair = None
 
         self.latest_odom = None
+
+        self.slalom_looking_point =np.array(slalom_look_point)
+        self.slalom_look_dist = slalom_look_dist
 
         # ------ ROS Subscriptions ------
         self.semantic_map_sub = self.create_subscription(
@@ -195,6 +201,8 @@ class GateTask(BaseTask):
         else:
             output = [waypoint_2, waypoint_1]
 
+        output[1] += self.slalom_look_dist * perp_unit_vec
+
         self.get_logger().info(
             f"Waypoint 1: {output[0]}, Waypoint 2: {output[1]}")
 
@@ -219,9 +227,15 @@ class GateTask(BaseTask):
             target_pos_xy = self.path.pop(0)
 
             self.get_logger().info(f"Going to: {target_pos_xy}")
-            self._send_waypoint_command(target_pos_xy)
 
-    def _send_waypoint_command(self, target_pos_xy: np.ndarray) -> None:
+            if len(self.path) == 0:
+                self._send_waypoint_command(target_pos_xy, looking_point=self.slalom_looking_point)
+            else:
+                self._send_waypoint_command(target_pos_xy)
+
+
+
+    def _send_waypoint_command(self, target_pos_xy: np.ndarray, looking_point=None) -> None:
         """
         Convert a np.ndarray 2D vector to a command pose and send to pos_controller
         """
@@ -231,10 +245,35 @@ class GateTask(BaseTask):
         cmd_pose.position.y = target_pos_xy[1]
         cmd_pose.position.z = -self.depth_m
 
+        contrrol_orientation = False
+
+        if looking_point is not None and self.detected_gate_pair:
+            g1: np.ndarray = self._pose_to_nparray(self.detected_gate_pair.left_gate.pose.pose)
+            g2: np.ndarray = self._pose_to_nparray(self.detected_gate_pair.right_gate.pose.pose)
+            midpoint = (g1 + g2) / 2.0
+
+            looking__point_map = midpoint + looking_point
+            
+            look_vec = (looking__point_map - target_pos_xy) 
+
+            # yaw = np.arctan2(look_vec[0], look_vec[1])
+            yaw = np.pi / 3
+
+            cmd_pose.orientation.x = 0.0
+            cmd_pose.orientation.y = 0.0
+            cmd_pose.orientation.z = np.sin(yaw / 2.0)
+            cmd_pose.orientation.w = np.cos(yaw / 2.0)
+
+            contrrol_orientation = True
+
         self.curr_waypoint = cmd_pose
 
-        self.go_to_pose_client.go_to_pose(PoseObj(cmd_pose=cmd_pose,
-                                                  skip_orientation=True))
+        if contrrol_orientation:
+            self.go_to_pose_client.go_to_pose(PoseObj(cmd_pose=cmd_pose,
+                                                    skip_orientation=False))
+        else:
+            self.go_to_pose_client.go_to_pose(PoseObj(cmd_pose=cmd_pose,
+                                                    skip_orientation=True))
 
     def _pose_to_nparray(self, msg: Pose) -> np.ndarray:
         """
